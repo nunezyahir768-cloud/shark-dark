@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHARK DARK | Entrada</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1a0638">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 25px;
+    font-family: Arial, sans-serif;
+    color: white;
+    background:
+        radial-gradient(circle at 15% 20%, #45d5ff40, transparent 25%),
+        radial-gradient(circle at 85% 75%, #8937ff55, transparent 30%),
+        linear-gradient(135deg, #1a0638, #32105f 48%, #071a3d);
+}
+
+.contenedor {
+    width: min(1050px, 100%);
+    min-height: 600px;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    overflow: hidden;
+    background: #0d0523ed;
+    border: 1px solid #ffffff20;
+    border-radius: 28px;
+    box-shadow: 0 25px 70px #0008;
+}
+
+.visual {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 45px;
+    background:
+        radial-gradient(circle at 20% 25%, #34caffaa, transparent 30%),
+        radial-gradient(circle at 78% 70%, #ac51ff88, transparent 30%),
+        linear-gradient(145deg, #071d42, #24104d 55%, #0b092b);
+}
+
+.visual::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: .65;
+    background-image:
+        radial-gradient(circle, white 1px, transparent 1.5px);
+    background-size: 45px 45px;
+}
+
+.planeta {
+    position: absolute;
+    width: 360px;
+    height: 360px;
+    border-radius: 50%;
+    top: -105px;
+    left: -95px;
+    background: radial-gradient(circle at 35% 30%,
+        #8deaff, #238fc5 45%, #0d427a 72%, #071d42);
+    box-shadow: 0 0 60px #45d5ff55;
+}
+
+.visual > *:not(.planeta) {
+    position: relative;
+    z-index: 2;
+}
+
+.marca {
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.marca span, .mensaje h2 span {
+    color: #62d9ff;
+}
+
+.mensaje {
+    margin-top: auto;
+    margin-bottom: 25px;
+}
+
+.mensaje h2 {
+    font-size: clamp(35px, 4vw, 52px);
+    line-height: 1.08;
+    margin-bottom: 15px;
+}
+
+.mensaje p {
+    color: #d7d0e8;
+    line-height: 1.7;
+    font-size: 15px;
+}
+
+.formulario {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+
+.form-contenido {
+    width: 100%;
+    max-width: 430px;
+}
+
+.encabezado {
+    margin-bottom: 28px;
+}
+
+.encabezado h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.encabezado p {
+    color: #aaa2bf;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.opciones {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.boton {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px;
+    text-decoration: none;
+    color: white;
+    background: #240c54;
+    border: 1px solid #ffffff20;
+    border-radius: 13px;
+    transition: .25s;
+}
+
+.icono {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: #8b5cf630;
+    font-size: 24px;
+}
+
+.texto h2 {
+    font-size: 17px;
+    margin-bottom: 5px;
+}
+
+.texto p {
+    color: #aaa2bf;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.boton:hover, .boton:focus-visible {
+    outline: none;
+    transform: translateX(5px);
+    border-color: #62d9ff;
+    background: #35105f;
+    box-shadow: 0 0 0 2px #62d9ff20;
+}
+
+.pie {
+    margin-top: 25px;
+    color: #777083;
+    font-size: 11px;
+    text-align: center;
+}
+
+@media (max-width: 800px) {
+    body { padding: 12px; }
+    .contenedor { grid-template-columns: 1fr; }
+    .visual { min-height: 270px; padding: 30px; }
+    .planeta { width: 250px; height: 250px; }
+    .mensaje h2 { font-size: 36px; }
+    .formulario { padding: 30px 22px; }
+    .encabezado h1 { font-size: 30px; }
+}
+</style>
+</head>
+
+<body>
+<main class="contenedor">
+
+<section class="visual">
+    <div class="planeta"></div>
+
+    <div class="marca">🦈 <span>SHARK</span> DARK</div>
+
+    <div class="mensaje">
+        <h2>BIENVENIDO<br><span>a tu portal.</span></h2>
+        <p>Una plataforma para conectar a estudiantes,
+        docentes y tutores en un mismo espacio escolar.</p>
+    </div>
+</section>
+
+<section class="formulario">
+<div class="form-contenido">
+
+    <header class="encabezado">
+        <h1>INGRESAR</h1>
+        <p>Selecciona tu perfil para continuar.</p>
+    </header>
+
+    <nav class="opciones">
+
+        <a href="inicio_alumno.html" class="boton">
+            <div class="icono">🎓</div>
+            <div class="texto">
+                <h2>Alumno</h2>
+                <p>Accede a tu registro estudiantil.</p>
+            </div>
+        </a>
+
+        <a href="inicio_docente.html" class="boton">
+            <div class="icono">📚</div>
+            <div class="texto">
+                <h2>Docente</h2>
+                <p>Ingresa al apartado del profesor.</p>
+            </div>
+        </a>
+
+        <a href="inicio_tutor.html" class="boton">
+            <div class="icono">👥</div>
+            <div class="texto">
+                <h2>Tutor</h2>
+                <p>Ingresa al apartado del tutor.</p>
+            </div>
+        </a>
+
+    </nav>
+
+    <div class="pie">
+        SHARK DARK · Portal escolar
+    </div>
+
+</div>
+</section>
+
+</main>
+<script src="app.js"></script>
+
+</body>
+</html>

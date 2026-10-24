@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHARK DARK | Escanear QR</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1a0638"><link rel="icon" href="icon-192.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;padding:24px 16px 70px;font-family:Arial,Helvetica,sans-serif;color:#fff;background:radial-gradient(circle at 12% 12%,rgba(67,210,255,.16),transparent 27%),radial-gradient(circle at 88% 80%,rgba(143,53,245,.22),transparent 30%),linear-gradient(135deg,#08051b,#251047 52%,#07182e)}
+main{width:min(520px,100%);margin:auto}
+.brand{font-weight:900;letter-spacing:2px;font-size:20px;margin-bottom:20px}.brand span{color:#62d9ff}
+h1{font-size:28px;margin-bottom:6px}.sub{color:#c3b7da;font-size:14px;line-height:1.5;margin-bottom:20px}
+.card{padding:20px;border:1px solid rgba(255,255,255,.12);border-radius:17px;background:rgba(22,10,48,.92);margin-bottom:16px}
+.btn{display:block;width:100%;padding:14px;border:0;border-radius:11px;color:#fff;background:linear-gradient(90deg,#7024d9,#3bbce5);font-size:14px;font-weight:bold;cursor:pointer;margin-top:12px;text-align:center;text-decoration:none}
+input{width:100%;padding:14px 16px;border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff;background:#240c54;font-size:15px;letter-spacing:1px;text-transform:uppercase;outline:none}
+dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:14px}dt{color:#aaa2bf}dd{word-break:break-word}
+.back{display:inline-block;margin-top:8px;color:#d9caff;text-decoration:none;font-size:13px}
+.msg{color:#ffb454;font-size:13px;margin-top:10px;min-height:18px}.ok{color:#7dffb0}
+ul{list-style:none;font-size:14px}li{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;gap:8px}
+video{width:100%;border-radius:12px;background:#000;margin-top:12px;display:none}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
+</style></head><body><main>
+<div class="brand">🦈 <span>SHARK</span> DARK</div>
+
+<h1 id="tit">Escanear QR</h1>
+<p class="sub" id="sub">Apunta la cámara al QR del alumno o escribe su CURP.</p>
+<div class="card" id="buscar">
+  <button class="btn" id="cam">📷 ACTIVAR CÁMARA</button>
+  <video id="video" playsinline muted></video>
+  <div style="display:flex;gap:8px;margin-top:12px"><input id="curp" maxlength="18" placeholder="CURP (18 caracteres)"><button class="btn" id="ir" style="width:auto;margin:0;padding:0 18px">VER</button></div>
+  <p class="msg" id="msg"></p>
+</div>
+<div class="card" id="ficha" style="display:none">
+  <dl id="datos"></dl>
+  <button class="btn" id="asis">REGISTRAR ASISTENCIA DE HOY</button>
+  <p class="msg" id="msg2"></p>
+</div>
+<div class="card" id="hist" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Asistencias</h2><ul id="lista"></ul></div>
+<a class="back" id="volver" href="#">← Volver al menú</a>
+</main>
+<script src="app.js"></script>
+<script src="lib/jsQR.js" onerror="this.remove()"></script>
+<script>
+const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["docente","tutor"]), doc=s.rol==="docente";
+$("volver").href=doc?"menu_docentes.html":"menu_tutor.html";
+let actual=null, parar=null, ultimo="";
+
+async function mostrar(curp){
+  curp=curp.trim().toUpperCase(); $("curp").value=curp; $("msg").textContent="";
+  if(!/^[A-Z0-9]{18}$/.test(curp)){ $("msg").textContent="El QR no contiene una CURP válida."; return; }
+  const r=await SD.consultar(curp);
+  if(!r.alumno){ actual=null; $("ficha").style.display=$("hist").style.display="none";
+    $("msg").textContent=r.offline?"Sin conexión y ese alumno no está guardado en este dispositivo.":"Alumno no encontrado."; return; }
+  actual=r.alumno;
+  $("datos").innerHTML=[["Nombre",r.alumno.nombre],["CURP",r.alumno.curp],["Área",r.alumno.area],["Semestre",r.alumno.semestre],["Grupo",r.alumno.grupo],["Correo",r.alumno.correo],["Datos",r.origen==="nube"?"actualizados":"guardados en el dispositivo"]]
+    .map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||"—")}</dd>`).join("");
+  $("ficha").style.display=$("hist").style.display="block"; $("asis").style.display=doc?"block":"none"; $("msg2").textContent="";
+  $("lista").innerHTML=r.asistencias.length?r.asistencias.slice(0,30).map(a=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${a.pendiente?'<span class="tag">pendiente</span>':esc(a.docenteNombre||"")}</span></li>`).join(""):"<li>Sin asistencias registradas</li>";
+}
+$("ir").onclick=()=>mostrar($("curp").value);
+$("curp").addEventListener("keydown",e=>{if(e.key==="Enter")mostrar($("curp").value)});
+$("asis").onclick=async()=>{
+  const r=await SD.asistencia(actual.curp);
+  await mostrar(actual.curp);
+  $("msg2").className="msg ok";
+  $("msg2").textContent=r.duplicada?"Ya tenía asistencia hoy ("+r.asistencia.hora+").":"✔ Asistencia registrada"+(navigator.onLine?"":" (se sincroniza al volver internet)");
+};
+$("cam").onclick=async()=>{
+  if(parar){parar();parar=null;$("video").style.display="none";$("cam").textContent="📷 ACTIVAR CÁMARA";return;}
+  try{
+    $("video").style.display="block"; $("cam").textContent="DETENER CÁMARA";
+    parar=await SD.scan($("video"),t=>{t=t.trim().toUpperCase(); if(t!==ultimo){ultimo=t;mostrar(t);setTimeout(()=>ultimo="",3000);}},m=>$("msg").textContent=m);
+  }catch(e){ $("video").style.display="none"; $("cam").textContent="📷 ACTIVAR CÁMARA"; $("msg").textContent="No se pudo abrir la cámara (permiso o HTTPS)."; }
+};
+if(!doc){ $("tit").textContent="Ficha del alumno"; $("sub").textContent="Datos y asistencias de tu alumno."; $("buscar").style.display="none"; mostrar(s.curpAlumno||""); document.addEventListener("sd-sync",()=>mostrar(s.curpAlumno)); }
+else document.addEventListener("sd-sync",()=>actual&&mostrar(actual.curp));
+</script></body></html>

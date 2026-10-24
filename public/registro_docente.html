@@ -1,0 +1,288 @@
+html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHARK DARK | Registro docente</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1a0638">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 25px;
+    font-family: Arial, sans-serif;
+    color: white;
+    background:
+        radial-gradient(circle at 15% 20%, #45d5ff40, transparent 25%),
+        radial-gradient(circle at 85% 75%, #8937ff55, transparent 30%),
+        linear-gradient(135deg, #1a0638, #32105f 48%, #071a3d);
+}
+
+.contenedor {
+    width: min(1050px, 100%);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+    background: #0d0523ed;
+    border: 1px solid #ffffff20;
+    border-radius: 28px;
+    box-shadow: 0 25px 70px #0008;
+}
+
+.visual {
+    min-height: 650px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 45px;
+    background:
+        radial-gradient(circle at 20% 25%, #34caffaa, transparent 30%),
+        radial-gradient(circle at 78% 70%, #ac51ff88, transparent 30%),
+        linear-gradient(145deg, #071d42, #24104d 55%, #0b092b);
+}
+
+.visual::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: .6;
+    background-image: radial-gradient(circle, white 1px, transparent 1.5px);
+    background-size: 45px 45px;
+}
+
+.planeta {
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    border-radius: 50%;
+    top: -100px;
+    left: -100px;
+    background: radial-gradient(circle at 35% 30%,
+        #8deaff, #238fc5 45%, #0d427a 72%, #071d42);
+    box-shadow: 0 0 60px #45d5ff55;
+}
+
+.visual > *:not(.planeta) {
+    position: relative;
+    z-index: 2;
+}
+
+.marca {
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.marca span, .mensaje h2 span {
+    color: #62d9ff;
+}
+
+.mensaje {
+    margin-top: auto;
+    margin-bottom: 25px;
+}
+
+.mensaje h2 {
+    font-size: clamp(32px, 4vw, 48px);
+    line-height: 1.1;
+    margin-bottom: 15px;
+}
+
+.mensaje p {
+    color: #d7d0e8;
+    line-height: 1.7;
+}
+
+.formulario {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 45px;
+}
+
+.form-contenido {
+    width: 100%;
+    max-width: 430px;
+}
+
+.encabezado {
+    margin-bottom: 25px;
+}
+
+.encabezado h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.encabezado p {
+    color: #aaa2bf;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+label {
+    display: block;
+    margin: 16px 0 7px;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+input {
+    width: 100%;
+    padding: 14px 15px;
+    border: 1px solid #ffffff20;
+    border-radius: 10px;
+    outline: none;
+    color: white;
+    background: #240c54;
+    font-size: 14px;
+    transition: .25s;
+}
+
+input::placeholder {
+    color: #a69bbd;
+}
+
+input:focus {
+    border-color: #62d9ff;
+    box-shadow: 0 0 0 3px #5fcfff20;
+}
+
+button {
+    width: 100%;
+    margin-top: 25px;
+    padding: 15px;
+    border: none;
+    border-radius: 11px;
+    color: white;
+    background: linear-gradient(90deg, #7024d9, #3bbce5);
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: .2s;
+}
+
+button:hover, button:focus-visible {
+    outline: none;
+    background: linear-gradient(90deg, #8b3dff, #62d9ff);
+    box-shadow: 0 0 0 3px #62d9ff40;
+}
+
+.pie {
+    margin-top: 20px;
+    text-align: center;
+    color: #aaa2bf;
+    font-size: 12px;
+}
+
+a {
+    color: #62d9ff;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 800px) {
+    body { padding: 12px; }
+    .contenedor { grid-template-columns: 1fr; }
+    .visual { min-height: 240px; padding: 28px; }
+    .planeta { width: 230px; height: 230px; }
+    .mensaje h2 { font-size: 34px; }
+    .formulario { padding: 32px 24px; }
+    .encabezado h1 { font-size: 30px; }
+}
+</style>
+</head>
+
+<body>
+<main class="contenedor">
+
+<section class="visual">
+    <div class="planeta"></div>
+
+    <div class="marca">🦈 <span>SHARK</span> DARK</div>
+
+    <div class="mensaje">
+        <h2>REGISTRO<br><span>docente.</span></h2>
+        <p>Accede a tu espacio de trabajo y gestión académica.</p>
+    </div>
+</section>
+
+<section class="formulario">
+<div class="form-contenido">
+
+    <header class="encabezado">
+        <h1>REGISTRO</h1>
+        <p>Ingresa tus datos como docente para continuar.</p>
+    </header>
+
+    <form id="form">
+
+        <label for="nombre">Nombre completo</label>
+        <input type="text" id="nombre" name="nombre"
+               placeholder="Escribe tu nombre completo"
+               autocomplete="name" required>
+
+        <label for="correo">Correo electrónico</label>
+        <input type="email" id="correo" name="correo"
+               placeholder="ejemplo@correo.com"
+               autocomplete="email" required>
+
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" name="password"
+               placeholder="Crea una contraseña"
+               autocomplete="new-password"
+               minlength="8" required>
+
+        <label for="rfc">RFC</label>
+        <input type="text" id="rfc" name="rfc"
+               placeholder="Ingresa tu RFC"
+               minlength="12" maxlength="13"
+               pattern="[A-Za-zÑñ&]{3,4}[0-9]{6}[A-Za-z0-9]{3}"
+               title="Ingresa un RFC válido de 12 o 13 caracteres"
+               autocapitalize="characters" required>
+
+        <button type="submit">REGISTRAR DOCENTE</button>
+<p id="msg" style="margin-top:14px;text-align:center;color:#ffb454;font-size:13px;min-height:18px"></p>
+
+    </form>
+
+    <div class="pie">
+        <a href="entrada.html">← Volver a la entrada</a>
+        <p style="margin-top:12px">SHARK DARK · Portal escolar</p>
+    </div>
+
+</div>
+</section>
+
+</main>
+<script src="app.js"></script>
+<script>
+const $=i=>document.getElementById(i), msg=$("msg");
+$("rfc").addEventListener("input",e=>e.target.value=e.target.value.toUpperCase());
+$("form").addEventListener("submit",async e=>{
+  e.preventDefault(); msg.textContent="Guardando…";
+  const d=Object.fromEntries(new FormData(e.target)); d.rfc=d.rfc.toUpperCase();
+  try{ await SD.register("docente",d); await SD.login("docente",d.rfc,d.password); location.href="menu_docentes.html"; }
+  catch(err){ msg.textContent=err.message; }
+});
+</script>
+</body>
+</html>

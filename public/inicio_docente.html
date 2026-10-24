@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SHARK DARK | Inicio de sesión docente</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1a0638">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh; display: flex; justify-content: center; align-items: center;
+      padding: 24px; font-family: Arial, Helvetica, sans-serif; color: #fff;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(69,213,255,.22), transparent 25%),
+        radial-gradient(circle at 85% 75%, rgba(137,55,255,.25), transparent 30%),
+        linear-gradient(135deg, #1a0638, #32105f 48%, #071a3d);
+    }
+    .contenedor {
+      width: min(1000px, 100%); min-height: 590px; display: grid;
+      grid-template-columns: 1.05fr 1fr; overflow: hidden;
+      background: rgba(13,5,35,.9); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 28px; box-shadow: 0 25px 70px rgba(0,0,0,.45);
+      backdrop-filter: blur(12px);
+    }
+    .visual {
+      position: relative; overflow: hidden; display: flex; flex-direction: column;
+      justify-content: space-between; padding: 45px;
+      background:
+        radial-gradient(circle at 20% 25%, rgba(52,202,255,.65) 0 10%, transparent 25%),
+        radial-gradient(circle at 78% 70%, rgba(172,81,255,.45) 0 8%, transparent 28%),
+        linear-gradient(145deg,#071d42,#24104d 55%,#0b092b);
+    }
+    .visual::before {
+      content:""; position:absolute; inset:0; opacity:.65;
+      background-image: radial-gradient(circle,#eee 1px,transparent 1.5px), radial-gradient(circle,rgba(223,223,224,.9) 1px,transparent 1.5px);
+      background-size:65px 65px,105px 105px; background-position:10px 15px,35px 45px;
+    }
+    .planeta {
+      position:absolute; width:350px; height:350px; border-radius:50%; top:-105px; left:-95px;
+      background:radial-gradient(circle at 35% 30%,#8deaff,#238fc5 45%,#0d427a 72%,#071d42);
+      box-shadow:0 0 60px rgba(69,213,255,.35); opacity:.9;
+    }
+    .visual > *:not(.planeta) { position:relative; z-index:2; }
+    .marca { font-size:20px; font-weight:bold; letter-spacing:2px; }
+    .marca span, .mensaje h2 span { color:#62d9ff; }
+    .mensaje { margin-top:auto; margin-bottom:25px; }
+    .mensaje h2 { font-size:clamp(32px,4vw,52px); line-height:1.05; margin-bottom:12px; }
+    .mensaje p { max-width:380px; color:#d7d0e8; line-height:1.6; font-size:15px; }
+    .formulario { display:flex; align-items:center; justify-content:center; padding:50px; }
+    .form-contenido { width:100%; max-width:430px; }
+    .encabezado { margin-bottom:27px; }
+    .encabezado h1 { font-size:38px; margin-bottom:9px; letter-spacing:-1px; }
+    .encabezado p { color:#aaa2bf; font-size:14px; line-height:1.5; }
+    label { display:block; margin:16px 0 7px; font-size:13px; font-weight:bold; color:#e9e3f2; }
+    input {
+      width:100%; padding:14px 16px; border:1px solid rgba(255,255,255,.12);
+      border-radius:10px; outline:none; color:white; background:#240c54;
+      font-size:14px; font-family:inherit; transition:.25s;
+    }
+    input::placeholder { color:#a69bbd; }
+    input:focus { border-color:#5fcfff; box-shadow:0 0 0 3px rgba(95,207,255,.1); }
+    button {
+      width:100%; margin-top:20px; padding:15px; border:0; border-radius:11px;
+      color:white; background:linear-gradient(90deg,#7024d9,#3bbce5);
+      font-size:14px; font-weight:bold; cursor:pointer;
+      box-shadow:0 8px 25px rgba(92,54,220,.3); transition:transform .2s,filter .2s;
+    }
+    button:hover { transform:translateY(-2px); filter:brightness(1.1); }
+    .secundario {
+      display:block; width:100%; margin-top:12px; padding:13px 10px;
+      border:1px solid rgba(98,217,255,.55); border-radius:11px;
+      color:#d7d0e8; text-align:center; text-decoration:none;
+      font-size:12px; font-weight:bold; transition:.2s;
+    }
+    .secundario:hover { color:#62d9ff; border-color:#62d9ff; background:rgba(98,217,255,.06); }
+    .nota { margin-top:20px; text-align:center; color:#aaa2bf; font-size:12px; line-height:1.5; }
+    @media(max-width:800px) {
+      body { padding:14px; }
+      .contenedor { grid-template-columns:1fr; min-height:auto; }
+      .visual { min-height:230px; padding:28px; }
+      .planeta { width:250px; height:250px; top:-90px; left:-80px; }
+      .mensaje h2 { font-size:34px; }
+      .formulario { padding:32px 24px 35px; }
+      .encabezado h1 { font-size:32px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="contenedor">
+    <section class="visual">
+      <div class="planeta"></div>
+      <div class="marca">🦈 <span>SHARK</span> DARK</div>
+      <div class="mensaje">
+        <h2>BIENVENIDO<br><span>docente.</span></h2>
+        <p>Ingresa a tu espacio docente para conectar, enseñar y crecer junto a SHARK DARK.</p>
+      </div>
+    </section>
+
+    <section class="formulario">
+      <div class="form-contenido">
+        <header class="encabezado">
+          <h1>INICIAR SESIÓN</h1>
+          <p>Ingresa tus datos para acceder a tu espacio docente</p>
+        </header>
+
+        <form id="formDocente">
+          <label for="nombre">Nombre completo</label>
+          <input id="nombre" name="nombre" type="text" placeholder="Escribe tu nombre completo" autocomplete="name" required>
+
+          <label for="correo">Correo electrónico</label>
+          <input id="correo" name="correo" type="email" placeholder="ejemplo@correo.com" autocomplete="email" required>
+
+          <label for="password">Contraseña</label>
+          <input id="password" name="password" type="password" placeholder="Escribe tu contraseña" autocomplete="current-password" required>
+
+          <label for="rfc">RFC</label>
+          <input id="rfc" name="rfc" type="text" placeholder="Ingresa tu RFC (12 o 13 caracteres)" minlength="12" maxlength="13" pattern="[A-Za-z0-9&]{12,13}" title="Introduce un RFC válido de 12 o 13 caracteres" autocapitalize="characters" required>
+
+          <button type="submit">ENTRAR A SHARK DARK</button>
+<p id="msg" style="margin-top:14px;text-align:center;color:#ffb454;font-size:13px;min-height:18px"></p>
+        </form>
+<button type="button" id="btnRegistro" style="width:100%;margin-top:12px;padding:14px;border-radius:11px;color:#fff;background:transparent;border:1px solid rgba(98,217,255,.55);font-weight:bold;cursor:pointer">REGISTRARSE</button>
+
+        <a class="secundario" href="entrada.html">← VOLVER A LA SELECCIÓN DE PERFILES</a>
+        <p class="nota">SHARK DARK · Sistema de acceso para docentes</p>
+      </div>
+    </section>
+  </main>
+
+  
+<script src="app.js"></script>
+<script>
+const $=i=>document.getElementById(i), msg=$("msg");
+$("rfc").addEventListener("input",e=>e.target.value=e.target.value.toUpperCase());
+$("formDocente").addEventListener("submit",async e=>{
+  e.preventDefault(); msg.textContent="Entrando…";
+  try{ await SD.login("docente",$("rfc").value,$("password").value); location.href="menu_docentes.html"; }
+  catch(err){ msg.textContent=err.message; }
+});
+$("btnRegistro").onclick=()=>location.href="registro_docente.html";
+</script>
+</body>
+</html>
