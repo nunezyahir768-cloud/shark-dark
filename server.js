@@ -25,6 +25,7 @@ app.get('/', (req, res) => res.redirect('/entrada.html'));
 const s = v => String(v ?? '').trim();
 const RX = { curp: /^[A-Z0-9]{18}$/, rfc: /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/ };
 const h = fn => (req, res) => fn(req, res).catch(e => { console.error(e); res.status(500).json({ error: 'Error del servidor' }); });
+const limpiaMat = v => s(v).replace(/\s+/g, ' ').slice(0, 60);
 const bad = (res, msg, code = 400) => res.status(code).json({ error: msg });
 
 const hashPw = (pw, salt = crypto.randomBytes(16).toString('hex')) =>
@@ -53,7 +54,7 @@ const auth = (req, res, next) => {
 };
 const publico = ({ salt, hash, _id, ...r }) => r;
 
-let usuarios, asistencias;
+let usuarios, asistencias, avisos;
 
 /* CURPs que cada rol puede ver: docente = todas, alumno = la suya, tutor = la de su alumno */
 async function permitidas(u) {
@@ -61,6 +62,16 @@ async function permitidas(u) {
     if (u.rol === 'alumno') return [u.id];
     const t = await usuarios.findOne({ _id: 'tutor:' + u.id });
     return t && t.curpAlumno ? [t.curpAlumno] : [];
+}
+
+/* Crea un aviso para cada tutor vinculado al alumno (idempotente) */
+async function avisar(alumno, tipo, hora, fecha, clave, materia) {
+    const tutores = await usuarios.find({ rol: 'tutor', curpAlumno: alumno.curp }).toArray();
+    for (const tu of tutores) {
+        const texto = tipo === 'falta' ? `${alumno.nombre} faltó a ${materia}` : `${alumno.nombre} asistió a ${materia} (${hora})`;
+        try { await avisos.insertOne({ _id: `${tipo}:${clave}:${tu.id}`, para: tu.id, curp: alumno.curp, tipo, materia, texto, fecha, hora, creado: new Date() }); }
+        catch (e) { if (e.code !== 11000) throw e; }
+    }
 }
 
 /* ---------- Registro y login ---------- */
@@ -115,13 +126,42 @@ app.get('/api/alumno/:curp', auth, h(async (req, res) => {
 app.post('/api/asistencias', auth, h(async (req, res) => {
     if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
     const a = req.body || {}, curp = s(a.curp).toUpperCase();
-    if (!RX.curp.test(curp) || !/^[\w-]{8,64}$/.test(s(a.uid)) || !/^\d{4}-\d{2}-\d{2}$/.test(s(a.fecha)) || !/^\d{2}:\d{2}$/.test(s(a.hora)))
+    if (!RX.curp.test(curp) || !/^[\w-]{8,64}$/.test(s(a.uid)) || !/^\d{4}-\d{2}-\d{2}$/.test(s(a.fecha)) || !/^\d{2}:\d{2}$/.test(s(a.hora)) || !limpiaMat(a.materia))
         return bad(res, 'Datos de asistencia inválidos');
-    if (!await usuarios.findOne({ _id: 'alumno:' + curp })) return bad(res, 'Alumno no encontrado', 404);
+    const materia = limpiaMat(a.materia), key = materia.toLowerCase();
+    const alumno = await usuarios.findOne({ _id: 'alumno:' + curp });
+    if (!alumno) return bad(res, 'Alumno no encontrado', 404);
     try {
-        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: a.fecha, hora: a.hora, docente: req.u.id, docenteNombre: s(a.docenteNombre) });
+        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: a.fecha, hora: a.hora, estado: 'asistio', materia, materiaKey: key, docente: req.u.id, docenteNombre: s(a.docenteNombre) });
     } catch (e) { if (e.code === 11000) return bad(res, 'Ya registrada', 409); throw e; }
+    await asistencias.deleteOne({ _id: `F:${curp}:${a.fecha}:${key}` });   // si estaba marcada falta, ya no
+    await avisar(alumno, 'asistio', a.hora, a.fecha, s(a.uid), materia);
     res.status(201).json({ ok: true });
+}));
+
+/* Cierre de lista: quien no tenga asistencia ese día en ese grupo queda con falta y se avisa al tutor */
+app.post('/api/cierre', auth, h(async (req, res) => {
+    if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
+    const { area, semestre, grupo, fecha, hora } = req.body || {};
+    const materia = limpiaMat((req.body || {}).materia), key = materia.toLowerCase();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s(fecha)) || !/^\d{2}:\d{2}$/.test(s(hora)) || !area || !semestre || !grupo || !materia) return bad(res, 'Datos inválidos');
+    const alumnos = await usuarios.find({ rol: 'alumno', area: s(area), semestre: s(semestre), grupo: s(grupo) }).toArray();
+    const presentes = new Set((await asistencias.find({ fecha, estado: 'asistio', materiaKey: key }).toArray()).map(a => a.curp));
+    let faltas = 0;
+    for (const al of alumnos.filter(x => !presentes.has(x.curp))) {
+        try {
+            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}`, curp: al.curp, fecha, hora, estado: 'falta', materia, materiaKey: key, docente: req.u.id, docenteNombre: s(req.body.docenteNombre) });
+            faltas++;
+        } catch (e) { if (e.code !== 11000) throw e; }
+        await avisar(al, 'falta', hora, fecha, `${al.curp}:${fecha}:${key}`, materia);
+    }
+    res.json({ ok: true, faltas });
+}));
+
+app.get('/api/avisos', auth, h(async (req, res) => {
+    if (req.u.rol !== 'tutor') return res.json([]);
+    const lista = await avisos.find({ para: req.u.id }).sort({ creado: -1 }).limit(100).toArray();
+    res.json(lista.map(({ _id, para, ...r }) => ({ id: _id, ...r })));
 }));
 
 app.get('/api/asistencias', auth, h(async (req, res) => {
@@ -145,6 +185,7 @@ async function iniciarServidor() {
         await db.command({ ping: 1 });
         usuarios = db.collection('usuarios');
         asistencias = db.collection('asistencias');
+        avisos = db.collection('avisos');
         await asistencias.createIndex({ curp: 1, fecha: -1 });
 
         console.log('✅ Conexión exitosa a MongoDB Atlas');

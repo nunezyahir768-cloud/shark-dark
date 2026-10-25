@@ -2,13 +2,12 @@
 (() => {
   /* ---------- Base de datos local ---------- */
   const dbp = new Promise((ok, fail) => {
-    const r = indexedDB.open('sharkdark', 1);
+    const r = indexedDB.open('sharkdark', 2);
     r.onupgradeneeded = () => {
       const d = r.result;
-      d.createObjectStore('usuarios', { keyPath: '_id' });
-      d.createObjectStore('alumnos', { keyPath: 'curp' });
-      d.createObjectStore('asistencias', { keyPath: 'uid' });
-      d.createObjectStore('cola', { keyPath: 'qid', autoIncrement: true });
+      const mk = (n, o) => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, o); };
+      mk('usuarios', { keyPath: '_id' }); mk('alumnos', { keyPath: 'curp' }); mk('asistencias', { keyPath: 'uid' });
+      mk('cola', { keyPath: 'qid', autoIncrement: true }); mk('avisos', { keyPath: 'id' });
     };
     r.onsuccess = () => ok(r.result);
     r.onerror = () => fail(r.error);
@@ -79,6 +78,7 @@
       const salt = crypto.randomUUID();
       const u = { ...r.usuario, _id: rol + ':' + id, rol, id, salt, hash: await hash(password, salt), token: r.token };
       await put('usuarios', u);
+      await cambioDeUsuario(rol, id);
       setSes(u);
       sync();
       return u;
@@ -87,6 +87,7 @@
       const u = await get('usuarios', rol + ':' + id);
       if (!u || u.hash !== await hash(password, u.salt))
         throw new Error('Sin conexión: solo puedes entrar con una cuenta que ya usaste en este dispositivo');
+      await cambioDeUsuario(rol, id);
       setSes(u);
       return u;
     }
@@ -97,21 +98,43 @@
     if (!s || ![].concat(roles).includes(s.rol)) { location.replace('entrada.html'); throw new Error('sin sesión'); }
     return s;
   };
+  async function cambioDeUsuario(rol, id) {
+    const k = rol + ':' + id;
+    if (localStorage.getItem('sd_last') !== k) {
+      for (const [st, kp] of [['alumnos', 'curp'], ['asistencias', 'uid'], ['avisos', 'id']]) for (const x of await all(st)) await del(st, x[kp]);
+      localStorage.setItem('sd_last', k);
+    }
+  }
   const logout = () => { localStorage.removeItem('sd_ses'); location.href = 'entrada.html'; };
 
   /* ---------- Asistencias y consulta ---------- */
-  async function asistencia(curp) {
-    const s = ses(), n = new Date();
+  const mat = m => String(m || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+  async function asistencia(curp, clase) {
+    const s = ses(), n = new Date(), materia = mat(clase.materia), k = materia.toLowerCase();
     const fecha = n.toLocaleDateString('sv-SE');           // YYYY-MM-DD en hora local
     const hora = n.toTimeString().slice(0, 5);
-    const ya = (await all('asistencias')).find(a => a.curp === curp && a.fecha === fecha);
+    const ya = (await all('asistencias')).find(a => a.curp === curp && a.fecha === fecha && a.estado !== 'falta' && mat(a.materia).toLowerCase() === k);
     if (ya) return { duplicada: true, asistencia: ya };
-    const a = { uid: crypto.randomUUID(), curp, fecha, hora, docente: s.id, docenteNombre: s.nombre, pendiente: true };
+    await del('asistencias', `F:${curp}:${fecha}:${k}`);
+    const a = { uid: crypto.randomUUID(), curp, fecha, hora, estado: 'asistio', materia, docente: s.id, docenteNombre: s.nombre, pendiente: true };
     await put('asistencias', a);
     await put('cola', { tipo: 'asistencia', uid: a.uid, datos: a });
     refrescarBadge();
     sync();
     return { duplicada: false, asistencia: a };
+  }
+
+  /* Cierre de lista de una clase: quien no asistió a esa materia hoy queda con falta */
+  async function cierre(clase) {
+    const s = ses(), n = new Date(), fecha = n.toLocaleDateString('sv-SE'), hora = n.toTimeString().slice(0, 5);
+    const materia = mat(clase.materia), k = materia.toLowerCase();
+    if (navigator.onLine) { try { for (const x of await api('/api/alumnos')) await put('alumnos', x); } catch (e) {} }
+    const d = await datos(), presentes = new Set(d.asistencias.filter(a => a.fecha === fecha && a.estado !== 'falta' && mat(a.materia).toLowerCase() === k).map(a => a.curp));
+    const ausentes = d.alumnos.filter(x => x.area === clase.area && x.semestre === clase.semestre && x.grupo === clase.grupo && !presentes.has(x.curp));
+    for (const x of ausentes) await put('asistencias', { uid: `F:${x.curp}:${fecha}:${k}`, curp: x.curp, fecha, hora, estado: 'falta', materia, docente: s.id, docenteNombre: s.nombre, pendiente: true });
+    await put('cola', { tipo: 'cierre', datos: { area: clase.area, semestre: clase.semestre, grupo: clase.grupo, materia, fecha, hora, docenteNombre: s.nombre } });
+    refrescarBadge(); sync();
+    return ausentes.map(x => x.nombre);
   }
 
   async function consultar(curp) {
@@ -128,15 +151,18 @@
   }
 
   /* ---------- Sincronización ---------- */
-  let sincronizando = false;
+  let sincronizando = false, otraVez = false;
   async function sync() {
-    if (sincronizando || !navigator.onLine) return;
+    if (!navigator.onLine) return;
+    if (sincronizando) { otraVez = true; return; }
     sincronizando = true;
     try {
       for (const q of (await all('cola')).sort((a, b) => a.qid - b.qid)) {
         try {
           if (q.tipo === 'registro') {
             await api('/api/registro', { method: 'POST', body: { rol: q.rol, datos: q.datos } });
+          } else if (q.tipo === 'cierre') {
+            await api('/api/cierre', { method: 'POST', body: q.datos });
           } else if (q.tipo === 'asistencia') {
             await api('/api/asistencias', { method: 'POST', body: q.datos });
           }
@@ -150,21 +176,35 @@
           if (u) { u.pendiente = false; await put('usuarios', u); }
           const a = await get('alumnos', q.id);
           if (a) { a.pendiente = false; await put('alumnos', a); }
-        } else {
+        } else if (q.tipo === 'asistencia') {
           const a = await get('asistencias', q.uid);
           if (a) { a.pendiente = false; await put('asistencias', a); }
         }
       }
       const s = ses();
+      if (s && s.token && s.rol === 'tutor') {         // avisos nuevos -> notificación del teléfono
+        const antes = new Set((await all('avisos')).map(x => x.id));
+        for (const av of await api('/api/avisos')) {
+          await put('avisos', av);
+          if (antes.size && !antes.has(av.id)) notificar(av.texto);
+        }
+      }
       if (s && s.token) {                              // descarga lo que este rol puede ver
         for (const a of await api('/api/alumnos')) await put('alumnos', a);
         for (const a of await api('/api/asistencias')) await put('asistencias', { ...a, pendiente: false });
       }
     } catch (e) { console.warn('Sync:', e.message); }
     sincronizando = false;
+    if (otraVez) { otraVez = false; return sync(); }
     refrescarBadge();
     document.dispatchEvent(new Event('sd-sync'));
   }
+
+  function notificar(texto) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    navigator.serviceWorker.ready.then(r => r.showNotification('SHARK DARK', { body: texto, icon: 'icon-192.png', badge: 'icon-192.png' })).catch(() => {});
+  }
+  const permisoAvisos = () => 'Notification' in window ? Notification.requestPermission() : Promise.resolve('denied');
 
   /* ---------- Indicador de conexión ---------- */
   let badge;
@@ -281,6 +321,7 @@
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}"/></svg>`;
   }
 
+  const datos = async () => ({ alumnos: await all('alumnos'), asistencias: await all('asistencias'), avisos: await all('avisos') });
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  window.SD = { register, login, logout, require: require_, session: ses, asistencia, consultar, sync, scan, qr, esc };
+  window.SD = { register, login, logout, require: require_, session: ses, asistencia, consultar, sync, scan, qr, esc, datos, cierre, permisoAvisos };
 })();

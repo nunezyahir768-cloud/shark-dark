@@ -1,94 +1,44 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SHARK DARK | Menú de docentes</title>
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#1a0638">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHARK DARK | Docente</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#000000"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--cyan:#62d9ff;--purple:#8b35f5;--muted:#c3b7da}
-body{min-height:100vh;padding:28px 18px;font-family:Arial,Helvetica,sans-serif;color:#fff;
-background:radial-gradient(circle at 12% 12%,rgba(67,210,255,.16),transparent 27%),radial-gradient(circle at 88% 80%,rgba(143,53,245,.22),transparent 30%),linear-gradient(135deg,#08051b,#251047 52%,#07182e)}
-main{width:min(1000px,100%);margin:auto}
-header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:34px}
-.brand{font-weight:900;letter-spacing:2px;font-size:21px}.brand span{color:var(--cyan)}
-.tag{padding:9px 14px;border:1px solid rgba(98,217,255,.35);border-radius:999px;color:#d9caff;font-size:12px;letter-spacing:1px}
-.hero{text-align:center;margin:14px auto 30px}.mini{color:var(--cyan);font-size:12px;letter-spacing:3px;font-weight:bold}
-h1{font-size:clamp(30px,5vw,46px);margin:12px 0;letter-spacing:-1px}h1 span{color:var(--cyan)}
-.hero p{color:var(--muted);line-height:1.6;max-width:650px;margin:auto;font-size:15px}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.item{padding:20px;border:1px solid rgba(255,255,255,.12);border-radius:17px;background:rgba(22,10,48,.92);box-shadow:0 15px 35px rgba(0,0,0,.22)}
-.item h2{font-size:18px;margin-bottom:8px}.item p{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:16px}
-.icon{font-size:23px;margin-bottom:12px}
-.action{display:inline-block;text-decoration:none;color:white;font-weight:bold;font-size:12px;padding:11px 14px;border-radius:10px;background:linear-gradient(90deg,#7024d9,#28a9d8)}
-.back{display:inline-block;margin-top:25px;color:#d9caff;text-decoration:none;font-size:13px}.back:hover{color:var(--cyan)}
-footer{text-align:center;color:#9889b5;font-size:12px;margin-top:28px}
-@media(max-width:620px){.grid{grid-template-columns:1fr}.item{padding:18px}}
-</style>
-</head>
-<body>
-<main>
-  <header>
-    <div class="brand">🦈 <span>SHARK</span> DARK</div>
-    <div class="tag">PERFIL: DOCENTES</div>
-  </header>
-  <section class="hero">
-    <div class="mini">PLATAFORMA ESCOLAR</div>
-    <h1>Tu espacio <span>docente</span></h1>
-    <p>Organiza tus clases y consulta las herramientas para dar seguimiento a tus grupos.</p>
-  </section>
-  <section class="grid" aria-label="Opciones del perfil">
-      <article class="item">
-        <div class="icon" aria-hidden="true">📷</div>
-        <h2>Escanear QR</h2>
-        <p>Escanea el QR del alumno, consulta su ficha y registra asistencia.</p>
-        <a class="action" href="escanear.html">ABRIR SECCIÓN</a>
-      </article>
-      <article class="item">
-        <div class="icon" aria-hidden="true">📋</div>
-        <h2>Asistencias</h2>
-        <p>Consulta y administra las asistencias del grupo.</p>
-        <a class="action" href="asistencias_docente.html">ABRIR SECCIÓN</a>
-      </article>
-      <article class="item">
-        <div class="icon" aria-hidden="true">📚</div>
-        <h2>Materias</h2>
-        <p>Revisa las materias que tienes asignadas.</p>
-        <a class="action" href="materias_docente.html">ABRIR SECCIÓN</a>
-      </article>
-      <article class="item">
-        <div class="icon" aria-hidden="true">📝</div>
-        <h2>Permisos</h2>
-        <p>Consulta y gestiona solicitudes de permisos.</p>
-        <a class="action" href="permisos_docente.html">ABRIR SECCIÓN</a>
-      </article>
-      <article class="item">
-        <div class="icon" aria-hidden="true">📊</div>
-        <h2>Calificaciones</h2>
-        <p>Registra y consulta las calificaciones.</p>
-        <a class="action" href="calificaciones_docente.html">ABRIR SECCIÓN</a>
-      </article>
-      <article class="item">
-        <div class="icon" aria-hidden="true">🗓️</div>
-        <h2>Calendario</h2>
-        <p>Consulta fechas importantes y actividades escolares.</p>
-        <a class="action" href="calendario_docente.html">ABRIR SECCIÓN</a>
-      </article>
-      <article class="item">
-        <div class="icon" aria-hidden="true">⏰</div>
-        <h2>Horario</h2>
-        <p>Revisa tu horario de clases.</p>
-        <a class="action" href="horario_docente.html">ABRIR SECCIÓN</a>
-      </article>
-  </section>
-  <a class="back" href="#" onclick="SD.logout();return false">← Cerrar sesión</a>
-  <footer>SHARK DARK · Menú de docentes</footer>
+body{min-height:100vh;padding:18px 16px 80px;font-family:Arial,Helvetica,sans-serif;color:#fff;background:linear-gradient(160deg,#08051b,#251047 55%,#07182e)}
+main{width:min(480px,100%);margin:auto}
+header{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+header img{width:42px;height:42px;border-radius:10px}
+header b{flex:1;font-size:15px;letter-spacing:1px}header a{color:#d9caff;font-size:13px;text-decoration:none}
+h1{font-size:24px}.sub{color:#c3b7da;font-size:14px;margin:4px 0 16px}
+.card{padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(22,10,48,.92);margin-bottom:14px}
+.card h2{font-size:13px;color:#62d9ff;letter-spacing:1px;margin-bottom:12px}
+.num{font-size:40px;font-weight:bold}.num small{font-size:14px;color:#c3b7da;font-weight:normal}
+.btn{display:block;padding:15px;border-radius:12px;color:#fff;background:linear-gradient(90deg,#7024d9,#28a9d8);font-weight:bold;text-align:center;text-decoration:none;font-size:15px}
+ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.08)}li:last-child{border:0}li span:last-child{color:#c3b7da}
+.vacio{color:#c3b7da;font-size:14px}
+.pronto{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pronto span{padding:11px;border-radius:10px;background:rgba(255,255,255,.05);color:#8f84a8;font-size:13px;text-align:center}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
+</style></head><body><main>
+<header><img src="icon-192.png" alt=""><b>SHARK DARK</b><a href="#" onclick="SD.logout();return false">Salir</a></header>
+<h1>Hola, <span id="nombre"></span> 👋</h1>
+<p class="sub">Escanea el QR de un alumno para registrar su asistencia.</p>
+<a class="btn" href="escanear.html" style="font-size:18px;padding:22px;margin-bottom:14px">📷 ESCANEAR QR</a>
+<div class="card"><h2>REGISTRADAS HOY</h2><div class="num" id="total">0</div></div>
+<div class="card"><h2>ÚLTIMOS REGISTROS</h2><ul id="lista"></ul></div>
+<div class="card"><h2>PRÓXIMAMENTE</h2><div class="pronto"><span>📚 Materias</span><span>📊 Calificaciones</span><span>📝 Permisos</span><span>⏰ Horario</span></div></div>
 </main>
 <script src="app.js"></script>
-<script>SD.require("docente")</script>
-</body>
-</html>
+<script>
+const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require("docente");
+const hoy=new Date().toLocaleDateString("sv-SE"), mes=hoy.slice(0,7);
+const orden=(a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora);
+const fila=(a,txt)=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${a.pendiente?'<span class="tag">pendiente</span>':txt}</span></li>`;
+$("nombre").textContent=(s.nombre||"").split(" ")[0];
+async function pintar(){
+  const d=await SD.datos(), nom={}; d.alumnos.forEach(a=>nom[a.curp]=a.nombre);
+  const m=d.asistencias.filter(a=>a.docente===s.id&&a.estado!=="falta").sort(orden);
+  $("total").textContent=m.filter(a=>a.fecha===hoy).length;
+  $("lista").innerHTML=m.slice(0,6).map(a=>`<li><span>${esc(nom[a.curp]||a.curp)} <small style="color:#8f84a8">${esc(a.materia||"")}</small></span><span>${a.pendiente?'<span class="tag">pendiente</span>':esc(a.hora)}</span></li>`).join("")||'<li class="vacio">Aún no registras asistencias</li>';
+}
+pintar(); document.addEventListener("sd-sync",pintar);
+</script></body></html>

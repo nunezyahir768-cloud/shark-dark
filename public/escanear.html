@@ -17,23 +17,30 @@ dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:14px}dt{co
 ul{list-style:none;font-size:14px}li{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;gap:8px}
 video{width:100%;border-radius:12px;background:#000;margin-top:12px;display:none}
 .tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
+.banner{display:none;padding:20px;border-radius:16px;text-align:center;font-weight:bold;margin-bottom:14px}
+.banner b{display:block;font-size:26px;margin-bottom:4px}.banner.ok{background:#0f5132;border:2px solid #7dffb0}.banner.warn{background:#5c4300;border:2px solid #ffb454}.banner.err{background:#58151c;border:2px solid #ff6b78}
+select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#fff;background:#240c54;border:1px solid rgba(255,255,255,.12);font-size:14px}
 </style></head><body><main>
 <div class="brand">🦈 <span>SHARK</span> DARK</div>
 
 <h1 id="tit">Escanear QR</h1>
-<p class="sub" id="sub">Apunta la cámara al QR del alumno o escribe su CURP.</p>
+<p class="sub" id="sub">Al escanear, la asistencia se registra sola y verás si asistió.</p>
+<div class="banner" id="banner"></div>
+<div class="card" id="clase" style="display:none">
+  <h2 style="font-size:13px;color:#62d9ff;letter-spacing:1px;margin-bottom:8px">CLASE DE AHORA</h2>
+  <input id="mat" list="mats" placeholder="Materia (ej. Matemáticas)" maxlength="60" style="text-transform:none"><datalist id="mats"></datalist>
+  <select id="ar"><option>Programación</option><option>Ofimática</option><option>Enfermería</option><option>Electricidad</option><option>Laboratorios Químicos</option><option>Administración</option></select>
+  <select id="se"><option>1-2 semestre</option><option>3-4 semestre</option><option>5-6 semestre</option></select>
+  <select id="gr"><option>A</option><option>B</option></select>
+</div>
 <div class="card" id="buscar">
   <button class="btn" id="cam">📷 ACTIVAR CÁMARA</button>
   <video id="video" playsinline muted></video>
-  <div style="display:flex;gap:8px;margin-top:12px"><input id="curp" maxlength="18" placeholder="CURP (18 caracteres)"><button class="btn" id="ir" style="width:auto;margin:0;padding:0 18px">VER</button></div>
-  <p class="msg" id="msg"></p>
+  <div style="display:flex;gap:8px;margin-top:12px"><input id="curp" maxlength="18" placeholder="o escribe la CURP"><button class="btn" id="ir" style="width:auto;margin:0;padding:0 18px">OK</button></div>
 </div>
-<div class="card" id="ficha" style="display:none">
-  <dl id="datos"></dl>
-  <button class="btn" id="asis">REGISTRAR ASISTENCIA DE HOY</button>
-  <p class="msg" id="msg2"></p>
-</div>
-<div class="card" id="hist" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Asistencias</h2><ul id="lista"></ul></div>
+<div class="card" id="ficha" style="display:none"><dl id="datos"></dl></div>
+<div class="card" id="hist" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Historial</h2><ul id="lista"></ul></div>
+<div class="card" id="cierre" style="display:none"><p class="sub" style="margin:0 0 4px">Cuando termine la clase, marca falta a quien no escaneó y avisa a su tutor.</p><button class="btn" id="cerrar">CERRAR LISTA DE ESTA CLASE</button></div>
 <a class="back" id="volver" href="#">← Volver al menú</a>
 </main>
 <script src="app.js"></script>
@@ -41,35 +48,52 @@ video{width:100%;border-radius:12px;background:#000;margin-top:12px;display:none
 <script>
 const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["docente","tutor"]), doc=s.rol==="docente";
 $("volver").href=doc?"menu_docentes.html":"menu_tutor.html";
-let actual=null, parar=null, ultimo="";
+let parar=null, ultimo="";
+function aviso(cls,titulo,txt){const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(titulo)+"</b>"+esc(txt||"");if(navigator.vibrate)navigator.vibrate(cls==="ok"?120:[80,60,80]);}
 
-async function mostrar(curp){
-  curp=curp.trim().toUpperCase(); $("curp").value=curp; $("msg").textContent="";
-  if(!/^[A-Z0-9]{18}$/.test(curp)){ $("msg").textContent="El QR no contiene una CURP válida."; return; }
+async function ficha(curp){
   const r=await SD.consultar(curp);
-  if(!r.alumno){ actual=null; $("ficha").style.display=$("hist").style.display="none";
-    $("msg").textContent=r.offline?"Sin conexión y ese alumno no está guardado en este dispositivo.":"Alumno no encontrado."; return; }
-  actual=r.alumno;
-  $("datos").innerHTML=[["Nombre",r.alumno.nombre],["CURP",r.alumno.curp],["Área",r.alumno.area],["Semestre",r.alumno.semestre],["Grupo",r.alumno.grupo],["Correo",r.alumno.correo],["Datos",r.origen==="nube"?"actualizados":"guardados en el dispositivo"]]
-    .map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||"—")}</dd>`).join("");
-  $("ficha").style.display=$("hist").style.display="block"; $("asis").style.display=doc?"block":"none"; $("msg2").textContent="";
-  $("lista").innerHTML=r.asistencias.length?r.asistencias.slice(0,30).map(a=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${a.pendiente?'<span class="tag">pendiente</span>':esc(a.docenteNombre||"")}</span></li>`).join(""):"<li>Sin asistencias registradas</li>";
+  if(!r.alumno){$("ficha").style.display=$("hist").style.display="none";return r;}
+  $("datos").innerHTML=[["Nombre",r.alumno.nombre],["CURP",r.alumno.curp],["Área",r.alumno.area],["Semestre",r.alumno.semestre],["Grupo",r.alumno.grupo]].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||"—")}</dd>`).join("");
+  $("ficha").style.display=$("hist").style.display="block";
+  $("lista").innerHTML=r.asistencias.slice(0,30).map(a=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${a.estado==="falta"?'<span class="tag" style="color:#ff6b78;border-color:#ff6b78">falta · '+esc(a.materia||"")+'</span>':a.pendiente?'<span class="tag">pendiente</span>':esc(a.materia||a.docenteNombre||"")}</span></li>`).join("")||"<li>Sin registros</li>";
+  return r;
 }
-$("ir").onclick=()=>mostrar($("curp").value);
-$("curp").addEventListener("keydown",e=>{if(e.key==="Enter")mostrar($("curp").value)});
-$("asis").onclick=async()=>{
-  const r=await SD.asistencia(actual.curp);
-  await mostrar(actual.curp);
-  $("msg2").className="msg ok";
-  $("msg2").textContent=r.duplicada?"Ya tenía asistencia hoy ("+r.asistencia.hora+").":"✔ Asistencia registrada"+(navigator.onLine?"":" (se sincroniza al volver internet)");
-};
+const guardada=JSON.parse(localStorage.getItem("sd_clase")||"{}");
+for(const k of ["mat","ar","se","gr"]) if(guardada[k]) $(k).value=guardada[k];
+$("mats").innerHTML=(JSON.parse(localStorage.getItem("sd_mats")||"[]")).map(m=>`<option value="${esc(m)}">`).join("");
+function clase(){const c={materia:$("mat").value.trim().replace(/\s+/g," "),area:$("ar").value,semestre:$("se").value,grupo:$("gr").value};
+  localStorage.setItem("sd_clase",JSON.stringify({mat:c.materia,ar:c.area,se:c.semestre,gr:c.grupo}));return c;}
+function recordar(m){const l=JSON.parse(localStorage.getItem("sd_mats")||"[]").filter(x=>x.toLowerCase()!==m.toLowerCase());l.unshift(m);localStorage.setItem("sd_mats",JSON.stringify(l.slice(0,15)));}
+async function procesar(curp){
+  curp=curp.trim().toUpperCase(); $("curp").value=curp;
+  if(!/^[A-Z0-9]{18}$/.test(curp)) return aviso("err","✖ QR no válido","No contiene una CURP.");
+  const r=await ficha(curp);
+  if(!r.alumno) return aviso("err","✖ No encontrado",r.offline?"Sin conexión y ese alumno no está en este dispositivo.":"Esa CURP no está registrada.");
+  if(!doc) return;
+  const c=clase(); if(!c.materia) return aviso("err","Falta la materia","Escribe la materia de esta clase arriba.");
+  if(r.alumno.area!==c.area||r.alumno.semestre!==c.semestre||r.alumno.grupo!==c.grupo) return aviso("warn","No es de este grupo",r.alumno.nombre+" es de "+r.alumno.area+" · "+r.alumno.semestre+" · Grupo "+r.alumno.grupo);
+  recordar(c.materia);
+  const x=await SD.asistencia(curp,c); await ficha(curp);
+  if(x.duplicada) aviso("warn","Ya registrado",r.alumno.nombre+" ya tenía asistencia en "+c.materia+" ("+x.asistencia.hora+")");
+  else aviso("ok","✔ ASISTIÓ",r.alumno.nombre+" · "+c.materia+" · "+x.asistencia.hora+(navigator.onLine?"":" (se enviará al tutor al volver internet)"));
+}
+$("ir").onclick=()=>procesar($("curp").value);
+$("curp").addEventListener("keydown",e=>{if(e.key==="Enter")procesar($("curp").value)});
 $("cam").onclick=async()=>{
   if(parar){parar();parar=null;$("video").style.display="none";$("cam").textContent="📷 ACTIVAR CÁMARA";return;}
   try{
     $("video").style.display="block"; $("cam").textContent="DETENER CÁMARA";
-    parar=await SD.scan($("video"),t=>{t=t.trim().toUpperCase(); if(t!==ultimo){ultimo=t;mostrar(t);setTimeout(()=>ultimo="",3000);}},m=>$("msg").textContent=m);
-  }catch(e){ $("video").style.display="none"; $("cam").textContent="📷 ACTIVAR CÁMARA"; $("msg").textContent="No se pudo abrir la cámara (permiso o HTTPS)."; }
+    parar=await SD.scan($("video"),t=>{t=t.trim().toUpperCase(); if(t!==ultimo){ultimo=t;procesar(t);setTimeout(()=>ultimo="",4000);}},m=>aviso("err","Sin lector",m));
+  }catch(e){ $("video").style.display="none"; $("cam").textContent="📷 ACTIVAR CÁMARA"; aviso("err","Cámara","No se pudo abrir (permiso o HTTPS)."); }
 };
-if(!doc){ $("tit").textContent="Ficha del alumno"; $("sub").textContent="Datos y asistencias de tu alumno."; $("buscar").style.display="none"; mostrar(s.curpAlumno||""); document.addEventListener("sd-sync",()=>mostrar(s.curpAlumno)); }
-else document.addEventListener("sd-sync",()=>actual&&mostrar(actual.curp));
+$("cerrar").onclick=async()=>{
+  const c=clase(); if(!c.materia) return aviso("err","Falta la materia","Escribe la materia de esta clase arriba.");
+  if(!confirm("¿Cerrar lista de "+c.materia+"?\n"+c.area+" · "+c.semestre+" · Grupo "+c.grupo+"\nQuien no haya asistido quedará con falta."))return;
+  recordar(c.materia);
+  const f=await SD.cierre(c);
+  f.length?aviso("warn","Faltaron "+f.length+" a "+c.materia,f.join(", ")):aviso("ok","✔ Todos asistieron","Sin faltas en "+c.materia+".");
+};
+if(doc){ $("cierre").style.display=$("clase").style.display="block"; }
+else{ $("tit").textContent="Ficha del alumno"; $("sub").textContent="Datos y asistencias de tu alumno."; $("buscar").style.display="none"; ficha(s.curpAlumno||""); document.addEventListener("sd-sync",()=>ficha(s.curpAlumno||"")); }
 </script></body></html>
