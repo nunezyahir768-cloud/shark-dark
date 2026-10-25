@@ -1,5 +1,6 @@
 const dns = require('node:dns');
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+if (!process.env.RENDER) dns.setServers(['8.8.8.8', '1.1.1.1']);   // solo en tu computadora
+dns.setDefaultResultOrder('ipv4first');                            // evita fallos TLS por IPv6
 
 require('dotenv').config();
 
@@ -134,7 +135,10 @@ async function iniciarServidor() {
     if (!MONGODB_URI) { console.error('Error: No se encontró MONGODB_URI en el archivo .env'); process.exit(1); }
     if (!SECRET || SECRET.length < 16) { console.error('Error: define TOKEN_SECRET (mínimo 16 caracteres) en .env'); process.exit(1); }
 
-    const cliente = new MongoClient(MONGODB_URI);
+    const limpia = MONGODB_URI.trim().replace(/^["']|["']$/g, '');
+    const host = (limpia.split('@')[1] || '(sin @: revisa el texto)').split('/')[0];
+    console.log('Conectando a:', host);
+    const cliente = new MongoClient(limpia, { family: 4, serverSelectionTimeoutMS: 20000, tls: true });
     try {
         await cliente.connect();
         const db = cliente.db('SharkDark');
@@ -149,6 +153,7 @@ async function iniciarServidor() {
     } catch (error) {
         console.error('❌ Error al conectar con MongoDB Atlas:');
         console.error(error.message);
+        console.error('Pista: si dice SSL/alert 80, revisa Network Access (0.0.0.0/0) y que el host de arriba sea el de tu cluster actual.');
         await cliente.close().catch(() => {});
         process.exit(1);
     }
