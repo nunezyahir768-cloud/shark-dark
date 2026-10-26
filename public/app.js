@@ -212,11 +212,11 @@
     if (!badge) return;
     const n = (await all('cola')).length, on = navigator.onLine;
     badge.textContent = (on ? '● En línea' : '○ Sin conexión') + (n ? ` · ${n} por sincronizar` : '');
-    badge.style.borderColor = on ? '#62d9ff' : '#ffb454';
+    badge.style.borderColor = on ? '#fa2e49' : '#ffb454';
   }
   document.addEventListener('DOMContentLoaded', () => {
     badge = document.createElement('div');
-    badge.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99;padding:7px 12px;border-radius:999px;font:12px Arial;color:#fff;background:#160a30e6;border:1px solid #62d9ff;cursor:pointer';
+    badge.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99;padding:7px 12px;border-radius:999px;font:12px Arial;color:#f9f4eb;background:#1e1012e6;border:1px solid #fa2e49;cursor:pointer';
     badge.onclick = sync;
     document.body.appendChild(badge);
     refrescarBadge();
@@ -318,7 +318,7 @@
   function qr(text) {
     const m = qrMatrix(text), n = m.length + 8; let d = '';
     m.forEach((r, y) => r.forEach((c, x) => { if (c) d += `M${x + 4} ${y + 4}h1v1h-1z`; }));
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}"/></svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#f9f4eb"/><path d="${d}"/></svg>`;
   }
 
   const datos = async () => ({ alumnos: await all('alumnos'), asistencias: await all('asistencias'), avisos: await all('avisos') });

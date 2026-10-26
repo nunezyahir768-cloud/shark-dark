@@ -6,7 +6,7 @@
 
     <title>SHARK DARK.Registro_de_alumno</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#1a0638">
+<meta name="theme-color" content="#050505">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 
@@ -27,9 +27,9 @@
             color: white;
 
             background:
-                radial-gradient(circle at 15% 20%, rgba(69, 213, 255, .25), transparent 25%),
-                radial-gradient(circle at 85% 75%, rgba(137, 55, 255, .30), transparent 30%),
-                linear-gradient(135deg, #1a0638, #32105f 48%, #071a3d);
+                radial-gradient(circle at 15% 20%, rgba(250,46,73,0.25), transparent 25%),
+                radial-gradient(circle at 85% 75%, rgba(166,3,24,0.3), transparent 30%),
+                linear-gradient(135deg, #201113, #3a191d 48%, #231315);
         }
 
         /* Tarjeta principal */
@@ -40,10 +40,10 @@
             grid-template-columns: 1.05fr 1fr;
             overflow: hidden;
 
-            background: rgba(13, 5, 35, .88);
-            border: 1px solid rgba(255, 255, 255, .10);
+            background: rgba(21,11,12,0.88);
+            border: 1px solid rgba(249,244,235,0.1);
             border-radius: 28px;
-            box-shadow: 0 25px 70px rgba(0, 0, 0, .45);
+            box-shadow: 0 25px 70px rgba(0,0,0,0.45);
             backdrop-filter: blur(12px);
         }
 
@@ -57,9 +57,9 @@
             padding: 45px;
 
             background:
-                radial-gradient(circle at 20% 25%, rgba(52, 202, 255, .75) 0 10%, transparent 25%),
-                radial-gradient(circle at 78% 70%, rgba(172, 81, 255, .55) 0 8%, transparent 28%),
-                linear-gradient(145deg, #071d42, #24104d 55%, #0b092b);
+                radial-gradient(circle at 20% 25%, rgba(229,6,36,0.75) 0 10%, transparent 25%),
+                radial-gradient(circle at 78% 70%, rgba(166,3,24,0.55) 0 8%, transparent 28%),
+                linear-gradient(145deg, #261417, #311519 55%, #1b0f10);
         }
 
         /* Estrellas */
@@ -69,8 +69,8 @@
             inset: 0;
             opacity: .75;
             background-image:
-                radial-gradient(circle, rgb(235, 228, 228) 1px, transparent 1.5px),
-                radial-gradient(circle, rgba(223, 223, 224, 0.966) 1px, transparent 1.5px);
+                radial-gradient(circle, rgb(235,228,228) 1px, transparent 1.5px),
+                radial-gradient(circle, rgba(223,223,224,0.966) 1px, transparent 1.5px);
             background-size: 65px 65px, 105px 105px;
             background-position: 10px 15px, 35px 45px;
         }
@@ -84,8 +84,8 @@
             top: -105px;
             left: -95px;
             background:
-                radial-gradient(circle at 35% 30%, #8deaff, #238fc5 45%, #0d427a 72%, #071d42);
-            box-shadow: 0 0 60px rgba(69, 213, 255, .35);
+                radial-gradient(circle at 35% 30%, #efe0c8, #e50624 45%, #471e24 72%, #261417);
+            box-shadow: 0 0 60px rgba(250,46,73,0.35);
             opacity: .9;
         }
 
@@ -101,7 +101,7 @@
         }
 
         .marca span {
-            color: #62d9ff;
+            color: #fa2e49;
         }
 
         .mensaje {
@@ -117,12 +117,12 @@
         }
 
         .mensaje h2 span {
-            color: #62d9ff;
+            color: #fa2e49;
         }
 
         .mensaje p {
             max-width: 380px;
-            color: #d7d0e8;
+            color: #eddfc9;
             line-height: 1.6;
             font-size: 15px;
         }
@@ -151,7 +151,7 @@
         }
 
         .encabezado p {
-            color: #aaa2bf;
+            color: #c8b699;
             font-size: 14px;
         }
 
@@ -160,26 +160,26 @@
             margin: 17px 0 7px;
             font-size: 13px;
             font-weight: bold;
-            color: #e9e3f2;
+            color: #eddfc9;
         }
 
         input,
         select {
             width: 100%;
             padding: 15px 16px;
-            border: 1px solid rgba(255,255,255,.12);
+            border: 1px solid rgba(249,244,235,0.12);
             border-radius: 10px;
             outline: none;
 
             color: white;
-            background: #240c54;
+            background: #321619;
             font-size: 14px;
             font-family: inherit;
             transition: .25s;
         }
 
         input::placeholder {
-            color: #a69bbd;
+            color: #c5b293;
         }
 
         select {
@@ -189,13 +189,13 @@
 
         input:focus,
         select:focus {
-            border-color: #5fcfff;
-            box-shadow: 0 0 0 3px rgba(95, 207, 255, .10);
+            border-color: #fa2e49;
+            box-shadow: 0 0 0 3px rgba(250,46,73,0.1);
         }
 
         select option {
             color: white;
-            background: #240c54;
+            background: #321619;
         }
 
         button {
@@ -207,20 +207,20 @@
             border-radius: 11px;
 
             color: white;
-            background: linear-gradient(90deg, #7024d9, #3bbce5);
+            background: linear-gradient(90deg, #a60318, #e50624);
             font-size: 15px;
             font-weight: bold;
             cursor: pointer;
 
-            box-shadow: 0 8px 25px rgba(92, 54, 220, .30);
+            box-shadow: 0 8px 25px rgba(166,3,24,0.3);
             transition: transform .2s, box-shadow .2s;
         }
 
        
         button:focus {
-    background: linear-gradient(90deg, #8b3dff, #62d9ff);
-    box-shadow: 0 0 0 3px rgba(98, 217, 255, .25),
-                0 8px 25px rgba(98, 217, 255, .30);
+    background: linear-gradient(90deg, #a60318, #fa2e49);
+    box-shadow: 0 0 0 3px rgba(250,46,73,0.25),
+                0 8px 25px rgba(250,46,73,0.3);
     outline: none;
 }
 
@@ -238,7 +238,7 @@
             content: "";
             height: 1px;
             flex: 1;
-            background: rgba(255,255,255,.12);
+            background: rgba(249,244,235,0.12);
         }
 
         .redes {
@@ -249,10 +249,10 @@
 
         .red {
             padding: 12px;
-            border: 1px solid rgba(255,255,255,.08);
+            border: 1px solid rgba(249,244,235,0.08);
             border-radius: 9px;
-            background: #29134d;
-            color: #ddd5e8;
+            background: #321619;
+            color: #eddfc9;
             text-align: center;
             font-size: 13px;
         }
@@ -266,7 +266,7 @@
         }
 
         .pie span {
-            color: #9b63ff;
+            color: #a60318;
         }
 
         /* Adaptación para celular */
@@ -304,7 +304,8 @@
                 font-size: 34px;
             }
         }
-    </style>
+    .marca span{color:#f0dfc4 !important}
+</style>
 </head>
 
 <body>

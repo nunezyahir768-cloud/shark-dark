@@ -5,78 +5,78 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SHARK DARK | Inicio de sesión docente</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#1a0638">
+<meta name="theme-color" content="#050505">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       min-height: 100vh; display: flex; justify-content: center; align-items: center;
-      padding: 24px; font-family: Arial, Helvetica, sans-serif; color: #fff;
+      padding: 24px; font-family: Arial, Helvetica, sans-serif; color: #f9f4eb;
       background:
-        radial-gradient(circle at 15% 20%, rgba(69,213,255,.22), transparent 25%),
-        radial-gradient(circle at 85% 75%, rgba(137,55,255,.25), transparent 30%),
-        linear-gradient(135deg, #1a0638, #32105f 48%, #071a3d);
+        radial-gradient(circle at 15% 20%, rgba(250,46,73,0.22), transparent 25%),
+        radial-gradient(circle at 85% 75%, rgba(166,3,24,0.25), transparent 30%),
+        linear-gradient(135deg, #201113, #3a191d 48%, #231315);
     }
     .contenedor {
       width: min(1000px, 100%); min-height: 590px; display: grid;
       grid-template-columns: 1.05fr 1fr; overflow: hidden;
-      background: rgba(13,5,35,.9); border: 1px solid rgba(255,255,255,.1);
-      border-radius: 28px; box-shadow: 0 25px 70px rgba(0,0,0,.45);
+      background: rgba(21,11,12,0.9); border: 1px solid rgba(249,244,235,0.1);
+      border-radius: 28px; box-shadow: 0 25px 70px rgba(0,0,0,0.45);
       backdrop-filter: blur(12px);
     }
     .visual {
       position: relative; overflow: hidden; display: flex; flex-direction: column;
       justify-content: space-between; padding: 45px;
       background:
-        radial-gradient(circle at 20% 25%, rgba(52,202,255,.65) 0 10%, transparent 25%),
-        radial-gradient(circle at 78% 70%, rgba(172,81,255,.45) 0 8%, transparent 28%),
-        linear-gradient(145deg,#071d42,#24104d 55%,#0b092b);
+        radial-gradient(circle at 20% 25%, rgba(229,6,36,0.65) 0 10%, transparent 25%),
+        radial-gradient(circle at 78% 70%, rgba(166,3,24,0.45) 0 8%, transparent 28%),
+        linear-gradient(145deg,#261417,#311519 55%,#1b0f10);
     }
     .visual::before {
       content:""; position:absolute; inset:0; opacity:.65;
-      background-image: radial-gradient(circle,#eee 1px,transparent 1.5px), radial-gradient(circle,rgba(223,223,224,.9) 1px,transparent 1.5px);
+      background-image: radial-gradient(circle,#eeeeee 1px,transparent 1.5px), radial-gradient(circle,rgba(223,223,224,0.9) 1px,transparent 1.5px);
       background-size:65px 65px,105px 105px; background-position:10px 15px,35px 45px;
     }
     .planeta {
       position:absolute; width:350px; height:350px; border-radius:50%; top:-105px; left:-95px;
-      background:radial-gradient(circle at 35% 30%,#8deaff,#238fc5 45%,#0d427a 72%,#071d42);
-      box-shadow:0 0 60px rgba(69,213,255,.35); opacity:.9;
+      background:radial-gradient(circle at 35% 30%,#efe0c8,#e50624 45%,#471e24 72%,#261417);
+      box-shadow:0 0 60px rgba(250,46,73,0.35); opacity:.9;
     }
     .visual > *:not(.planeta) { position:relative; z-index:2; }
     .marca { font-size:20px; font-weight:bold; letter-spacing:2px; }
-    .marca span, .mensaje h2 span { color:#62d9ff; }
+    .marca span, .mensaje h2 span { color:#fa2e49; }
     .mensaje { margin-top:auto; margin-bottom:25px; }
     .mensaje h2 { font-size:clamp(32px,4vw,52px); line-height:1.05; margin-bottom:12px; }
-    .mensaje p { max-width:380px; color:#d7d0e8; line-height:1.6; font-size:15px; }
+    .mensaje p { max-width:380px; color:#eddfc9; line-height:1.6; font-size:15px; }
     .formulario { display:flex; align-items:center; justify-content:center; padding:50px; }
     .form-contenido { width:100%; max-width:430px; }
     .encabezado { margin-bottom:27px; }
     .encabezado h1 { font-size:38px; margin-bottom:9px; letter-spacing:-1px; }
-    .encabezado p { color:#aaa2bf; font-size:14px; line-height:1.5; }
-    label { display:block; margin:16px 0 7px; font-size:13px; font-weight:bold; color:#e9e3f2; }
+    .encabezado p { color:#c8b699; font-size:14px; line-height:1.5; }
+    label { display:block; margin:16px 0 7px; font-size:13px; font-weight:bold; color:#eddfc9; }
     input {
-      width:100%; padding:14px 16px; border:1px solid rgba(255,255,255,.12);
-      border-radius:10px; outline:none; color:white; background:#240c54;
+      width:100%; padding:14px 16px; border:1px solid rgba(249,244,235,0.12);
+      border-radius:10px; outline:none; color:white; background:#321619;
       font-size:14px; font-family:inherit; transition:.25s;
     }
-    input::placeholder { color:#a69bbd; }
-    input:focus { border-color:#5fcfff; box-shadow:0 0 0 3px rgba(95,207,255,.1); }
+    input::placeholder { color:#c5b293; }
+    input:focus { border-color:#fa2e49; box-shadow:0 0 0 3px rgba(250,46,73,0.1); }
     button {
       width:100%; margin-top:20px; padding:15px; border:0; border-radius:11px;
-      color:white; background:linear-gradient(90deg,#7024d9,#3bbce5);
+      color:white; background:linear-gradient(90deg,#a60318,#e50624);
       font-size:14px; font-weight:bold; cursor:pointer;
-      box-shadow:0 8px 25px rgba(92,54,220,.3); transition:transform .2s,filter .2s;
+      box-shadow:0 8px 25px rgba(166,3,24,0.3); transition:transform .2s,filter .2s;
     }
     button:hover { transform:translateY(-2px); filter:brightness(1.1); }
     .secundario {
       display:block; width:100%; margin-top:12px; padding:13px 10px;
-      border:1px solid rgba(98,217,255,.55); border-radius:11px;
-      color:#d7d0e8; text-align:center; text-decoration:none;
+      border:1px solid rgba(250,46,73,0.55); border-radius:11px;
+      color:#eddfc9; text-align:center; text-decoration:none;
       font-size:12px; font-weight:bold; transition:.2s;
     }
-    .secundario:hover { color:#62d9ff; border-color:#62d9ff; background:rgba(98,217,255,.06); }
-    .nota { margin-top:20px; text-align:center; color:#aaa2bf; font-size:12px; line-height:1.5; }
+    .secundario:hover { color:#fa2e49; border-color:#fa2e49; background:rgba(250,46,73,0.06); }
+    .nota { margin-top:20px; text-align:center; color:#c8b699; font-size:12px; line-height:1.5; }
     @media(max-width:800px) {
       body { padding:14px; }
       .contenedor { grid-template-columns:1fr; min-height:auto; }
@@ -86,7 +86,8 @@
       .formulario { padding:32px 24px 35px; }
       .encabezado h1 { font-size:32px; }
     }
-  </style>
+  .marca span{color:#f0dfc4 !important}
+</style>
 </head>
 <body>
   <main class="contenedor">
@@ -122,7 +123,7 @@
           <button type="submit">ENTRAR A SHARK DARK</button>
 <p id="msg" style="margin-top:14px;text-align:center;color:#ffb454;font-size:13px;min-height:18px"></p>
         </form>
-<button type="button" id="btnRegistro" style="width:100%;margin-top:12px;padding:14px;border-radius:11px;color:#fff;background:transparent;border:1px solid rgba(98,217,255,.55);font-weight:bold;cursor:pointer">REGISTRARSE</button>
+<button type="button" id="btnRegistro" style="width:100%;margin-top:12px;padding:14px;border-radius:11px;color:#f9f4eb;background:transparent;border:1px solid rgba(250,46,73,0.55);font-weight:bold;cursor:pointer">REGISTRARSE</button>
 
         <a class="secundario" href="entrada.html">← VOLVER A LA SELECCIÓN DE PERFILES</a>
         <p class="nota">SHARK DARK · Sistema de acceso para docentes</p>

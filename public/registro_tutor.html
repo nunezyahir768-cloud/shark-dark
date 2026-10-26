@@ -6,7 +6,7 @@ html
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Registro de tutor</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#1a0638">
+<meta name="theme-color" content="#050505">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 
@@ -26,9 +26,9 @@ body {
     font-family: Arial, sans-serif;
     color: white;
     background:
-        radial-gradient(circle at 15% 20%, #45d5ff40, transparent 25%),
-        radial-gradient(circle at 85% 75%, #8937ff55, transparent 30%),
-        linear-gradient(135deg, #1a0638, #32105f 48%, #071a3d);
+        radial-gradient(circle at 15% 20%, #fa2e4940, transparent 25%),
+        radial-gradient(circle at 85% 75%, #a6031855, transparent 30%),
+        linear-gradient(135deg, #201113, #3a191d 48%, #231315);
 }
 
 .contenedor {
@@ -36,10 +36,10 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     overflow: hidden;
-    background: #0d0523ed;
-    border: 1px solid #ffffff20;
+    background: #150b0ced;
+    border: 1px solid #f9f4eb20;
     border-radius: 28px;
-    box-shadow: 0 25px 70px #0008;
+    box-shadow: 0 25px 70px #00000088;
 }
 
 .visual {
@@ -51,9 +51,9 @@ body {
     justify-content: space-between;
     padding: 45px;
     background:
-        radial-gradient(circle at 20% 25%, #34caffaa, transparent 30%),
-        radial-gradient(circle at 78% 70%, #ac51ff88, transparent 30%),
-        linear-gradient(145deg, #071d42, #24104d 55%, #0b092b);
+        radial-gradient(circle at 20% 25%, #e50624aa, transparent 30%),
+        radial-gradient(circle at 78% 70%, #a6031888, transparent 30%),
+        linear-gradient(145deg, #261417, #311519 55%, #1b0f10);
 }
 
 .visual::before {
@@ -74,8 +74,8 @@ body {
     top: -100px;
     left: -100px;
     background: radial-gradient(circle at 35% 30%,
-        #8deaff, #238fc5 45%, #0d427a 72%, #071d42);
-    box-shadow: 0 0 60px #45d5ff55;
+        #efe0c8, #e50624 45%, #471e24 72%, #261417);
+    box-shadow: 0 0 60px #fa2e4955;
 }
 
 .visual > *:not(.planeta) {
@@ -90,7 +90,7 @@ body {
 }
 
 .marca span, .mensaje h2 span {
-    color: #62d9ff;
+    color: #fa2e49;
 }
 
 .mensaje {
@@ -105,7 +105,7 @@ body {
 }
 
 .mensaje p {
-    color: #d7d0e8;
+    color: #eddfc9;
     line-height: 1.7;
 }
 
@@ -131,7 +131,7 @@ body {
 }
 
 .encabezado p, .ayuda {
-    color: #aaa2bf;
+    color: #c8b699;
     font-size: 13px;
     line-height: 1.6;
 }
@@ -146,22 +146,22 @@ label {
 input {
     width: 100%;
     padding: 14px 15px;
-    border: 1px solid #ffffff20;
+    border: 1px solid #f9f4eb20;
     border-radius: 10px;
     outline: none;
     color: white;
-    background: #240c54;
+    background: #321619;
     font-size: 14px;
     transition: .25s;
 }
 
 input::placeholder {
-    color: #a69bbd;
+    color: #c5b293;
 }
 
 input:focus {
-    border-color: #62d9ff;
-    box-shadow: 0 0 0 3px #5fcfff20;
+    border-color: #fa2e49;
+    box-shadow: 0 0 0 3px #fa2e4920;
 }
 
 button {
@@ -171,7 +171,7 @@ button {
     border: none;
     border-radius: 11px;
     color: white;
-    background: linear-gradient(90deg, #7024d9, #3bbce5);
+    background: linear-gradient(90deg, #a60318, #e50624);
     font-size: 15px;
     font-weight: bold;
     cursor: pointer;
@@ -180,19 +180,19 @@ button {
 
 button:hover, button:focus-visible {
     outline: none;
-    background: linear-gradient(90deg, #8b3dff, #62d9ff);
-    box-shadow: 0 0 0 3px #62d9ff40;
+    background: linear-gradient(90deg, #a60318, #fa2e49);
+    box-shadow: 0 0 0 3px #fa2e4940;
 }
 
 .pie {
     margin-top: 20px;
     text-align: center;
-    color: #aaa2bf;
+    color: #c8b699;
     font-size: 12px;
 }
 
 a {
-    color: #62d9ff;
+    color: #fa2e49;
     text-decoration: none;
 }
 
@@ -209,6 +209,7 @@ a:hover {
     .formulario { padding: 32px 24px; }
     .encabezado h1 { font-size: 30px; }
 }
+.marca span{color:#f0dfc4 !important}
 </style>
 </head>
 
