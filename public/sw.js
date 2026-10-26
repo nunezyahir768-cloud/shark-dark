@@ -1,4 +1,4 @@
-const CACHE = 'sharkdark-v6';
+const CACHE = 'sharkdark-v7';
 const ARCHIVOS = ['entrada.html','inicio_alumno.html','registro_alumno.html','menu_alumnos.html','qr_alumno.html',
   'inicio_docente.html','registro_docente.html','menu_docentes.html','escanear.html',
   'inicio_tutor.html','registro_tutor.html','menu_tutor.html','app.js','manifest.webmanifest','img/tiburon.png','img/texto.png','img/barra.png','icon-192.png','icon-512.png','lib/jsQR.js'];
