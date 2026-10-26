@@ -10,6 +10,7 @@ const express = require('express');
 const { MongoClient } = require('mongodb');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const SECRET = process.env.TOKEN_SECRET;
@@ -26,6 +27,10 @@ const s = v => String(v ?? '').trim();
 const RX = { curp: /^[A-Z0-9]{18}$/, rfc: /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/ };
 const h = fn => (req, res) => fn(req, res).catch(e => { console.error(e); res.status(500).json({ error: 'Error del servidor' }); });
 const limpiaMat = v => s(v).replace(/\s+/g, ' ').slice(0, 60);
+/* Límite de intentos de login: 8 fallos por cuenta cada 15 minutos */
+const fallos = new Map();
+const bloqueado = k => { const f = fallos.get(k); return f && f.c >= 8 && Date.now() - f.t < 15 * 60e3; };
+const fallo = k => { const f = fallos.get(k); fallos.set(k, f && Date.now() - f.t < 15 * 60e3 ? { c: f.c + 1, t: f.t } : { c: 1, t: Date.now() }); };
 const bad = (res, msg, code = 400) => res.status(code).json({ error: msg });
 
 const hashPw = (pw, salt = crypto.randomBytes(16).toString('hex')) =>
@@ -54,7 +59,7 @@ const auth = (req, res, next) => {
 };
 const publico = ({ salt, hash, _id, ...r }) => r;
 
-let usuarios, asistencias, avisos;
+let usuarios, asistencias, avisos, calificaciones;
 
 /* CURPs que cada rol puede ver: docente = todas, alumno = la suya, tutor = la de su alumno */
 async function permitidas(u) {
@@ -65,10 +70,10 @@ async function permitidas(u) {
 }
 
 /* Crea un aviso para cada tutor vinculado al alumno (idempotente) */
-async function avisar(alumno, tipo, hora, fecha, clave, materia) {
+async function avisar(alumno, tipo, hora, fecha, clave, materia, extra) {
     const tutores = await usuarios.find({ rol: 'tutor', curpAlumno: alumno.curp }).toArray();
     for (const tu of tutores) {
-        const texto = tipo === 'falta' ? `${alumno.nombre} faltó a ${materia}` : `${alumno.nombre} asistió a ${materia} (${hora})`;
+        const texto = extra || (tipo === 'falta' ? `${alumno.nombre} faltó a ${materia}` : `${alumno.nombre} asistió a ${materia} (${hora})`);
         try { await avisos.insertOne({ _id: `${tipo}:${clave}:${tu.id}`, para: tu.id, curp: alumno.curp, tipo, materia, texto, fecha, hora, creado: new Date() }); }
         catch (e) { if (e.code !== 11000) throw e; }
     }
@@ -77,14 +82,20 @@ async function avisar(alumno, tipo, hora, fecha, clave, materia) {
 /* ---------- Registro y login ---------- */
 app.post('/api/registro', h(async (req, res) => {
     const { rol, datos: d = {} } = req.body || {};
-    if (!['alumno', 'docente', 'tutor'].includes(rol)) return bad(res, 'Rol inválido');
-    const id = s(rol === 'docente' ? d.rfc : d.curp).toUpperCase();
-    if (!(rol === 'docente' ? RX.rfc : RX.curp).test(id)) return bad(res, rol === 'docente' ? 'RFC inválido' : 'CURP inválida');
+    if (!['alumno', 'docente', 'tutor', 'admin'].includes(rol)) return bad(res, 'Rol inválido');
+    const campo = { docente: 'rfc', admin: 'usuario' }[rol] || 'curp';
+    const id = s(d[campo]).toUpperCase();
+    if (!({ docente: RX.rfc, admin: /^[A-Z0-9_]{4,20}$/ }[rol] || RX.curp).test(id)) return bad(res, { docente: 'RFC inválido', admin: 'Usuario inválido (4 a 20 letras, números o _)' }[rol] || 'CURP inválida');
     const pw = String(d.password ?? '');
     if (s(d.nombre).length < 3) return bad(res, 'Nombre inválido');
     if (!/^\S+@\S+\.\S+$/.test(s(d.correo))) return bad(res, 'Correo inválido');
     if (pw.length < (rol === 'alumno' ? 6 : 8)) return bad(res, 'Contraseña demasiado corta');
 
+    if (rol === 'docente' || rol === 'admin') {   // solo se registra quien tenga el código
+        const env = rol === 'admin' ? 'CODIGO_ADMIN' : 'CODIGO_DOCENTE';
+        if (!process.env[env]) return bad(res, `El registro aún no está habilitado (falta ${env} en el servidor)`, 403);
+        if (s(d.codigo) !== process.env[env]) return bad(res, 'Código incorrecto', 403);
+    }
     const doc = { _id: `${rol}:${id}`, rol, id, nombre: s(d.nombre), correo: s(d.correo).toLowerCase(), ...hashPw(pw), creado: new Date() };
     if (rol === 'alumno') Object.assign(doc, { curp: id, area: s(d.area), semestre: s(d.semestre), grupo: s(d.grupo) });
     if (rol === 'tutor') {
@@ -101,8 +112,11 @@ app.post('/api/registro', h(async (req, res) => {
 
 app.post('/api/login', h(async (req, res) => {
     const { rol, id, password } = req.body || {};
+    const llave = `${req.ip}|${s(rol)}:${s(id).toUpperCase()}`;
+    if (bloqueado(llave)) return bad(res, 'Demasiados intentos. Espera 15 minutos e inténtalo de nuevo', 429);
     const u = await usuarios.findOne({ _id: `${s(rol)}:${s(id).toUpperCase()}` });
-    if (!u || !okPw(String(password ?? ''), u)) return bad(res, 'Datos incorrectos', 401);
+    if (!u || !okPw(String(password ?? ''), u)) { fallo(llave); return bad(res, 'Datos incorrectos', 401); }
+    fallos.delete(llave);
     res.json({ token: firmar({ id: u.id, rol: u.rol, exp: Date.now() + 30 * 864e5 }), usuario: publico(u) });
 }));
 
@@ -158,6 +172,84 @@ app.post('/api/cierre', auth, h(async (req, res) => {
     res.json({ ok: true, faltas });
 }));
 
+/* Corregir: justificar una falta (avisa al tutor) o quitar un registro equivocado */
+app.post('/api/asistencias/:uid/:accion', auth, h(async (req, res) => {
+    if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
+    const reg = await asistencias.findOne({ _id: req.params.uid });
+    if (!reg) return bad(res, 'Registro no encontrado', 404);
+    if (req.params.accion === 'quitar') {
+        await asistencias.deleteOne({ _id: reg._id });
+    } else if (req.params.accion === 'justificar' && reg.estado === 'falta') {
+        const motivo = s((req.body || {}).motivo).slice(0, 200);
+        await asistencias.updateOne({ _id: reg._id }, { $set: { estado: 'justificada', motivo } });
+        const al = await usuarios.findOne({ _id: 'alumno:' + reg.curp });
+        if (al) await avisar(al, 'justificada', reg.hora, reg.fecha, `${reg._id}`, reg.materia, `Falta de ${al.nombre} en ${reg.materia} justificada${motivo ? ' (' + motivo + ')' : ''}`);
+    } else return bad(res, 'Acción inválida');
+    res.json({ ok: true });
+}));
+
+/* ---------- Administración ---------- */
+const soloAdmin = (req, res, next) => req.u.rol === 'admin' ? next() : bad(res, 'Solo administración', 403);
+app.get('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
+    const l = await usuarios.find({ rol: { $in: ['alumno', 'docente', 'tutor'] } }).limit(3000).toArray();
+    res.json(l.map(publico));
+}));
+app.post('/api/admin/reset', auth, soloAdmin, h(async (req, res) => {
+    const u = await usuarios.findOne({ _id: `${s(req.body.rol)}:${s(req.body.id).toUpperCase()}` });
+    if (!u || u.rol === 'admin') return bad(res, 'Usuario no encontrado', 404);
+    const temporal = crypto.randomBytes(5).toString('hex');
+    await usuarios.updateOne({ _id: u._id }, { $set: hashPw(temporal) });
+    res.json({ temporal });
+}));
+app.post('/api/admin/editar', auth, soloAdmin, h(async (req, res) => {
+    const id = 'alumno:' + s(req.body.id).toUpperCase(), c = {};
+    for (const k of ['area', 'semestre', 'grupo']) if (s(req.body[k])) c[k] = s(req.body[k]).slice(0, 40);
+    if (!await usuarios.findOne({ _id: id })) return bad(res, 'Alumno no encontrado', 404);
+    await usuarios.updateOne({ _id: id }, { $set: c });
+    res.json({ ok: true });
+}));
+app.post('/api/admin/borrar', auth, soloAdmin, h(async (req, res) => {
+    const u = await usuarios.findOne({ _id: `${s(req.body.rol)}:${s(req.body.id).toUpperCase()}` });
+    if (!u || u.rol === 'admin') return bad(res, 'Usuario no encontrado', 404);
+    await usuarios.deleteOne({ _id: u._id });
+    res.json({ ok: true });
+}));
+
+/* ---------- Mi cuenta ---------- */
+app.post('/api/cuenta/password', auth, h(async (req, res) => {
+    const u = await usuarios.findOne({ _id: `${req.u.rol}:${req.u.id}` });
+    if (!u || !okPw(String(req.body.actual ?? ''), u)) return bad(res, 'La contraseña actual no es correcta', 401);
+    if (String(req.body.nueva ?? '').length < 6) return bad(res, 'La nueva contraseña debe tener al menos 6 caracteres');
+    await usuarios.updateOne({ _id: u._id }, { $set: hashPw(String(req.body.nueva)) });
+    res.json({ ok: true });
+}));
+app.post('/api/cuenta/datos', auth, h(async (req, res) => {
+    if (req.u.rol !== 'alumno') return bad(res, 'Solo alumnos', 403);
+    const c = {}; for (const k of ['area', 'semestre', 'grupo']) if (s(req.body[k])) c[k] = s(req.body[k]).slice(0, 40);
+    await usuarios.updateOne({ _id: 'alumno:' + req.u.id }, { $set: c });
+    res.json({ ok: true });
+}));
+
+/* ---------- Calificaciones ---------- */
+app.post('/api/calificaciones', auth, h(async (req, res) => {
+    if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
+    const m = limpiaMat(req.body.materia), key = m.toLowerCase(), p = Number(req.body.parcial), notas = req.body.notas;
+    if (!m || ![1, 2, 3].includes(p) || !Array.isArray(notas)) return bad(res, 'Datos inválidos');
+    const hoy = new Date().toISOString().slice(0, 10); let n = 0;
+    for (const x of notas.slice(0, 200)) {
+        const curp = s(x.curp).toUpperCase(), nota = Number(x.nota);
+        if (!RX.curp.test(curp) || !(nota >= 0 && nota <= 10)) continue;
+        const al = await usuarios.findOne({ _id: 'alumno:' + curp }); if (!al) continue;
+        await calificaciones.updateOne({ _id: `C:${curp}:${key}:${p}` }, { $set: { curp, materia: m, materiaKey: key, parcial: p, nota, docente: req.u.id } }, { upsert: true });
+        await avisar(al, 'calif', '', hoy, `C:${curp}:${key}:${p}:${nota}`, m, `${al.nombre}: ${m}, parcial ${p}: ${nota}`); n++;
+    }
+    res.json({ ok: true, guardadas: n });
+}));
+app.get('/api/calificaciones', auth, h(async (req, res) => {
+    const c = await permitidas(req.u), q = c ? { curp: { $in: c } } : {};
+    res.json((await calificaciones.find(q).limit(5000).toArray()).map(({ _id, ...r }) => r));
+}));
+
 app.get('/api/avisos', auth, h(async (req, res) => {
     if (req.u.rol !== 'tutor') return res.json([]);
     const lista = await avisos.find({ para: req.u.id }).sort({ creado: -1 }).limit(100).toArray();
@@ -185,6 +277,7 @@ async function iniciarServidor() {
         await db.command({ ping: 1 });
         usuarios = db.collection('usuarios');
         asistencias = db.collection('asistencias');
+        calificaciones = db.collection('calificaciones');
         avisos = db.collection('avisos');
         await asistencias.createIndex({ curp: 1, fecha: -1 });
 

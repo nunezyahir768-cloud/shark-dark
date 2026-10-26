@@ -51,11 +51,12 @@
 
   /* ---------- Registro / login (online u offline) ---------- */
   async function register(rol, d) {
-    const id = String(rol === 'docente' ? d.rfc : d.curp).toUpperCase();
-    d = { ...d, [rol === 'docente' ? 'rfc' : 'curp']: id };
+    const campo = { docente: 'rfc', admin: 'usuario' }[rol] || 'curp';
+    const id = String(d[campo]).toUpperCase();
+    d = { ...d, [campo]: id };
     const _id = rol + ':' + id;
     if (await get('usuarios', _id)) throw new Error('Ya hay una cuenta con esos datos en este dispositivo');
-    const { password, ...pub } = d;
+    const { password, codigo, ...pub } = d;
     const salt = crypto.randomUUID();
     const rec = { _id, rol, id, ...pub, salt, hash: await hash(password, salt), pendiente: true };
     try {
@@ -63,6 +64,7 @@
       rec.pendiente = false;
     } catch (e) {
       if (e.status) throw e;                       // el servidor lo rechazó (p. ej. ya existe)
+      if (rol === 'docente' || rol === 'admin') throw new Error('Necesitas internet para registrarte con código');
       await put('cola', { tipo: 'registro', rol, id, datos: d });   // sin internet: queda en cola
     }
     await put('usuarios', rec);
@@ -137,6 +139,15 @@
     return ausentes.map(x => x.nombre);
   }
 
+  /* Corregir (solo con internet): justificar una falta o quitar un registro */
+  async function corregir(uid, accion, motivo) {
+    if (!navigator.onLine) throw new Error('Necesitas internet para corregir registros');
+    await api(`/api/asistencias/${encodeURIComponent(uid)}/${accion}`, { method: 'POST', body: { motivo } });
+    const r = await get('asistencias', uid);
+    if (accion === 'quitar') await del('asistencias', uid); else if (r) await put('asistencias', { ...r, estado: 'justificada', motivo });
+    sync();
+  }
+
   async function consultar(curp) {
     curp = String(curp).trim().toUpperCase();
     let alumno = await get('alumnos', curp), origen = 'local';
@@ -191,7 +202,9 @@
       }
       if (s && s.token) {                              // descarga lo que este rol puede ver
         for (const a of await api('/api/alumnos')) await put('alumnos', a);
-        for (const a of await api('/api/asistencias')) await put('asistencias', { ...a, pendiente: false });
+        const lista = await api('/api/asistencias'), ids = new Set(lista.map(x => x.uid));
+        for (const a of lista) await put('asistencias', { ...a, pendiente: false });
+        for (const l of await all('asistencias')) if (!l.pendiente && !ids.has(l.uid)) await del('asistencias', l.uid);   // quitadas en el servidor
       }
     } catch (e) { console.warn('Sync:', e.message); }
     sincronizando = false;
@@ -323,5 +336,5 @@
 
   const datos = async () => ({ alumnos: await all('alumnos'), asistencias: await all('asistencias'), avisos: await all('avisos') });
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  window.SD = { register, login, logout, require: require_, session: ses, asistencia, consultar, sync, scan, qr, esc, datos, cierre, permisoAvisos };
+  window.SD = { register, login, logout, require: require_, session: ses, asistencia, consultar, sync, scan, qr, esc, datos, cierre, corregir, permisoAvisos, api };
 })();

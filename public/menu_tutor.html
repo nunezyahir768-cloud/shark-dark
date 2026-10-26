@@ -19,14 +19,15 @@ ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;
 .pronto{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pronto span{padding:11px;border-radius:10px;background:rgba(249,244,235,0.05);color:#b59d77;font-size:13px;text-align:center}
 .tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
 </style></head><body><main>
-<header><img src="icon-192.png" alt=""><b>SHARK DARK</b><a href="#" onclick="SD.logout();return false">Salir</a></header>
+<header><img src="icon-192.png" alt=""><b>SHARK DARK</b><a href="cuenta.html" style="margin-right:12px">Mi cuenta</a><a href="#" onclick="SD.logout();return false">Salir</a></header>
 <h1>Hola, <span id="nombre"></span> 👋</h1>
 <p class="sub" id="alumno">Cargando alumno…</p>
 <div class="card"><h2>ASISTENCIAS DEL ALUMNO</h2><div class="num" id="total">0 <small>este mes</small></div></div>
 <div class="card"><h2>ÚLTIMAS ASISTENCIAS</h2><ul id="lista"></ul></div>
 <div class="card"><h2>🔔 AVISOS</h2><ul id="avisos"></ul><button class="btn" id="notif" style="display:none;margin-top:12px;background:transparent;border:1px solid rgba(250,46,73,0.55)">Activar notificaciones en este teléfono</button></div>
 <a class="btn" href="escanear.html" style="margin-bottom:14px">🎓 Ver ficha completa</a>
-<div class="card"><h2>PRÓXIMAMENTE</h2><div class="pronto"><span>📊 Calificaciones</span><span>📑 Reportes</span><span>✉️ Citatorios</span><span>📝 Permisos</span></div></div>
+<a class="btn" href="calificaciones.html" style="margin-bottom:14px">📊 Calificaciones</a>
+<div class="card"><h2>PRÓXIMAMENTE</h2><div class="pronto"><span>📑 Reportes</span><span>✉️ Citatorios</span><span>📝 Permisos</span></div></div>
 </main>
 <script src="app.js"></script>
 <script>

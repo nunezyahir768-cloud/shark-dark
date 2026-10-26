@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHARK DARK | Administración</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#050505"><link rel="icon" href="icon-192.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;padding:24px 16px 70px;font-family:Arial,Helvetica,sans-serif;color:#f9f4eb;background:radial-gradient(circle at 12% 12%,rgba(250,46,73,0.16),transparent 27%),radial-gradient(circle at 88% 80%,rgba(166,3,24,0.22),transparent 30%),linear-gradient(135deg,#11090a,#2d181b 52%,#1c0f11)}
+main{width:min(520px,100%);margin:auto}
+.brand{font-weight:900;letter-spacing:2px;font-size:20px;margin-bottom:20px}.brand span{color:#fa2e49}
+h1{font-size:28px;margin-bottom:6px}.sub{color:#d9ccb8;font-size:14px;line-height:1.5;margin-bottom:20px}
+.card{padding:20px;border:1px solid rgba(249,244,235,0.12);border-radius:17px;background:rgba(30,16,18,0.92);margin-bottom:16px}
+.btn{display:block;width:100%;padding:14px;border:0;border-radius:11px;color:#f9f4eb;background:linear-gradient(90deg,#a60318,#e50624);font-size:14px;font-weight:bold;cursor:pointer;margin-top:12px;text-align:center;text-decoration:none}
+input{width:100%;padding:14px 16px;border:1px solid rgba(249,244,235,0.12);border-radius:10px;color:#f9f4eb;background:#321619;font-size:15px;letter-spacing:1px;text-transform:uppercase;outline:none}
+dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:14px}dt{color:#c8b699}dd{word-break:break-word}
+.back{display:inline-block;margin-top:8px;color:#efe0c8;text-decoration:none;font-size:13px}
+.msg{color:#ffb454;font-size:13px;margin-top:10px;min-height:18px}.ok{color:#7dffb0}
+ul{list-style:none;font-size:14px}li{padding:8px 0;border-bottom:1px solid rgba(249,244,235,0.08);display:flex;justify-content:space-between;gap:8px}
+video{width:100%;border-radius:12px;background:#000000;margin-top:12px;display:none}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
+.banner{display:none;padding:20px;border-radius:16px;text-align:center;font-weight:bold;margin-bottom:14px}
+.banner b{display:block;font-size:26px;margin-bottom:4px}.banner.ok{background:#0f5132;border:2px solid #7dffb0}.banner.warn{background:#5c4300;border:2px solid #ffb454}.banner.err{background:#58151c;border:2px solid #ff6b78}
+select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;background:#321619;border:1px solid rgba(249,244,235,0.12);font-size:14px}
+.mini{margin-left:8px;padding:3px 9px;border-radius:8px;border:1px solid rgba(240,223,196,.4);background:transparent;color:#f0dfc4;font-size:12px;cursor:pointer}
+</style></head><body><main>
+<div class="brand">🦈 <span>SHARK</span> DARK</div>
+
+<h1>Administración</h1>
+<div class="banner" id="banner"></div>
+<div class="card" id="acceso">
+  <p class="sub" style="margin:0 0 8px" id="subacc">Entra con tu usuario de administrador.</p>
+  <input id="u" placeholder="Usuario" autocomplete="off" style="text-transform:none">
+  <input id="p" type="password" placeholder="Contraseña" style="margin-top:8px;text-transform:none">
+  <input id="c" placeholder="Código de administración" autocomplete="off" style="margin-top:8px;display:none;text-transform:none">
+  <button class="btn" id="entrar">ENTRAR</button>
+  <button class="btn" id="alt" style="background:transparent;border:1px solid rgba(240,223,196,.4)">Crear cuenta de administrador</button>
+</div>
+<div id="panel" style="display:none">
+  <input id="q" placeholder="Buscar por nombre o CURP" style="text-transform:none;margin-bottom:12px">
+  <div id="lista"></div>
+</div>
+<a class="back" href="entrada.html">← Volver</a>
+</main>
+<script src="app.js"></script>
+<script>
+const $=i=>document.getElementById(i), esc=SD.esc;
+let modo="entrar", todos=[];
+function aviso(cls,t,x){const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(t)+"</b>"+esc(x||"");}
+const s=SD.session();
+async function panel(){
+  $("acceso").style.display="none"; $("panel").style.display="block";
+  try{todos=await SD.api("/api/admin/usuarios");pintar();}catch(e){aviso("err","No se pudo cargar",e.message);}
+}
+function pintar(){
+  const q=$("q").value.trim().toLowerCase();
+  const l=todos.filter(u=>!q||(u.nombre+" "+(u.curp||u.rfc||"")).toLowerCase().includes(q)).sort((a,b)=>a.nombre.localeCompare(b.nombre)).slice(0,80);
+  $("lista").innerHTML=l.map(u=>`<div class="card"><b>${esc(u.nombre)}</b> <span class="tag">${esc(u.rol)}</span>
+    <p class="sub" style="margin:4px 0 8px">${esc(u.curp||u.rfc||"")}${u.rol==="alumno"?" · "+esc(u.area)+" · "+esc(u.semestre)+" · "+esc(u.grupo):""}${u.curpAlumno?" · alumno "+esc(u.curpAlumno):""}</p>
+    <button class="mini" data-a="reset" data-r="${u.rol}" data-i="${esc(u.id)}">Restablecer contraseña</button>
+    ${u.rol==="alumno"?`<button class="mini" data-a="editar" data-i="${esc(u.id)}">Cambiar grupo</button>`:""}
+    <button class="mini" style="color:#ff6b78" data-a="borrar" data-r="${u.rol}" data-i="${esc(u.id)}">Borrar</button></div>`).join("")||'<p class="sub">Sin resultados.</p>';
+}
+$("q").addEventListener("input",pintar);
+$("lista").addEventListener("click",async ev=>{const b=ev.target.closest("button[data-a]");if(!b)return;const {a,r,i}=b.dataset;
+  try{
+    if(a==="reset"){if(!confirm("¿Restablecer la contraseña de este usuario?"))return;const x=await SD.api("/api/admin/reset",{method:"POST",body:{rol:r,id:i}});aviso("ok","Contraseña temporal",x.temporal+"  (dísela al usuario; que la cambie en Mi cuenta)");}
+    else if(a==="borrar"){if(!confirm("¿Borrar esta cuenta? No se puede deshacer."))return;await SD.api("/api/admin/borrar",{method:"POST",body:{rol:r,id:i}});todos=todos.filter(u=>!(u.rol===r&&u.id===i));pintar();aviso("ok","Cuenta borrada","");}
+    else if(a==="editar"){const area=prompt("Área (deja vacío para no cambiar):")||"",sem=prompt("Semestre, por ejemplo 3-4 semestre (vacío = no cambiar):")||"",gr=prompt("Grupo A o B (vacío = no cambiar):")||"";
+      await SD.api("/api/admin/editar",{method:"POST",body:{id:i,area,semestre:sem,grupo:gr}});todos=await SD.api("/api/admin/usuarios");pintar();aviso("ok","Alumno actualizado","");}
+  }catch(err){aviso("err","No se pudo",err.message);}
+});
+$("alt").onclick=()=>{modo=modo==="entrar"?"crear":"entrar";$("c").style.display=modo==="crear"?"block":"none";$("entrar").textContent=modo==="crear"?"CREAR CUENTA":"ENTRAR";$("alt").textContent=modo==="crear"?"Ya tengo cuenta":"Crear cuenta de administrador";$("subacc").textContent=modo==="crear"?"Usuario de 4 a 20 letras, números o _. Contraseña de 8 o más.":"Entra con tu usuario de administrador.";};
+$("entrar").onclick=async()=>{
+  try{const u=$("u").value.trim().toUpperCase();
+    if(modo==="crear"){await SD.register("admin",{usuario:u,nombre:u,correo:u.toLowerCase()+"@admin.local",password:$("p").value,codigo:$("c").value});}
+    await SD.login("admin",u,$("p").value); panel();
+  }catch(err){aviso("err","No se pudo entrar",err.message);}
+};
+if(s&&s.rol==="admin")panel();
+</script></body></html>

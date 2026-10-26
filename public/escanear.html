@@ -20,6 +20,7 @@ video{width:100%;border-radius:12px;background:#000000;margin-top:12px;display:n
 .banner{display:none;padding:20px;border-radius:16px;text-align:center;font-weight:bold;margin-bottom:14px}
 .banner b{display:block;font-size:26px;margin-bottom:4px}.banner.ok{background:#0f5132;border:2px solid #7dffb0}.banner.warn{background:#5c4300;border:2px solid #ffb454}.banner.err{background:#58151c;border:2px solid #ff6b78}
 select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;background:#321619;border:1px solid rgba(249,244,235,0.12);font-size:14px}
+.mini{margin-left:8px;padding:3px 9px;border-radius:8px;border:1px solid rgba(240,223,196,.4);background:transparent;color:#f0dfc4;font-size:12px;cursor:pointer}
 </style></head><body><main>
 <div class="brand">🦈 <span>SHARK</span> DARK</div>
 
@@ -41,6 +42,7 @@ select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;b
 <div class="card" id="ficha" style="display:none"><dl id="datos"></dl></div>
 <div class="card" id="hist" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Historial</h2><ul id="lista"></ul></div>
 <div class="card" id="cierre" style="display:none"><p class="sub" style="margin:0 0 4px">Cuando termine la clase, marca falta a quien no escaneó y avisa a su tutor.</p><button class="btn" id="cerrar">CERRAR LISTA DE ESTA CLASE</button></div>
+<div class="card" id="grupo" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Lista del grupo <span id="cont"></span></h2><ul id="lg"></ul><button class="btn" id="rep" style="margin-top:12px;background:transparent;border:1px solid rgba(240,223,196,.4)">📥 Descargar reporte del mes (Excel)</button></div>
 <a class="back" id="volver" href="#">← Volver al menú</a>
 </main>
 <script src="app.js"></script>
@@ -49,14 +51,14 @@ select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;b
 const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["docente","tutor"]), doc=s.rol==="docente";
 $("volver").href=doc?"menu_docentes.html":"menu_tutor.html";
 let parar=null, ultimo="";
-function aviso(cls,titulo,txt){const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(titulo)+"</b>"+esc(txt||"");if(navigator.vibrate)navigator.vibrate(cls==="ok"?120:[80,60,80]);}
+function aviso(cls,titulo,txt){try{lista()}catch(e){}const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(titulo)+"</b>"+esc(txt||"");if(navigator.vibrate)navigator.vibrate(cls==="ok"?120:[80,60,80]);}
 
 async function ficha(curp){
   const r=await SD.consultar(curp);
   if(!r.alumno){$("ficha").style.display=$("hist").style.display="none";return r;}
   $("datos").innerHTML=[["Nombre",r.alumno.nombre],["CURP",r.alumno.curp],["Área",r.alumno.area],["Semestre",r.alumno.semestre],["Grupo",r.alumno.grupo]].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||"—")}</dd>`).join("");
   $("ficha").style.display=$("hist").style.display="block";
-  $("lista").innerHTML=r.asistencias.slice(0,30).map(a=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${a.estado==="falta"?'<span class="tag" style="color:#ff6b78;border-color:#ff6b78">falta · '+esc(a.materia||"")+'</span>':a.pendiente?'<span class="tag">pendiente</span>':esc(a.materia||a.docenteNombre||"")}</span></li>`).join("")||"<li>Sin registros</li>";
+  $("lista").innerHTML=r.asistencias.slice(0,30).map(a=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${a.estado==="falta"?'<span class="tag" style="color:#ff6b78;border-color:#ff6b78">falta · '+esc(a.materia||"")+'</span>':a.estado==="justificada"?'<span class="tag" style="color:#f0dfc4;border-color:#f0dfc4">justificada</span>':a.pendiente?'<span class="tag">pendiente</span>':esc(a.materia||a.docenteNombre||"")}</span></li>`).join("")||"<li>Sin registros</li>";
   return r;
 }
 const guardada=JSON.parse(localStorage.getItem("sd_clase")||"{}");
@@ -65,6 +67,35 @@ $("mats").innerHTML=(JSON.parse(localStorage.getItem("sd_mats")||"[]")).map(m=>`
 function clase(){const c={materia:$("mat").value.trim().replace(/\s+/g," "),area:$("ar").value,semestre:$("se").value,grupo:$("gr").value};
   localStorage.setItem("sd_clase",JSON.stringify({mat:c.materia,ar:c.area,se:c.semestre,gr:c.grupo}));return c;}
 function recordar(m){const l=JSON.parse(localStorage.getItem("sd_mats")||"[]").filter(x=>x.toLowerCase()!==m.toLowerCase());l.unshift(m);localStorage.setItem("sd_mats",JSON.stringify(l.slice(0,15)));}
+async function lista(){
+  if(!doc)return; const c=clase(), d=await SD.datos(), k=c.materia.toLowerCase(), hoy=new Date().toLocaleDateString("sv-SE");
+  const g=d.alumnos.filter(a=>a.area===c.area&&a.semestre===c.semestre&&a.grupo===c.grupo).sort((x,y)=>x.nombre.localeCompare(y.nombre));
+  const reg=a=>d.asistencias.find(r=>r.curp===a.curp&&r.fecha===hoy&&(r.materia||"").toLowerCase()===k);
+  if(!c.materia){$("cont").textContent="";$("lg").innerHTML='<li>Escribe la materia para ver quién ya llegó.</li>';return;}
+  $("cont").textContent="· llegaron "+g.filter(a=>(reg(a)||{}).estado==="asistio").length+" de "+g.length;
+  $("lg").innerHTML=g.map(a=>{const r=reg(a),u=r?esc(r.uid):"";
+    const st=!r?"○ falta por llegar":r.estado==="asistio"?"✔ llegó":r.estado==="justificada"?"◐ justificada":"✖ falta";
+    const bt=!r||r.pendiente?"":r.estado==="falta"?`<button class="mini" data-u="${u}" data-a="justificar">Justificar</button>`:r.estado==="asistio"?`<button class="mini" data-u="${u}" data-a="quitar">Quitar</button>`:"";
+    return `<li><span>${esc(a.nombre)}</span><span>${st}${bt}</span></li>`;}).join("")||"<li>No hay alumnos registrados en este grupo.</li>";
+}
+$("lg").addEventListener("click",async ev=>{const b=ev.target.closest("button[data-u]");if(!b)return;let motivo="";
+  if(b.dataset.a==="justificar"){motivo=prompt("Motivo de la justificación (opcional):");if(motivo===null)return;}
+  else if(!confirm("¿Quitar este registro de asistencia?"))return;
+  try{await SD.corregir(b.dataset.u,b.dataset.a,motivo||"");aviso("ok","✔ Listo",b.dataset.a==="quitar"?"Registro quitado.":"Falta justificada; se avisó al tutor.");}
+  catch(err){aviso("err","No se pudo",err.message);}});
+for(const i of ["mat","ar","se","gr"])$(i).addEventListener("input",lista);
+$("rep").onclick=async()=>{
+  const c=clase(), d=await SD.datos(), mes=new Date().toLocaleDateString("sv-SE").slice(0,7);
+  const g=new Map(d.alumnos.filter(a=>a.area===c.area&&a.semestre===c.semestre&&a.grupo===c.grupo).map(a=>[a.curp,a]));
+  const est={asistio:"Asistió",falta:"Falta",justificada:"Justificada"};
+  const rows=d.asistencias.filter(r=>g.has(r.curp)&&r.fecha.startsWith(mes)&&(!c.materia||(r.materia||"").toLowerCase()===c.materia.toLowerCase()))
+    .sort((x,y)=>g.get(x.curp).nombre.localeCompare(g.get(y.curp).nombre)||x.fecha.localeCompare(y.fecha))
+    .map(r=>[g.get(r.curp).nombre,r.curp,r.fecha,r.hora,r.materia||"",est[r.estado]||r.estado,r.motivo||""]);
+  const csv=[["Alumno","CURP","Fecha","Hora","Materia","Estado","Motivo"],...rows].map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(",")).join("\r\n");
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"})); a.download="asistencias-"+c.area+"-"+c.semestre+"-"+c.grupo+"-"+mes+".csv"; a.click();
+  aviso("ok","📥 Reporte listo",rows.length+" registros. Ábrelo con Excel.");
+};
+document.addEventListener("sd-sync",()=>lista());
 async function procesar(curp){
   curp=curp.trim().toUpperCase(); $("curp").value=curp;
   if(!/^[A-Z0-9]{18}$/.test(curp)) return aviso("err","✖ QR no válido","No contiene una CURP.");
@@ -94,6 +125,6 @@ $("cerrar").onclick=async()=>{
   const f=await SD.cierre(c);
   f.length?aviso("warn","Faltaron "+f.length+" a "+c.materia,f.join(", ")):aviso("ok","✔ Todos asistieron","Sin faltas en "+c.materia+".");
 };
-if(doc){ $("cierre").style.display=$("clase").style.display="block"; }
+if(doc){ $("cierre").style.display=$("clase").style.display=$("grupo").style.display="block"; lista(); }
 else{ $("tit").textContent="Ficha del alumno"; $("sub").textContent="Datos y asistencias de tu alumno."; $("buscar").style.display="none"; ficha(s.curpAlumno||""); document.addEventListener("sd-sync",()=>ficha(s.curpAlumno||"")); }
 </script></body></html>

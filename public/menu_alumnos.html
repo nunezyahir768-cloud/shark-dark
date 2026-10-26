@@ -19,7 +19,7 @@ ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;
 .pronto{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pronto span{padding:11px;border-radius:10px;background:rgba(249,244,235,0.05);color:#b59d77;font-size:13px;text-align:center}
 .tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
 </style></head><body><main>
-<header><img src="icon-192.png" alt=""><b>SHARK DARK</b><a href="#" onclick="SD.logout();return false">Salir</a></header>
+<header><img src="icon-192.png" alt=""><b>SHARK DARK</b><a href="cuenta.html" style="margin-right:12px">Mi cuenta</a><a href="#" onclick="SD.logout();return false">Salir</a></header>
 <h1>Hola, <span id="nombre"></span> 👋</h1>
 <p class="sub" id="datos"></p>
 <div class="card" style="text-align:center">
@@ -30,7 +30,8 @@ ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;
 </div>
 <div class="card" style="display:flex;gap:12px"><div style="flex:1"><h2>ASISTENCIAS</h2><div class="num" id="total">0</div></div><div style="flex:1"><h2 style="color:#ff6b78">FALTAS</h2><div class="num" id="faltas">0</div></div></div><p class="sub" style="margin:-6px 0 14px">Este mes</p>
 <div class="card"><h2>ÚLTIMOS REGISTROS</h2><ul id="lista"></ul></div>
-<div class="card"><h2>PRÓXIMAMENTE</h2><div class="pronto"><span>📚 Materias</span><span>📊 Calificaciones</span><span>⏰ Horario</span><span>📝 Faltas y permisos</span></div></div>
+<a class="btn" href="calificaciones.html" style="margin-bottom:14px">📊 Calificaciones</a>
+<div class="card"><h2>PRÓXIMAMENTE</h2><div class="pronto"><span>📚 Materias</span><span>⏰ Horario</span><span>📝 Faltas y permisos</span></div></div>
 </main>
 <script src="app.js"></script>
 <script>
@@ -46,7 +47,7 @@ async function pintar(){
   const d=await SD.datos(), m=d.asistencias.filter(a=>a.curp===curp).sort(orden);
   const mm=m.filter(a=>a.fecha.startsWith(mes));
   $("total").textContent=mm.filter(a=>a.estado!=="falta").length; $("faltas").textContent=mm.filter(a=>a.estado==="falta").length;
-  $("lista").innerHTML=m.slice(0,6).map(a=>fila(a,a.estado==="falta"?'<span style="color:#ff6b78">falta · '+esc(a.materia||"")+'</span>':esc(a.materia||a.docenteNombre||""))).join("")||'<li class="vacio">Aún no tienes asistencias</li>';
+  $("lista").innerHTML=m.slice(0,6).map(a=>fila(a,a.estado==="justificada"?'<span style="color:#f0dfc4">justificada · '+esc(a.materia||"")+'</span>':a.estado==="falta"?'<span style="color:#ff6b78">falta · '+esc(a.materia||"")+'</span>':esc(a.materia||a.docenteNombre||""))).join("")||'<li class="vacio">Aún no tienes asistencias</li>';
 }
 pintar(); document.addEventListener("sd-sync",pintar);
 </script></body></html>
