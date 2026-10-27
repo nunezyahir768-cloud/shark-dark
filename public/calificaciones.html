@@ -21,25 +21,25 @@ video{width:100%;border-radius:12px;background:#000000;margin-top:12px;display:n
 .banner b{display:block;font-size:26px;margin-bottom:4px}.banner.ok{background:#0f5132;border:2px solid #7dffb0}.banner.warn{background:#5c4300;border:2px solid #ffb454}.banner.err{background:#58151c;border:2px solid #ff6b78}
 select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;background:#321619;border:1px solid rgba(249,244,235,0.12);font-size:14px}
 .mini{margin-left:8px;padding:3px 9px;border-radius:8px;border:1px solid rgba(240,223,196,.4);background:transparent;color:#f0dfc4;font-size:12px;cursor:pointer}
+.tb{border-collapse:collapse;font-size:13px;min-width:100%}.tb th{background:#d3011d;color:#fff;padding:8px 9px;white-space:nowrap}.tb td{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.1);text-align:center}.tb td:nth-child(2),.tb th:nth-child(2){text-align:left;white-space:nowrap}.tb input{width:70px;padding:6px;text-transform:none;text-align:center}
 </style></head><body><main>
 <div class="brand">🦈 <span>SHARK</span> DARK</div>
 
 <h1>Calificaciones</h1>
 <div class="banner" id="banner"></div>
 <div class="card" id="doc" style="display:none">
-  <input id="mat" placeholder="Materia" maxlength="60" style="text-transform:none">
-  <select id="ar"><option>Programación</option><option>Ofimática</option><option>Enfermería</option><option>Electricidad</option><option>Laboratorios Químicos</option><option>Administración</option></select>
-  <select id="se"><option>1-2 semestre</option><option>3-4 semestre</option><option>5-6 semestre</option></select>
-  <select id="gr"><option>A</option><option>B</option></select>
+  <select id="cl"></select>
   <select id="pa"><option value="1">Parcial 1</option><option value="2">Parcial 2</option><option value="3">Parcial 3</option></select>
   <button class="btn" id="cargar">CARGAR ALUMNOS</button>
-  <ul id="tabla" style="margin-top:12px"></ul>
-  <button class="btn" id="guardar" style="display:none">GUARDAR CALIFICACIONES</button>
+  <div style="overflow-x:auto;margin-top:12px"><table class="tb" id="tabla"></table></div>
+  <button class="btn" id="guardar" style="display:none">GUARDAR MIS CALIFICACIONES</button>
+  <button class="btn" id="xl" style="display:none;background:transparent;border:1px solid rgba(240,223,196,.4)">📥 Descargar en Excel</button>
 </div>
 <div id="ver"></div>
 <a class="back" id="volver" href="#">← Volver al menú</a>
 </main>
 <script src="app.js"></script>
+<script src="excel.js"></script>
 <script>
 const $=i=>document.getElementById(i), esc=SD.esc;
 const s=SD.require(["alumno","docente","tutor"]), doc=s.rol==="docente";
@@ -54,20 +54,36 @@ function ver(){
     <li><b>Promedio</b><b>${xs.length?(xs.reduce((a,b)=>a+b,0)/xs.length).toFixed(1):"—"}</b></li></ul></div>`;}).join("")||'<div class="card"><p class="sub" style="margin:0">Aún no hay calificaciones.</p></div>';
 }
 if(doc){
-  $("doc").style.display="block"; const g=JSON.parse(localStorage.getItem("sd_clase")||"{}");
-  for(const k of ["mat","ar","se","gr"]) if(g[k]) $(k).value=g[k];
+  $("doc").style.display="block"; let clases=[];
+  (async()=>{try{clases=await SD.api("/api/clases");localStorage.setItem("sd_clases",JSON.stringify(clases));}catch(e){clases=JSON.parse(localStorage.getItem("sd_clases")||"[]");}
+    $("cl").innerHTML=clases.map(c=>`<option value="${esc(c.id)}">${esc(c.materia+" · "+c.semestre+" "+c.area+" "+c.grupo)}</option>`).join("")||"<option value=''>No tienes clases asignadas</option>";})();
+  let mats=[], al=[], cur=null;
+  const promedios=()=>document.querySelectorAll("#tabla tr[data-c]").forEach(tr=>{
+    const v=[...tr.querySelectorAll("td")].slice(2,-1).map(td=>{const i=td.querySelector("input"),t=i?i.value:td.textContent;return t===""||t==="–"?NaN:+t;}).filter(n=>!isNaN(n));
+    tr.querySelector(".pr").textContent=v.length?(v.reduce((a,b)=>a+b,0)/v.length).toFixed(2):"–";});
+  $("tabla").addEventListener("input",promedios);
   $("cargar").onclick=async()=>{
-    const mat=$("mat").value.trim(); if(!mat) return aviso("err","Falta la materia","");
-    await traer(); const d=await SD.datos(), p=+$("pa").value;
-    const al=d.alumnos.filter(a=>a.area===$("ar").value&&a.semestre===$("se").value&&a.grupo===$("gr").value).sort((x,y)=>x.nombre.localeCompare(y.nombre));
-    $("tabla").innerHTML=al.map(a=>{const n=notas.find(x=>x.curp===a.curp&&x.materia.toLowerCase()===mat.toLowerCase()&&x.parcial===p);
-      return `<li><span>${esc(a.nombre)}</span><input type="number" min="0" max="10" step="0.1" data-c="${esc(a.curp)}" value="${n?n.nota:""}" style="width:80px;padding:8px;text-transform:none"></li>`;}).join("")||"<li>No hay alumnos en este grupo.</li>";
-    $("guardar").style.display=al.length?"block":"none";
+    const c=clases.find(x=>x.id===$("cl").value); if(!c) return aviso("err","Elige una clase",""); cur=c;
+    await traer(); const d=await SD.datos(), p=+$("pa").value; let gr=[];
+    try{gr=await SD.api("/api/clases?area="+encodeURIComponent(c.area)+"&semestre="+encodeURIComponent(c.semestre)+"&grupo="+encodeURIComponent(c.grupo));}catch(e){gr=[c];}
+    mats=[...new Map(gr.map(x=>[x.materia.toLowerCase(),x.materia])).values()].sort((a,b)=>a.localeCompare(b));
+    al=d.alumnos.filter(a=>a.area===c.area&&a.semestre===c.semestre&&a.grupo===c.grupo).sort((x,y)=>x.nombre.localeCompare(y.nombre));
+    const mia=m=>m.toLowerCase()===c.materia.toLowerCase(), nota=(a,m)=>{const n=notas.find(x=>x.curp===a.curp&&x.materia.toLowerCase()===m.toLowerCase()&&x.parcial===p);return n?n.nota:"";};
+    $("tabla").innerHTML="<tr><th>No.</th><th>Nombre</th>"+mats.map(m=>`<th>${esc(m)}${mia(m)?" ✎":""}</th>`).join("")+"<th>Promedio</th></tr>"+
+      al.map((a,i)=>`<tr data-c="${esc(a.curp)}"><td>${i+1}</td><td>${esc(a.nombre)}</td>`+mats.map(m=>mia(m)?`<td><input type="number" min="0" max="10" step="0.1" data-c="${esc(a.curp)}" value="${nota(a,m)}"></td>`:`<td>${nota(a,m)===""?"–":nota(a,m)}</td>`).join("")+'<td class="pr"></td></tr>').join("");
+    promedios(); $("guardar").style.display=$("xl").style.display=al.length?"block":"none";
+    aviso("ok","Tu columna es "+c.materia,"Las demás asignaturas las captura cada profesor.");
   };
   $("guardar").onclick=async()=>{
     const lista=[...document.querySelectorAll("#tabla input")].filter(i=>i.value!=="").map(i=>({curp:i.dataset.c,nota:+i.value}));
-    try{const r=await SD.api("/api/calificaciones",{method:"POST",body:{materia:$("mat").value.trim(),parcial:+$("pa").value,notas:lista}});aviso("ok","✔ Guardadas",r.guardadas+" calificaciones. Los tutores recibieron el aviso.");}
+    try{const r=await SD.api("/api/calificaciones",{method:"POST",body:{materia:cur.materia,parcial:+$("pa").value,notas:lista}});aviso("ok","✔ Guardadas",r.guardadas+" calificaciones. Los tutores recibieron el aviso.");}
     catch(e){aviso("err","No se pudo guardar",e.status?e.message:"Necesitas internet para guardar calificaciones");}
+  };
+  $("xl").onclick=()=>{
+    const filas=[...document.querySelectorAll("#tabla tr[data-c]")].map(tr=>{const td=[...tr.querySelectorAll("td")];
+      return [td[1].textContent,td.slice(2,-1).map(c=>{const i=c.querySelector("input"),t=i?i.value:c.textContent;return t===""||t==="–"?"":+t;})];});
+    const blob=SDExcel.calificaciones({titulo:"CBTIS 170 · SHARK DARK",subtitulo:"Calificaciones · "+cur.semestre+" "+cur.area+" "+cur.grupo+" · Parcial "+$("pa").value,materias:mats,filas});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=("calificaciones-"+cur.semestre+cur.area+cur.grupo+"-P"+$("pa").value+".xlsx").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w.-]+/g,"_"); a.click();
   };
 }else{ traer().then(ver); }
 </script></body></html>

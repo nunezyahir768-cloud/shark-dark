@@ -1,7 +1,7 @@
-const CACHE = 'sharkdark-v9';
+const CACHE = 'sharkdark-v12';
 const ARCHIVOS = ['entrada.html','inicio_alumno.html','registro_alumno.html','menu_alumnos.html','qr_alumno.html',
-  'inicio_docente.html','registro_docente.html','menu_docentes.html','escanear.html','admin.html','cuenta.html','calificaciones.html',
-  'inicio_tutor.html','registro_tutor.html','menu_tutor.html','app.js','manifest.webmanifest','img/tiburon.png','img/texto.png','img/barra.png','icon-192.png','icon-512.png','lib/jsQR.js'];
+  'inicio_docente.html','registro_docente.html','menu_docentes.html','escanear.html','admin.html','cuenta.html','calificaciones.html','permisos.html',
+  'inicio_tutor.html','registro_tutor.html','menu_tutor.html','app.js','excel.js','manifest.webmanifest','img/tiburon.png','img/texto.png','img/barra.png','icon-192.png','icon-512.png','lib/jsQR.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(ARCHIVOS.map(f => c.add(f).catch(() => {})))));

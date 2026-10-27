@@ -35,37 +35,70 @@ select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;b
   <button class="btn" id="alt" style="background:transparent;border:1px solid rgba(240,223,196,.4)">Crear cuenta de administrador</button>
 </div>
 <div id="panel" style="display:none">
-  <input id="q" placeholder="Buscar por nombre o CURP" style="text-transform:none;margin-bottom:12px">
-  <div id="lista"></div>
+  <div style="display:flex;gap:8px;margin-bottom:12px"><button class="mini t" data-t="cuentas" style="margin:0">Cuentas</button><button class="mini t" data-t="grupos" style="margin:0">Grupos</button><button class="mini t" data-t="clases" style="margin:0">Clases</button></div>
+  <div id="v-cuentas"><input id="q" placeholder="Buscar por nombre o CURP" style="text-transform:none;margin-bottom:12px"><div id="lista"></div></div>
+  <div id="v-grupos" style="display:none">
+    <div class="card"><h2 style="font-size:16px">Nuevo grupo</h2>
+      <select id="gs"><option>1-2 semestre</option><option>3-4 semestre</option><option>5-6 semestre</option></select><select id="ga"><option>Programación</option><option>Ofimática</option><option>Enfermería</option><option>Electricidad</option><option>Laboratorios Químicos</option><option>Administración</option></select><select id="gl"><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option></select>
+      <button class="btn" id="addg">AÑADIR GRUPO</button></div>
+    <div id="lg"></div></div>
+  <div id="v-clases" style="display:none">
+    <div class="card"><h2 style="font-size:16px">Nueva clase (materia de un grupo)</h2>
+      <select id="cg"></select><input id="cm" placeholder="Materia (ej. Matemáticas)" maxlength="60" style="margin-top:8px;text-transform:none"><select id="cd"></select>
+      <button class="btn" id="addc">AÑADIR CLASE</button></div>
+    <div class="card" id="qrc" style="display:none;text-align:center"></div>
+    <div id="lc"></div></div>
 </div>
 <a class="back" href="entrada.html">← Volver</a>
 </main>
 <script src="app.js"></script>
 <script>
 const $=i=>document.getElementById(i), esc=SD.esc;
-let modo="entrar", todos=[];
+let modo="entrar", todos=[], grupos=[], clases=[];
 function aviso(cls,t,x){const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(t)+"</b>"+esc(x||"");}
 const s=SD.session();
-async function panel(){
-  $("acceso").style.display="none"; $("panel").style.display="block";
-  try{todos=await SD.api("/api/admin/usuarios");pintar();}catch(e){aviso("err","No se pudo cargar",e.message);}
+const api=(p,b)=>SD.api(p,b?{method:"POST",body:b}:{});
+async function recargar(){
+  try{[todos,grupos,clases]=await Promise.all([api("/api/admin/usuarios"),fetch("/api/grupos").then(r=>r.json()),api("/api/clases")]);}catch(e){aviso("err","No se pudo cargar",e.message);}
+  grupos.sort((a,b)=>a.nombre.localeCompare(b.nombre)); pintar(); pintarG(); pintarC();
 }
+function ver(t){for(const k of ["cuentas","grupos","clases"])$("v-"+k).style.display=k===t?"block":"none";}
+document.querySelectorAll(".t").forEach(b=>b.onclick=()=>ver(b.dataset.t));
+async function panel(){$("acceso").style.display="none";$("panel").style.display="block";await recargar();}
 function pintar(){
   const q=$("q").value.trim().toLowerCase();
   const l=todos.filter(u=>!q||(u.nombre+" "+(u.curp||u.rfc||"")).toLowerCase().includes(q)).sort((a,b)=>a.nombre.localeCompare(b.nombre)).slice(0,80);
   $("lista").innerHTML=l.map(u=>`<div class="card"><b>${esc(u.nombre)}</b> <span class="tag">${esc(u.rol)}</span>
-    <p class="sub" style="margin:4px 0 8px">${esc(u.curp||u.rfc||"")}${u.rol==="alumno"?" · "+esc(u.area)+" · "+esc(u.semestre)+" · "+esc(u.grupo):""}${u.curpAlumno?" · alumno "+esc(u.curpAlumno):""}</p>
+    <p class="sub" style="margin:4px 0 8px">${esc(u.curp||u.rfc||"")}${u.rol==="alumno"?" · "+esc(u.semestre)+" "+esc(u.area)+" "+esc(u.grupo):""}${u.curpAlumno?" · alumno "+esc(u.curpAlumno):""}</p>
     <button class="mini" data-a="reset" data-r="${u.rol}" data-i="${esc(u.id)}">Restablecer contraseña</button>
     ${u.rol==="alumno"?`<button class="mini" data-a="editar" data-i="${esc(u.id)}">Cambiar grupo</button>`:""}
     <button class="mini" style="color:#ff6b78" data-a="borrar" data-r="${u.rol}" data-i="${esc(u.id)}">Borrar</button></div>`).join("")||'<p class="sub">Sin resultados.</p>';
 }
+function pintarG(){
+  $("lg").innerHTML=grupos.map(g=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center"><span><b>${esc(g.nombre)}</b><br><small style="color:#8a7d68">${todos.filter(u=>u.rol==="alumno"&&u.area===g.area&&u.semestre===g.semestre&&u.grupo===g.grupo).length} alumnos · ${clases.filter(c=>c.area===g.area&&c.semestre===g.semestre&&c.grupo===g.grupo).length} materias</small></span><button class="mini" style="color:#ff6b78" data-g="${esc(g.id)}">Borrar</button></div>`).join("")||'<p class="sub">Aún no hay grupos.</p>';
+  $("cg").innerHTML=grupos.map((g,i)=>`<option value="${i}">${esc(g.nombre)}</option>`).join("");
+  $("cd").innerHTML=todos.filter(u=>u.rol==="docente").map(u=>`<option value="${esc(u.id)}">${esc(u.nombre)}</option>`).join("")||"<option value=''>No hay docentes registrados</option>";
+}
+function pintarC(){
+  $("lc").innerHTML=clases.sort((a,b)=>(a.semestre+a.area+a.grupo+a.materia).localeCompare(b.semestre+b.area+b.grupo+b.materia)).map(c=>`<div class="card"><b>${esc(c.materia)}</b><p class="sub" style="margin:2px 0 8px">${esc(c.semestre)} ${esc(c.area)} ${esc(c.grupo)} · Prof. ${esc(c.docenteNombre||c.docente)}</p><button class="mini" data-q="${esc(c.id)}">Ver QR</button><button class="mini" style="color:#ff6b78" data-c="${esc(c.id)}">Borrar</button></div>`).join("")||'<p class="sub">Aún no hay clases.</p>';
+}
 $("q").addEventListener("input",pintar);
+$("addg").onclick=async()=>{try{await api("/api/admin/grupos",{semestre:$("gs").value,area:$("ga").value,grupo:$("gl").value});aviso("ok","✔ Grupo añadido","");await recargar();}catch(e){aviso("err","No se pudo",e.message);}};
+$("addc").onclick=async()=>{const g=grupos[+$("cg").value];if(!g)return aviso("err","Primero crea un grupo","");
+  try{const r=await api("/api/admin/clases",{area:g.area,semestre:g.semestre,grupo:g.grupo,materia:$("cm").value,docente:$("cd").value});$("cm").value="";aviso("ok","✔ Clase añadida","Se generó su QR: búscala abajo y toca Ver QR.");await recargar();}catch(e){aviso("err","No se pudo",e.message);}};
+$("lg").addEventListener("click",async ev=>{const b=ev.target.closest("button[data-g]");if(!b||!confirm("¿Borrar este grupo y sus materias?"))return;
+  try{await api("/api/admin/grupos/borrar",{id:b.dataset.g});await recargar();}catch(e){aviso("err","No se pudo",e.message);}});
+$("lc").addEventListener("click",async ev=>{const b=ev.target.closest("button");if(!b)return;
+  if(b.dataset.q){const c=clases.find(x=>x.id===b.dataset.q);$("qrc").style.display="block";
+    $("qrc").innerHTML='<div style="width:220px;margin:auto;border-radius:10px;overflow:hidden;background:#fff">'+SD.qr("CLASE:"+c.id)+'</div><p style="margin-top:10px"><b>'+esc(c.materia)+'</b><br>'+esc(c.semestre+" "+c.area+" "+c.grupo)+'</p><p class="sub">Imprímelo: el docente lo escanea y se abre esta clase.</p>';scrollTo(0,0);}
+  else if(b.dataset.c){if(!confirm("¿Borrar esta clase?"))return;try{await api("/api/admin/clases/borrar",{id:b.dataset.c});await recargar();}catch(e){aviso("err","No se pudo",e.message);}}});
 $("lista").addEventListener("click",async ev=>{const b=ev.target.closest("button[data-a]");if(!b)return;const {a,r,i}=b.dataset;
   try{
-    if(a==="reset"){if(!confirm("¿Restablecer la contraseña de este usuario?"))return;const x=await SD.api("/api/admin/reset",{method:"POST",body:{rol:r,id:i}});aviso("ok","Contraseña temporal",x.temporal+"  (dísela al usuario; que la cambie en Mi cuenta)");}
-    else if(a==="borrar"){if(!confirm("¿Borrar esta cuenta? No se puede deshacer."))return;await SD.api("/api/admin/borrar",{method:"POST",body:{rol:r,id:i}});todos=todos.filter(u=>!(u.rol===r&&u.id===i));pintar();aviso("ok","Cuenta borrada","");}
-    else if(a==="editar"){const area=prompt("Área (deja vacío para no cambiar):")||"",sem=prompt("Semestre, por ejemplo 3-4 semestre (vacío = no cambiar):")||"",gr=prompt("Grupo A o B (vacío = no cambiar):")||"";
-      await SD.api("/api/admin/editar",{method:"POST",body:{id:i,area,semestre:sem,grupo:gr}});todos=await SD.api("/api/admin/usuarios");pintar();aviso("ok","Alumno actualizado","");}
+    if(a==="reset"){if(!confirm("¿Restablecer la contraseña de este usuario?"))return;const x=await api("/api/admin/reset",{rol:r,id:i});aviso("ok","Contraseña temporal",x.temporal+"  (dísela al usuario; que la cambie en Mi cuenta)");}
+    else if(a==="borrar"){if(!confirm("¿Borrar esta cuenta? No se puede deshacer."))return;await api("/api/admin/borrar",{rol:r,id:i});await recargar();aviso("ok","Cuenta borrada","");}
+    else if(a==="editar"){if(!grupos.length)return aviso("err","Primero crea grupos","Ve a la pestaña Grupos.");
+      const n=prompt("Elige el número del grupo nuevo:\n"+grupos.map((g,k)=>(k+1)+") "+g.nombre).join("\n"));const g=grupos[(+n)-1];if(!g)return;
+      await api("/api/admin/editar",{id:i,area:g.area,semestre:g.semestre,grupo:g.grupo});await recargar();aviso("ok","Alumno actualizado",g.nombre);}
   }catch(err){aviso("err","No se pudo",err.message);}
 });
 $("alt").onclick=()=>{modo=modo==="entrar"?"crear":"entrar";$("c").style.display=modo==="crear"?"block":"none";$("entrar").textContent=modo==="crear"?"CREAR CUENTA":"ENTRAR";$("alt").textContent=modo==="crear"?"Ya tengo cuenta":"Crear cuenta de administrador";$("subacc").textContent=modo==="crear"?"Usuario de 4 a 20 letras, números o _. Contraseña de 8 o más.":"Entra con tu usuario de administrador.";};

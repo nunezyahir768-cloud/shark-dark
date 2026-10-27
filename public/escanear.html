@@ -21,91 +21,104 @@ video{width:100%;border-radius:12px;background:#000000;margin-top:12px;display:n
 .banner b{display:block;font-size:26px;margin-bottom:4px}.banner.ok{background:#0f5132;border:2px solid #7dffb0}.banner.warn{background:#5c4300;border:2px solid #ffb454}.banner.err{background:#58151c;border:2px solid #ff6b78}
 select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;background:#321619;border:1px solid rgba(249,244,235,0.12);font-size:14px}
 .mini{margin-left:8px;padding:3px 9px;border-radius:8px;border:1px solid rgba(240,223,196,.4);background:transparent;color:#f0dfc4;font-size:12px;cursor:pointer}
+.tb{border-collapse:collapse;font-size:13px;min-width:100%}.tb th{background:#d3011d;color:#fff;padding:8px 9px;white-space:nowrap}.tb td{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.1);text-align:center}.tb td:nth-child(2),.tb th:nth-child(2){text-align:left;white-space:nowrap}.tb input{width:70px;padding:6px;text-transform:none;text-align:center}
 </style></head><body><main>
 <div class="brand">🦈 <span>SHARK</span> DARK</div>
 
 <h1 id="tit">Escanear QR</h1>
-<p class="sub" id="sub">Al escanear, la asistencia se registra sola y verás si asistió.</p>
+<p class="sub" id="sub">Elige tu clase (o escanea su QR) y luego escanea a los alumnos.</p>
 <div class="banner" id="banner"></div>
 <div class="card" id="clase" style="display:none">
-  <h2 style="font-size:13px;color:#fa2e49;letter-spacing:1px;margin-bottom:8px">CLASE DE AHORA</h2>
-  <input id="mat" list="mats" placeholder="Materia (ej. Matemáticas)" maxlength="60" style="text-transform:none"><datalist id="mats"></datalist>
-  <select id="ar"><option>Programación</option><option>Ofimática</option><option>Enfermería</option><option>Electricidad</option><option>Laboratorios Químicos</option><option>Administración</option></select>
-  <select id="se"><option>1-2 semestre</option><option>3-4 semestre</option><option>5-6 semestre</option></select>
-  <select id="gr"><option>A</option><option>B</option></select>
+  <h2 style="font-size:13px;color:#ff4357;letter-spacing:1px;margin-bottom:8px">CLASE DE AHORA</h2>
+  <select id="cl"></select>
+  <button class="mini" id="vqr" style="margin:10px 0 0 0">Ver QR de esta clase</button>
+  <div id="qrbox" style="display:none;margin-top:12px;text-align:center"></div>
 </div>
 <div class="card" id="buscar">
   <button class="btn" id="cam">📷 ACTIVAR CÁMARA</button>
   <video id="video" playsinline muted></video>
-  <div style="display:flex;gap:8px;margin-top:12px"><input id="curp" maxlength="18" placeholder="o escribe la CURP"><button class="btn" id="ir" style="width:auto;margin:0;padding:0 18px">OK</button></div>
+  <div style="display:flex;gap:8px;margin-top:12px"><input id="curp" maxlength="18" placeholder="CURP o código de clase"><button class="btn" id="ir" style="width:auto;margin:0;padding:0 18px">OK</button></div>
 </div>
 <div class="card" id="ficha" style="display:none"><dl id="datos"></dl></div>
 <div class="card" id="hist" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Historial</h2><ul id="lista"></ul></div>
-<div class="card" id="cierre" style="display:none"><p class="sub" style="margin:0 0 4px">Cuando termine la clase, marca falta a quien no escaneó y avisa a su tutor.</p><button class="btn" id="cerrar">CERRAR LISTA DE ESTA CLASE</button></div>
-<div class="card" id="grupo" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Lista del grupo <span id="cont"></span></h2><ul id="lg"></ul><button class="btn" id="rep" style="margin-top:12px;background:transparent;border:1px solid rgba(240,223,196,.4)">📥 Descargar reporte del mes (Excel)</button></div>
+<div class="card" id="cierre" style="display:none"><p class="sub" style="margin:0 0 4px">Al terminar la clase, marca falta a quien no escaneó y avisa a su tutor.</p><button class="btn" id="cerrar">CERRAR LISTA DE ESTA CLASE</button></div>
+<div class="card" id="grupo" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Lista de la clase <span id="cont"></span></h2><ul id="lg"></ul><button class="btn" id="rep" style="margin-top:12px;background:transparent;border:1px solid rgba(240,223,196,.4)">📥 Descargar reporte del mes (Excel)</button></div>
+<div class="card" id="rejilla" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Asistencia del mes</h2><div style="overflow-x:auto"><table class="tb" id="tbl"></table></div><p class="sub" style="margin:8px 0 0">✓ asistió · ✗ faltó · J justificada · – sin registro</p></div>
 <a class="back" id="volver" href="#">← Volver al menú</a>
 </main>
 <script src="app.js"></script>
+<script src="excel.js"></script>
 <script src="lib/jsQR.js" onerror="this.remove()"></script>
 <script>
 const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["docente","tutor"]), doc=s.rol==="docente";
 $("volver").href=doc?"menu_docentes.html":"menu_tutor.html";
-let parar=null, ultimo="";
+let parar=null, ultimo="", clases=[];
 function aviso(cls,titulo,txt){try{lista()}catch(e){}const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(titulo)+"</b>"+esc(txt||"");if(navigator.vibrate)navigator.vibrate(cls==="ok"?120:[80,60,80]);}
+const claseSel=()=>clases.find(c=>c.id===$("cl").value);
+const nombreClase=c=>c.materia+" · "+c.semestre+" "+c.area+" "+c.grupo;
+async function cargarClases(){
+  try{clases=await SD.api("/api/clases");localStorage.setItem("sd_clases",JSON.stringify(clases));}catch(e){clases=JSON.parse(localStorage.getItem("sd_clases")||"[]");}
+  $("cl").innerHTML=clases.map(c=>`<option value="${esc(c.id)}">${esc(nombreClase(c))}</option>`).join("")||'<option value="">No tienes clases asignadas. Pídelas al administrador.</option>';
+  const u=localStorage.getItem("sd_clase_id"); if(u&&clases.some(c=>c.id===u))$("cl").value=u; lista();
+}
+$("cl").addEventListener("change",()=>{localStorage.setItem("sd_clase_id",$("cl").value);$("qrbox").style.display="none";lista();});
+$("vqr").onclick=()=>{const c=claseSel();if(!c)return;const b=$("qrbox");b.style.display="block";
+  b.innerHTML='<div style="width:200px;margin:auto;border-radius:10px;overflow:hidden;background:#fff">'+SD.qr("CLASE:"+c.id)+'</div><p class="sub" style="margin-top:8px">Imprímelo o muéstralo: al escanearlo se abre esta clase.</p>';};
 
 async function ficha(curp){
   const r=await SD.consultar(curp);
   if(!r.alumno){$("ficha").style.display=$("hist").style.display="none";return r;}
   $("datos").innerHTML=[["Nombre",r.alumno.nombre],["CURP",r.alumno.curp],["Área",r.alumno.area],["Semestre",r.alumno.semestre],["Grupo",r.alumno.grupo]].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||"—")}</dd>`).join("");
   $("ficha").style.display=$("hist").style.display="block";
-  $("lista").innerHTML=r.asistencias.slice(0,30).map(a=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${a.estado==="falta"?'<span class="tag" style="color:#ff6b78;border-color:#ff6b78">falta · '+esc(a.materia||"")+'</span>':a.estado==="justificada"?'<span class="tag" style="color:#f0dfc4;border-color:#f0dfc4">justificada</span>':a.pendiente?'<span class="tag">pendiente</span>':esc(a.materia||a.docenteNombre||"")}</span></li>`).join("")||"<li>Sin registros</li>";
+  const et=a=>a.estado==="falta"?'<span class="tag" style="color:#ff6b78;border-color:#ff6b78">falta · '+esc(a.materia||"")+'</span>':a.estado==="justificada"?'<span class="tag" style="color:#f0dfc4;border-color:#f0dfc4">justificada</span>':a.pendiente?'<span class="tag">pendiente</span>':esc(a.materia||a.docenteNombre||"");
+  $("lista").innerHTML=r.asistencias.slice(0,30).map(a=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${et(a)}</span></li>`).join("")||"<li>Sin registros</li>";
   return r;
 }
-const guardada=JSON.parse(localStorage.getItem("sd_clase")||"{}");
-for(const k of ["mat","ar","se","gr"]) if(guardada[k]) $(k).value=guardada[k];
-$("mats").innerHTML=(JSON.parse(localStorage.getItem("sd_mats")||"[]")).map(m=>`<option value="${esc(m)}">`).join("");
-function clase(){const c={materia:$("mat").value.trim().replace(/\s+/g," "),area:$("ar").value,semestre:$("se").value,grupo:$("gr").value};
-  localStorage.setItem("sd_clase",JSON.stringify({mat:c.materia,ar:c.area,se:c.semestre,gr:c.grupo}));return c;}
-function recordar(m){const l=JSON.parse(localStorage.getItem("sd_mats")||"[]").filter(x=>x.toLowerCase()!==m.toLowerCase());l.unshift(m);localStorage.setItem("sd_mats",JSON.stringify(l.slice(0,15)));}
+function mesDatos(c,d){
+  const mes=new Date().toLocaleDateString("sv-SE").slice(0,7), k=c.materia.toLowerCase();
+  const g=d.alumnos.filter(a=>a.area===c.area&&a.semestre===c.semestre&&a.grupo===c.grupo).sort((x,y)=>x.nombre.localeCompare(y.nombre)), cur=new Set(g.map(a=>a.curp));
+  const rs=d.asistencias.filter(r=>cur.has(r.curp)&&r.fecha.startsWith(mes)&&(r.materia||"").toLowerCase()===k);
+  const fechas=[...new Set(rs.map(r=>r.fecha))].sort(), M={asistio:"✓",falta:"✗",justificada:"J"}, idx=new Map(rs.map(r=>[r.curp+"|"+r.fecha,M[r.estado]||"·"]));
+  return {g,fechas,rs,filas:g.map(a=>[a.nombre,fechas.map(f=>idx.get(a.curp+"|"+f)||"·")])};
+}
+function pintarRejilla(c,d){
+  const m=mesDatos(c,d), col={"✓":"#7dffb0","✗":"#ff6b78","J":"#f0dfc4"}; $("rejilla").style.display="block";
+  $("tbl").innerHTML="<tr><th>No.</th><th>Nombre</th>"+m.fechas.map(f=>`<th>${f.slice(8)}/${f.slice(5,7)}</th>`).join("")+"</tr>"+
+    m.filas.map((f,i)=>`<tr><td>${i+1}</td><td>${esc(f[0])}</td>`+f[1].map(v=>`<td style="color:${col[v]||"#8a7d68"};font-weight:bold">${v==="·"?"–":v}</td>`).join("")+"</tr>").join("");
+}
 async function lista(){
-  if(!doc)return; const c=clase(), d=await SD.datos(), k=c.materia.toLowerCase(), hoy=new Date().toLocaleDateString("sv-SE");
+  if(!doc)return; const c=claseSel(), d=await SD.datos(), hoy=new Date().toLocaleDateString("sv-SE");
+  if(!c){$("cont").textContent="";$("lg").innerHTML="<li>Elige una clase.</li>";return;}
   const g=d.alumnos.filter(a=>a.area===c.area&&a.semestre===c.semestre&&a.grupo===c.grupo).sort((x,y)=>x.nombre.localeCompare(y.nombre));
-  const reg=a=>d.asistencias.find(r=>r.curp===a.curp&&r.fecha===hoy&&(r.materia||"").toLowerCase()===k);
-  if(!c.materia){$("cont").textContent="";$("lg").innerHTML='<li>Escribe la materia para ver quién ya llegó.</li>';return;}
+  const reg=a=>d.asistencias.find(r=>r.curp===a.curp&&r.fecha===hoy&&(r.materia||"").toLowerCase()===c.materia.toLowerCase());
   $("cont").textContent="· llegaron "+g.filter(a=>(reg(a)||{}).estado==="asistio").length+" de "+g.length;
   $("lg").innerHTML=g.map(a=>{const r=reg(a),u=r?esc(r.uid):"";
     const st=!r?"○ falta por llegar":r.estado==="asistio"?"✔ llegó":r.estado==="justificada"?"◐ justificada":"✖ falta";
     const bt=!r||r.pendiente?"":r.estado==="falta"?`<button class="mini" data-u="${u}" data-a="justificar">Justificar</button>`:r.estado==="asistio"?`<button class="mini" data-u="${u}" data-a="quitar">Quitar</button>`:"";
     return `<li><span>${esc(a.nombre)}</span><span>${st}${bt}</span></li>`;}).join("")||"<li>No hay alumnos registrados en este grupo.</li>";
+  pintarRejilla(c,d);
 }
 $("lg").addEventListener("click",async ev=>{const b=ev.target.closest("button[data-u]");if(!b)return;let motivo="";
   if(b.dataset.a==="justificar"){motivo=prompt("Motivo de la justificación (opcional):");if(motivo===null)return;}
   else if(!confirm("¿Quitar este registro de asistencia?"))return;
   try{await SD.corregir(b.dataset.u,b.dataset.a,motivo||"");aviso("ok","✔ Listo",b.dataset.a==="quitar"?"Registro quitado.":"Falta justificada; se avisó al tutor.");}
   catch(err){aviso("err","No se pudo",err.message);}});
-for(const i of ["mat","ar","se","gr"])$(i).addEventListener("input",lista);
-$("rep").onclick=async()=>{
-  const c=clase(), d=await SD.datos(), mes=new Date().toLocaleDateString("sv-SE").slice(0,7);
-  const g=new Map(d.alumnos.filter(a=>a.area===c.area&&a.semestre===c.semestre&&a.grupo===c.grupo).map(a=>[a.curp,a]));
-  const est={asistio:"Asistió",falta:"Falta",justificada:"Justificada"};
-  const rows=d.asistencias.filter(r=>g.has(r.curp)&&r.fecha.startsWith(mes)&&(!c.materia||(r.materia||"").toLowerCase()===c.materia.toLowerCase()))
-    .sort((x,y)=>g.get(x.curp).nombre.localeCompare(g.get(y.curp).nombre)||x.fecha.localeCompare(y.fecha))
-    .map(r=>[g.get(r.curp).nombre,r.curp,r.fecha,r.hora,r.materia||"",est[r.estado]||r.estado,r.motivo||""]);
-  const csv=[["Alumno","CURP","Fecha","Hora","Materia","Estado","Motivo"],...rows].map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(",")).join("\r\n");
-  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"})); a.download="asistencias-"+c.area+"-"+c.semestre+"-"+c.grupo+"-"+mes+".csv"; a.click();
-  aviso("ok","📥 Reporte listo",rows.length+" registros. Ábrelo con Excel.");
-};
 document.addEventListener("sd-sync",()=>lista());
-async function procesar(curp){
-  curp=curp.trim().toUpperCase(); $("curp").value=curp;
-  if(!/^[A-Z0-9]{18}$/.test(curp)) return aviso("err","✖ QR no válido","No contiene una CURP.");
-  const r=await ficha(curp);
+
+async function procesar(txt){
+  txt=txt.trim().toUpperCase(); $("curp").value=txt;
+  if(txt.startsWith("CLASE:")){
+    const c=clases.find(x=>x.id===txt.slice(6));
+    if(!c) return aviso("err","Clase no encontrada","Ese QR no es de una de tus clases.");
+    $("cl").value=c.id; localStorage.setItem("sd_clase_id",c.id); return aviso("ok","Clase lista",nombreClase(c));
+  }
+  if(!/^[A-Z0-9]{18}$/.test(txt)) return aviso("err","✖ QR no válido","No contiene una CURP.");
+  const r=await ficha(txt);
   if(!r.alumno) return aviso("err","✖ No encontrado",r.offline?"Sin conexión y ese alumno no está en este dispositivo.":"Esa CURP no está registrada.");
   if(!doc) return;
-  const c=clase(); if(!c.materia) return aviso("err","Falta la materia","Escribe la materia de esta clase arriba.");
-  if(r.alumno.area!==c.area||r.alumno.semestre!==c.semestre||r.alumno.grupo!==c.grupo) return aviso("warn","No es de este grupo",r.alumno.nombre+" es de "+r.alumno.area+" · "+r.alumno.semestre+" · Grupo "+r.alumno.grupo);
-  recordar(c.materia);
-  const x=await SD.asistencia(curp,c); await ficha(curp);
+  const c=claseSel(); if(!c) return aviso("err","Elige una clase","Selecciona tu clase arriba o escanea su QR.");
+  if(r.alumno.area!==c.area||r.alumno.semestre!==c.semestre||r.alumno.grupo!==c.grupo) return aviso("warn","No es de este grupo",r.alumno.nombre+" es de "+r.alumno.semestre+" "+r.alumno.area+" "+r.alumno.grupo);
+  const x=await SD.asistencia(txt,{materia:c.materia}); await ficha(txt);
   if(x.duplicada) aviso("warn","Ya registrado",r.alumno.nombre+" ya tenía asistencia en "+c.materia+" ("+x.asistencia.hora+")");
   else aviso("ok","✔ ASISTIÓ",r.alumno.nombre+" · "+c.materia+" · "+x.asistencia.hora+(navigator.onLine?"":" (se enviará al tutor al volver internet)"));
 }
@@ -119,12 +132,20 @@ $("cam").onclick=async()=>{
   }catch(e){ $("video").style.display="none"; $("cam").textContent="📷 ACTIVAR CÁMARA"; aviso("err","Cámara","No se pudo abrir (permiso o HTTPS)."); }
 };
 $("cerrar").onclick=async()=>{
-  const c=clase(); if(!c.materia) return aviso("err","Falta la materia","Escribe la materia de esta clase arriba.");
-  if(!confirm("¿Cerrar lista de "+c.materia+"?\n"+c.area+" · "+c.semestre+" · Grupo "+c.grupo+"\nQuien no haya asistido quedará con falta."))return;
-  recordar(c.materia);
+  const c=claseSel(); if(!c) return aviso("err","Elige una clase","");
+  if(!confirm("¿Cerrar lista de "+c.materia+"?\n"+c.semestre+" "+c.area+" "+c.grupo+"\nQuien no haya asistido quedará con falta."))return;
   const f=await SD.cierre(c);
   f.length?aviso("warn","Faltaron "+f.length+" a "+c.materia,f.join(", ")):aviso("ok","✔ Todos asistieron","Sin faltas en "+c.materia+".");
 };
-if(doc){ $("cierre").style.display=$("clase").style.display=$("grupo").style.display="block"; lista(); }
+$("rep").onclick=async()=>{
+  const c=claseSel(); if(!c) return aviso("err","Elige una clase","");
+  const d=await SD.datos(), m=mesDatos(c,d), mes=new Date().toLocaleDateString("sv-SE").slice(0,7), mesTxt=new Date().toLocaleDateString("es-MX",{month:"long",year:"numeric"});
+  const nom=new Map(m.g.map(a=>[a.curp,a.nombre])), est={asistio:"Asistió",falta:"Falta",justificada:"Justificada"};
+  const detalle=m.rs.slice().sort((x,y)=>nom.get(x.curp).localeCompare(nom.get(y.curp))||x.fecha.localeCompare(y.fecha)).map(r=>[nom.get(r.curp),r.curp,r.fecha,r.hora||"",r.materia||"",est[r.estado]||r.estado,r.motivo||""]);
+  const blob=SDExcel.asistencias({titulo:"CBTIS 170 · SHARK DARK",subtitulo:"Asistencias · "+nombreClase(c)+" · "+mesTxt,fechas:m.fechas.map(f=>f.slice(8)+"/"+f.slice(5,7)),filas:m.filas,detalle});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=("asistencias-"+c.materia+"-"+c.semestre+c.area+c.grupo+"-"+mes+".xlsx").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w.-]+/g,"_"); a.click();
+  aviso("ok","📥 Reporte listo",m.g.length+" alumnos y "+m.fechas.length+" días. Ábrelo con Excel.");
+};
+if(doc){ $("clase").style.display=$("cierre").style.display=$("grupo").style.display="block"; cargarClases(); }
 else{ $("tit").textContent="Ficha del alumno"; $("sub").textContent="Datos y asistencias de tu alumno."; $("buscar").style.display="none"; ficha(s.curpAlumno||""); document.addEventListener("sd-sync",()=>ficha(s.curpAlumno||"")); }
 </script></body></html>

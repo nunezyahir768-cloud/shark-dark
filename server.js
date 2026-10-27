@@ -59,7 +59,7 @@ const auth = (req, res, next) => {
 };
 const publico = ({ salt, hash, _id, ...r }) => r;
 
-let usuarios, asistencias, avisos, calificaciones;
+let usuarios, asistencias, avisos, calificaciones, grupos, clases;
 
 /* CURPs que cada rol puede ver: docente = todas, alumno = la suya, tutor = la de su alumno */
 async function permitidas(u) {
@@ -215,6 +215,48 @@ app.post('/api/admin/borrar', auth, soloAdmin, h(async (req, res) => {
     res.json({ ok: true });
 }));
 
+/* ---------- Grupos y clases (materia + grupo + docente) ---------- */
+app.get('/api/grupos', h(async (req, res) => {
+    res.json((await grupos.find({}).limit(500).toArray()).map(({ _id, ...r }) => ({ id: _id, ...r })));
+}));
+app.post('/api/admin/grupos', auth, soloAdmin, h(async (req, res) => {
+    const semestre = s(req.body.semestre).slice(0, 12), area = s(req.body.area).slice(0, 40), grupo = s(req.body.grupo).toUpperCase().slice(0, 3);
+    if (!semestre || !area || !grupo) return bad(res, 'Datos inválidos');
+    try { await grupos.insertOne({ _id: `${semestre}|${area}|${grupo}`, semestre, area, grupo, nombre: `${semestre} ${area} ${grupo}` }); }
+    catch (e) { if (e.code === 11000) return bad(res, 'Ese grupo ya existe', 409); throw e; }
+    res.status(201).json({ ok: true });
+}));
+app.post('/api/admin/grupos/borrar', auth, soloAdmin, h(async (req, res) => {
+    const g = await grupos.findOne({ _id: s(req.body.id) });
+    if (!g) return bad(res, 'Grupo no encontrado', 404);
+    await grupos.deleteOne({ _id: g._id });
+    await clases.deleteMany({ area: g.area, semestre: g.semestre, grupo: g.grupo });
+    res.json({ ok: true });
+}));
+app.get('/api/clases', auth, h(async (req, res) => {
+    let q = {};
+    if (req.u.rol === 'docente') q = req.query.area ? { area: s(req.query.area), semestre: s(req.query.semestre), grupo: s(req.query.grupo) } : { docente: req.u.id };
+    else if (req.u.rol !== 'admin') {
+        const c = await permitidas(req.u), al = c && c[0] ? await usuarios.findOne({ _id: 'alumno:' + c[0] }) : null;
+        if (!al) return res.json([]);
+        q = { area: al.area, semestre: al.semestre, grupo: al.grupo };
+    }
+    res.json((await clases.find(q).limit(1000).toArray()).map(({ _id, ...r }) => ({ id: _id, ...r })));
+}));
+app.post('/api/admin/clases', auth, soloAdmin, h(async (req, res) => {
+    const materia = limpiaMat(req.body.materia), area = s(req.body.area), semestre = s(req.body.semestre), grupo = s(req.body.grupo).toUpperCase(), doc = s(req.body.docente).toUpperCase();
+    if (!materia || !await grupos.findOne({ _id: `${semestre}|${area}|${grupo}` })) return bad(res, 'Materia o grupo inválido');
+    const d = await usuarios.findOne({ _id: 'docente:' + doc });
+    if (!d) return bad(res, 'Docente no encontrado', 404);
+    const id = crypto.randomBytes(4).toString('hex').toUpperCase();
+    await clases.insertOne({ _id: id, materia, area, semestre, grupo, docente: doc, docenteNombre: d.nombre });
+    res.status(201).json({ ok: true, id });
+}));
+app.post('/api/admin/clases/borrar', auth, soloAdmin, h(async (req, res) => {
+    await clases.deleteOne({ _id: s(req.body.id).toUpperCase() });
+    res.json({ ok: true });
+}));
+
 /* ---------- Mi cuenta ---------- */
 app.post('/api/cuenta/password', auth, h(async (req, res) => {
     const u = await usuarios.findOne({ _id: `${req.u.rol}:${req.u.id}` });
@@ -278,6 +320,8 @@ async function iniciarServidor() {
         usuarios = db.collection('usuarios');
         asistencias = db.collection('asistencias');
         calificaciones = db.collection('calificaciones');
+        grupos = db.collection('grupos');
+        clases = db.collection('clases');
         avisos = db.collection('avisos');
         await asistencias.createIndex({ curp: 1, fecha: -1 });
 

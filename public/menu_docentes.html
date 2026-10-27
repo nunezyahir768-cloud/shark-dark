@@ -23,10 +23,12 @@ ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;
 <h1>Hola, <span id="nombre"></span> 👋</h1>
 <p class="sub">Escanea el QR de un alumno para registrar su asistencia.</p>
 <a class="btn" href="escanear.html" style="font-size:18px;padding:22px;margin-bottom:14px">📷 ESCANEAR QR</a>
+<div class="card"><h2>MIS CLASES</h2><ul id="misclases"></ul></div>
 <div class="card"><h2>REGISTRADAS HOY</h2><div class="num" id="total">0</div></div>
 <div class="card"><h2>ÚLTIMOS REGISTROS</h2><ul id="lista"></ul></div>
 <a class="btn" href="calificaciones.html" style="margin-bottom:14px">📊 Calificaciones</a>
-<div class="card"><h2>PRÓXIMAMENTE</h2><div class="pronto"><span>📚 Materias</span><span>📝 Permisos</span><span>⏰ Horario</span></div></div>
+<a class="btn" id="lp" href="permisos.html" style="margin-bottom:14px">📝 Permisos</a>
+<div class="card"><h2>PRÓXIMAMENTE</h2><div class="pronto"><span>📚 Materias</span><span>⏰ Horario</span></div></div>
 </main>
 <script src="app.js"></script>
 <script>
@@ -41,5 +43,8 @@ async function pintar(){
   $("total").textContent=m.filter(a=>a.fecha===hoy).length;
   $("lista").innerHTML=m.slice(0,6).map(a=>`<li><span>${esc(nom[a.curp]||a.curp)} <small style="color:#b59d77">${esc(a.materia||"")}</small></span><span>${a.pendiente?'<span class="tag">pendiente</span>':esc(a.hora)}</span></li>`).join("")||'<li class="vacio">Aún no registras asistencias</li>';
 }
-pintar(); document.addEventListener("sd-sync",pintar);
+async function clasesDoc(){let c;try{c=await SD.api("/api/clases");localStorage.setItem("sd_clases",JSON.stringify(c));}catch(e){c=JSON.parse(localStorage.getItem("sd_clases")||"[]");}
+  $("misclases").innerHTML=c.map(x=>`<li><a href="escanear.html" onclick="localStorage.setItem('sd_clase_id','${esc(x.id)}')" style="color:#f0dfc4;text-decoration:none">${esc(x.materia)}</a><span>${esc(x.semestre+" "+x.area+" "+x.grupo)}</span></li>`).join("")||'<li class="vacio">Aún no tienes clases asignadas. Pídelas al administrador.</li>';}
+SD.api("/api/permisos").then(l=>{const k=l.filter(p=>p.estado==="pendiente").length;if(k)$("lp").textContent="📝 Permisos ("+k+" pendientes)";}).catch(()=>{});
+clasesDoc(); pintar(); document.addEventListener("sd-sync",pintar);
 </script></body></html>

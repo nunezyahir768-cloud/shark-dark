@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHARK DARK | Permisos</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#050505"><link rel="icon" href="icon-192.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;padding:24px 16px 70px;font-family:Arial,Helvetica,sans-serif;color:#f9f4eb;background:radial-gradient(circle at 12% 12%,rgba(250,46,73,0.16),transparent 27%),radial-gradient(circle at 88% 80%,rgba(166,3,24,0.22),transparent 30%),linear-gradient(135deg,#11090a,#2d181b 52%,#1c0f11)}
+main{width:min(520px,100%);margin:auto}
+.brand{font-weight:900;letter-spacing:2px;font-size:20px;margin-bottom:20px}.brand span{color:#fa2e49}
+h1{font-size:28px;margin-bottom:6px}.sub{color:#d9ccb8;font-size:14px;line-height:1.5;margin-bottom:20px}
+.card{padding:20px;border:1px solid rgba(249,244,235,0.12);border-radius:17px;background:rgba(30,16,18,0.92);margin-bottom:16px}
+.btn{display:block;width:100%;padding:14px;border:0;border-radius:11px;color:#f9f4eb;background:linear-gradient(90deg,#a60318,#e50624);font-size:14px;font-weight:bold;cursor:pointer;margin-top:12px;text-align:center;text-decoration:none}
+input{width:100%;padding:14px 16px;border:1px solid rgba(249,244,235,0.12);border-radius:10px;color:#f9f4eb;background:#321619;font-size:15px;letter-spacing:1px;text-transform:uppercase;outline:none}
+dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:14px}dt{color:#c8b699}dd{word-break:break-word}
+.back{display:inline-block;margin-top:8px;color:#efe0c8;text-decoration:none;font-size:13px}
+.msg{color:#ffb454;font-size:13px;margin-top:10px;min-height:18px}.ok{color:#7dffb0}
+ul{list-style:none;font-size:14px}li{padding:8px 0;border-bottom:1px solid rgba(249,244,235,0.08);display:flex;justify-content:space-between;gap:8px}
+video{width:100%;border-radius:12px;background:#000000;margin-top:12px;display:none}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
+.banner{display:none;padding:20px;border-radius:16px;text-align:center;font-weight:bold;margin-bottom:14px}
+.banner b{display:block;font-size:26px;margin-bottom:4px}.banner.ok{background:#0f5132;border:2px solid #7dffb0}.banner.warn{background:#5c4300;border:2px solid #ffb454}.banner.err{background:#58151c;border:2px solid #ff6b78}
+select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;background:#321619;border:1px solid rgba(249,244,235,0.12);font-size:14px}
+.mini{margin-left:8px;padding:3px 9px;border-radius:8px;border:1px solid rgba(240,223,196,.4);background:transparent;color:#f0dfc4;font-size:12px;cursor:pointer}
+.tb{border-collapse:collapse;font-size:13px;min-width:100%}.tb th{background:#d3011d;color:#fff;padding:8px 9px;white-space:nowrap}.tb td{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.1);text-align:center}.tb td:nth-child(2),.tb th:nth-child(2){text-align:left;white-space:nowrap}.tb input{width:70px;padding:6px;text-transform:none;text-align:center}
+</style></head><body><main>
+<div class="brand">🦈 <span>SHARK</span> DARK</div>
+
+<h1>Permisos</h1>
+<p class="sub" id="sub"></p>
+<div class="banner" id="banner"></div>
+<div class="card" id="nuevo" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Pedir permiso para mi alumno</h2>
+  <label class="sub" style="margin:0">Desde</label><input type="date" id="d1" style="text-transform:none">
+  <label class="sub" style="margin:8px 0 0;display:block">Hasta</label><input type="date" id="d2" style="text-transform:none">
+  <input id="mo" placeholder="Motivo (ej. cita médica)" maxlength="200" style="margin-top:8px;text-transform:none">
+  <button class="btn" id="enviar">ENVIAR SOLICITUD</button></div>
+<div id="lista"></div>
+<a class="back" id="volver" href="#">← Volver al menú</a>
+</main>
+<script src="app.js"></script>
+<script>
+const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["tutor","docente"]), doc=s.rol==="docente";
+$("volver").href=doc?"menu_docentes.html":"menu_tutor.html";
+$("sub").textContent=doc?"Solicitudes de los tutores de tus grupos. Si apruebas, ese día no cuenta como falta.":"Pide un permiso y un docente de su grupo lo aprobará.";
+function aviso(cls,t,x){const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(t)+"</b>"+esc(x||"");}
+const hoy=new Date().toLocaleDateString("sv-SE"), fmt=f=>f.slice(8)+"/"+f.slice(5,7);
+const COL={pendiente:"#ffb454",aprobado:"#7dffb0",rechazado:"#ff6b78"};
+async function cargar(){
+  let l=[]; try{l=await SD.api("/api/permisos");}catch(e){$("lista").innerHTML='<div class="card"><p class="sub" style="margin:0">Necesitas internet para ver los permisos.</p></div>';return;}
+  $("lista").innerHTML=l.map(p=>`<div class="card"><b>${esc(p.alumno)}</b> <span class="tag" style="color:${COL[p.estado]};border-color:${COL[p.estado]}">${esc(p.estado)}</span>
+    <p class="sub" style="margin:4px 0 6px">Del ${fmt(p.desde)} al ${fmt(p.hasta)} · ${esc(p.motivo)}</p>
+    ${doc&&p.estado==="pendiente"?`<button class="mini" data-i="${esc(p.id)}" data-a="aprobar" style="margin-left:0">Aprobar</button><button class="mini" data-i="${esc(p.id)}" data-a="rechazar" style="color:#ff6b78">Rechazar</button>`:""}</div>`).join("")||'<div class="card"><p class="sub" style="margin:0">No hay permisos.</p></div>';
+}
+$("lista").addEventListener("click",async ev=>{const b=ev.target.closest("button[data-i]");if(!b)return;
+  try{await SD.api("/api/permisos/"+b.dataset.i+"/resolver",{method:"POST",body:{accion:b.dataset.a}});aviso("ok",b.dataset.a==="aprobar"?"✔ Permiso aprobado":"Permiso rechazado","Se avisó al tutor.");cargar();}
+  catch(e){aviso("err","No se pudo",e.status?e.message:"Necesitas internet");}});
+if(!doc){ $("nuevo").style.display="block"; $("d1").value=$("d2").value=hoy;
+  $("enviar").onclick=async()=>{try{await SD.api("/api/permisos",{method:"POST",body:{desde:$("d1").value,hasta:$("d2").value,motivo:$("mo").value}});$("mo").value="";aviso("ok","✔ Solicitud enviada","El docente de su grupo la revisará.");cargar();}
+    catch(e){aviso("err","No se pudo enviar",e.status?e.message:"Necesitas internet");}};}
+cargar();
+</script></body></html>
