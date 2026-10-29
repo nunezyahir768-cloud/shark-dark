@@ -73,10 +73,12 @@
     return rec;
   }
 
+  /* Entrar solo con usuario y contraseña: la app descubre si es alumno, tutor, docente o administrador */
   async function login(rol, id, password) {
-    id = String(id).toUpperCase();
+    id = String(id).trim().toUpperCase();
     try {
-      const r = await api('/api/login', { method: 'POST', body: { rol, id, password } });
+      const r = await api('/api/login', { method: 'POST', body: { rol: rol || '', id, password } });
+      rol = r.usuario.rol;
       const salt = crypto.randomUUID();
       const u = { ...r.usuario, _id: rol + ':' + id, rol, id, salt, hash: await hash(password, salt), token: r.token };
       await put('usuarios', u);
@@ -86,10 +88,11 @@
       return u;
     } catch (e) {
       if (e.status) throw e;                       // contraseña incorrecta, etc.
-      const u = await get('usuarios', rol + ':' + id);
-      if (!u || u.hash !== await hash(password, u.salt))
-        throw new Error('Sin conexión: solo puedes entrar con una cuenta que ya usaste en este dispositivo');
-      await cambioDeUsuario(rol, id);
+      let u = null;
+      for (const x of (await all('usuarios')).filter(x => x.id === id && (!rol || x.rol === rol)))
+        if (x.hash === await hash(password, x.salt)) { u = x; break; }
+      if (!u) throw new Error('Sin conexión: solo puedes entrar con una cuenta que ya usaste en este dispositivo');
+      await cambioDeUsuario(u.rol, id);
       setSes(u);
       return u;
     }
@@ -133,10 +136,12 @@
     if (navigator.onLine) { try { for (const x of await api('/api/alumnos')) await put('alumnos', x); } catch (e) {} }
     const d = await datos(), presentes = new Set(d.asistencias.filter(a => a.fecha === fecha && a.estado !== 'falta' && mat(a.materia).toLowerCase() === k).map(a => a.curp));
     const ausentes = d.alumnos.filter(x => x.area === clase.area && x.semestre === clase.semestre && x.grupo === clase.grupo && !presentes.has(x.curp));
-    for (const x of ausentes) await put('asistencias', { uid: `F:${x.curp}:${fecha}:${k}`, curp: x.curp, fecha, hora, estado: 'falta', materia, docente: s.id, docenteNombre: s.nombre, pendiente: true });
+    let ap = []; if (navigator.onLine) { try { ap = (await api('/api/permisos')).filter(p => p.estado === 'aprobado'); } catch (e) {} }
+    const just = x => ap.some(p => p.curp === x.curp && p.desde <= fecha && fecha <= p.hasta);
+    for (const x of ausentes) await put('asistencias', { uid: `F:${x.curp}:${fecha}:${k}`, curp: x.curp, fecha, hora, estado: just(x) ? 'justificada' : 'falta', materia, docente: s.id, docenteNombre: s.nombre, pendiente: true });
     await put('cola', { tipo: 'cierre', datos: { area: clase.area, semestre: clase.semestre, grupo: clase.grupo, materia, fecha, hora, docenteNombre: s.nombre } });
     refrescarBadge(); sync();
-    return ausentes.map(x => x.nombre);
+    return ausentes.filter(x => !just(x)).map(x => x.nombre);
   }
 
   /* Corregir (solo con internet): justificar una falta o quitar un registro */
@@ -335,6 +340,15 @@
   }
 
   const datos = async () => ({ alumnos: await all('alumnos'), asistencias: await all('asistencias'), avisos: await all('avisos') });
+  /* Alumnos vinculados (tutor) o tutores vinculados (alumno); el tutor elige a cuál alumno ver */
+  async function vinculos() {
+    try { const l = await api('/api/vinculos'); localStorage.setItem('sd_vinc', JSON.stringify(l)); return l; }
+    catch (e) { return JSON.parse(localStorage.getItem('sd_vinc') || '[]'); }
+  }
+  async function alumnoActivo() {
+    const l = (await vinculos()).filter(x => x.estado === 'vinculado'), c = localStorage.getItem('sd_alumno');
+    return l.find(x => x.curp === c) || l[0] || null;
+  }
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  window.SD = { register, login, logout, require: require_, session: ses, asistencia, consultar, sync, scan, qr, esc, datos, cierre, corregir, permisoAvisos, api };
+  window.SD = { register, login, logout, require: require_, session: ses, asistencia, consultar, sync, scan, qr, esc, datos, cierre, corregir, permisoAvisos, api, vinculos, alumnoActivo };
 })();

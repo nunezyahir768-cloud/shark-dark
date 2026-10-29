@@ -1,43 +1,21 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Mi cuenta</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#050505"><link rel="icon" href="icon-192.png">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;padding:24px 16px 70px;font-family:Arial,Helvetica,sans-serif;color:#f9f4eb;background:radial-gradient(circle at 12% 12%,rgba(250,46,73,0.16),transparent 27%),radial-gradient(circle at 88% 80%,rgba(166,3,24,0.22),transparent 30%),linear-gradient(135deg,#11090a,#2d181b 52%,#1c0f11)}
-main{width:min(520px,100%);margin:auto}
-.brand{font-weight:900;letter-spacing:2px;font-size:20px;margin-bottom:20px}.brand span{color:#fa2e49}
-h1{font-size:28px;margin-bottom:6px}.sub{color:#d9ccb8;font-size:14px;line-height:1.5;margin-bottom:20px}
-.card{padding:20px;border:1px solid rgba(249,244,235,0.12);border-radius:17px;background:rgba(30,16,18,0.92);margin-bottom:16px}
-.btn{display:block;width:100%;padding:14px;border:0;border-radius:11px;color:#f9f4eb;background:linear-gradient(90deg,#a60318,#e50624);font-size:14px;font-weight:bold;cursor:pointer;margin-top:12px;text-align:center;text-decoration:none}
-input{width:100%;padding:14px 16px;border:1px solid rgba(249,244,235,0.12);border-radius:10px;color:#f9f4eb;background:#321619;font-size:15px;letter-spacing:1px;text-transform:uppercase;outline:none}
-dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:14px}dt{color:#c8b699}dd{word-break:break-word}
-.back{display:inline-block;margin-top:8px;color:#efe0c8;text-decoration:none;font-size:13px}
-.msg{color:#ffb454;font-size:13px;margin-top:10px;min-height:18px}.ok{color:#7dffb0}
-ul{list-style:none;font-size:14px}li{padding:8px 0;border-bottom:1px solid rgba(249,244,235,0.08);display:flex;justify-content:space-between;gap:8px}
-video{width:100%;border-radius:12px;background:#000000;margin-top:12px;display:none}
-.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
-.banner{display:none;padding:20px;border-radius:16px;text-align:center;font-weight:bold;margin-bottom:14px}
-.banner b{display:block;font-size:26px;margin-bottom:4px}.banner.ok{background:#0f5132;border:2px solid #7dffb0}.banner.warn{background:#5c4300;border:2px solid #ffb454}.banner.err{background:#58151c;border:2px solid #ff6b78}
-select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;background:#321619;border:1px solid rgba(249,244,235,0.12);font-size:14px}
-.mini{margin-left:8px;padding:3px 9px;border-radius:8px;border:1px solid rgba(240,223,196,.4);background:transparent;color:#f0dfc4;font-size:12px;cursor:pointer}
-</style></head><body><main>
-<div class="brand">🦈 <span>SHARK</span> DARK</div>
-
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="tema.css">
+</head><body><main>
 <h1>Mi cuenta</h1>
 <div class="banner" id="banner"></div>
 <div class="card"><h2 style="font-size:16px">Cambiar contraseña</h2>
   <input id="a" type="password" placeholder="Contraseña actual" style="margin-top:8px;text-transform:none">
   <input id="n" type="password" placeholder="Nueva contraseña (mínimo 6)" style="margin-top:8px;text-transform:none">
   <button class="btn" id="cp">GUARDAR CONTRASEÑA</button></div>
-<div class="card" id="datos" style="display:none"><h2 style="font-size:16px">Mis datos escolares</h2>
-  <select id="ar"><option>Programación</option><option>Ofimática</option><option>Enfermería</option><option>Electricidad</option><option>Laboratorios Químicos</option><option>Administración</option></select>
-  <select id="se"><option>1-2 semestre</option><option>3-4 semestre</option><option>5-6 semestre</option></select>
-  <select id="gr"><option>A</option><option>B</option></select>
-  <button class="btn" id="cd">GUARDAR DATOS</button></div>
+<div class="card" id="datos" style="display:none"><h2 style="font-size:16px">Mi grupo</h2>
+  <select id="gsel"></select><button class="btn" id="cd">GUARDAR GRUPO</button></div>
 <a class="back" id="volver" href="#">← Volver</a>
 </main>
 <script src="app.js"></script>
+<script src="shell.js"></script>
 <script>
 const $=i=>document.getElementById(i), esc=SD.esc;
 const s=SD.require(["alumno","docente","tutor","admin"]);
@@ -50,9 +28,12 @@ $("cp").onclick=async()=>{
   catch(e){aviso("err","No se pudo",e.status?e.message:"Necesitas internet para cambiar la contraseña");}
 };
 if(s.rol==="alumno"){
-  $("datos").style.display="block"; $("ar").value=s.area||$("ar").value; $("se").value=s.semestre||$("se").value; $("gr").value=s.grupo||$("gr").value;
-  $("cd").onclick=async()=>{try{await SD.api("/api/cuenta/datos",{method:"POST",body:{area:$("ar").value,semestre:$("se").value,grupo:$("gr").value}});
-    const x=JSON.parse(localStorage.getItem("sd_ses"));Object.assign(x,{area:$("ar").value,semestre:$("se").value,grupo:$("gr").value});localStorage.setItem("sd_ses",JSON.stringify(x));aviso("ok","✔ Datos guardados","");}
+  $("datos").style.display="block"; let G=[];
+  (async()=>{try{G=await (await fetch("/api/grupos")).json();localStorage.setItem("sd_grupos",JSON.stringify(G));}catch(e){G=JSON.parse(localStorage.getItem("sd_grupos")||"[]");}
+    G.sort((a,b)=>a.nombre.localeCompare(b.nombre)); $("gsel").innerHTML=G.map((g,i)=>`<option value="${i}">${esc(g.nombre)}</option>`).join("");
+    const k=G.findIndex(g=>g.area===s.area&&g.semestre===s.semestre&&g.grupo===s.grupo); if(k>=0)$("gsel").value=k;})();
+  $("cd").onclick=async()=>{const g=G[+$("gsel").value];if(!g)return;
+    try{await SD.api("/api/cuenta/datos",{method:"POST",body:{area:g.area,semestre:g.semestre,grupo:g.grupo}});
+      const x=JSON.parse(localStorage.getItem("sd_ses"));Object.assign(x,{area:g.area,semestre:g.semestre,grupo:g.grupo});localStorage.setItem("sd_ses",JSON.stringify(x));aviso("ok","✔ Grupo guardado",g.nombre);}
     catch(e){aviso("err","No se pudo",e.status?e.message:"Necesitas internet");}};
 }
-</script></body></html>

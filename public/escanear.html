@@ -1,35 +1,14 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Escanear QR</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#050505"><link rel="icon" href="icon-192.png">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;padding:24px 16px 70px;font-family:Arial,Helvetica,sans-serif;color:#f9f4eb;background:radial-gradient(circle at 12% 12%,rgba(250,46,73,0.16),transparent 27%),radial-gradient(circle at 88% 80%,rgba(166,3,24,0.22),transparent 30%),linear-gradient(135deg,#11090a,#2d181b 52%,#1c0f11)}
-main{width:min(520px,100%);margin:auto}
-.brand{font-weight:900;letter-spacing:2px;font-size:20px;margin-bottom:20px}.brand span{color:#fa2e49}
-h1{font-size:28px;margin-bottom:6px}.sub{color:#d9ccb8;font-size:14px;line-height:1.5;margin-bottom:20px}
-.card{padding:20px;border:1px solid rgba(249,244,235,0.12);border-radius:17px;background:rgba(30,16,18,0.92);margin-bottom:16px}
-.btn{display:block;width:100%;padding:14px;border:0;border-radius:11px;color:#f9f4eb;background:linear-gradient(90deg,#a60318,#e50624);font-size:14px;font-weight:bold;cursor:pointer;margin-top:12px;text-align:center;text-decoration:none}
-input{width:100%;padding:14px 16px;border:1px solid rgba(249,244,235,0.12);border-radius:10px;color:#f9f4eb;background:#321619;font-size:15px;letter-spacing:1px;text-transform:uppercase;outline:none}
-dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:14px}dt{color:#c8b699}dd{word-break:break-word}
-.back{display:inline-block;margin-top:8px;color:#efe0c8;text-decoration:none;font-size:13px}
-.msg{color:#ffb454;font-size:13px;margin-top:10px;min-height:18px}.ok{color:#7dffb0}
-ul{list-style:none;font-size:14px}li{padding:8px 0;border-bottom:1px solid rgba(249,244,235,0.08);display:flex;justify-content:space-between;gap:8px}
-video{width:100%;border-radius:12px;background:#000000;margin-top:12px;display:none}
-.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
-.banner{display:none;padding:20px;border-radius:16px;text-align:center;font-weight:bold;margin-bottom:14px}
-.banner b{display:block;font-size:26px;margin-bottom:4px}.banner.ok{background:#0f5132;border:2px solid #7dffb0}.banner.warn{background:#5c4300;border:2px solid #ffb454}.banner.err{background:#58151c;border:2px solid #ff6b78}
-select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;background:#321619;border:1px solid rgba(249,244,235,0.12);font-size:14px}
-.mini{margin-left:8px;padding:3px 9px;border-radius:8px;border:1px solid rgba(240,223,196,.4);background:transparent;color:#f0dfc4;font-size:12px;cursor:pointer}
-.tb{border-collapse:collapse;font-size:13px;min-width:100%}.tb th{background:#d3011d;color:#fff;padding:8px 9px;white-space:nowrap}.tb td{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.1);text-align:center}.tb td:nth-child(2),.tb th:nth-child(2){text-align:left;white-space:nowrap}.tb input{width:70px;padding:6px;text-transform:none;text-align:center}
-</style></head><body><main>
-<div class="brand">🦈 <span>SHARK</span> DARK</div>
-
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="tema.css">
+</head><body><main>
 <h1 id="tit">Escanear QR</h1>
 <p class="sub" id="sub">Elige tu clase (o escanea su QR) y luego escanea a los alumnos.</p>
 <div class="banner" id="banner"></div>
 <div class="card" id="clase" style="display:none">
-  <h2 style="font-size:13px;color:#ff4357;letter-spacing:1px;margin-bottom:8px">CLASE DE AHORA</h2>
+  <h2 style="font-size:13px;color:#765647;letter-spacing:1px;margin-bottom:8px">CLASE DE AHORA</h2>
   <select id="cl"></select>
   <button class="mini" id="vqr" style="margin:10px 0 0 0">Ver QR de esta clase</button>
   <div id="qrbox" style="display:none;margin-top:12px;text-align:center"></div>
@@ -42,16 +21,17 @@ select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;b
 <div class="card" id="ficha" style="display:none"><dl id="datos"></dl></div>
 <div class="card" id="hist" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Historial</h2><ul id="lista"></ul></div>
 <div class="card" id="cierre" style="display:none"><p class="sub" style="margin:0 0 4px">Al terminar la clase, marca falta a quien no escaneó y avisa a su tutor.</p><button class="btn" id="cerrar">CERRAR LISTA DE ESTA CLASE</button></div>
-<div class="card" id="grupo" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Lista de la clase <span id="cont"></span></h2><ul id="lg"></ul><button class="btn" id="rep" style="margin-top:12px;background:transparent;border:1px solid rgba(240,223,196,.4)">📥 Descargar reporte del mes (Excel)</button></div>
+<div class="card" id="grupo" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Lista de la clase <span id="cont"></span></h2><ul id="lg"></ul><button class="btn" id="rep" style="margin-top:12px;background:transparent;border:1px solid rgba(118,86,71,.45)">📥 Descargar reporte del mes (Excel)</button></div>
 <div class="card" id="rejilla" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Asistencia del mes</h2><div style="overflow-x:auto"><table class="tb" id="tbl"></table></div><p class="sub" style="margin:8px 0 0">✓ asistió · ✗ faltó · J justificada · – sin registro</p></div>
 <a class="back" id="volver" href="#">← Volver al menú</a>
 </main>
 <script src="app.js"></script>
+<script src="shell.js"></script>
 <script src="excel.js"></script>
 <script src="lib/jsQR.js" onerror="this.remove()"></script>
 <script>
-const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["docente","tutor"]), doc=s.rol==="docente";
-$("volver").href=doc?"menu_docentes.html":"menu_tutor.html";
+const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["docente","tutor","admin"]), doc=s.rol==="docente";
+$("volver").href={docente:"menu_docentes.html",tutor:"menu_tutor.html",admin:"admin.html"}[s.rol];
 let parar=null, ultimo="", clases=[];
 function aviso(cls,titulo,txt){try{lista()}catch(e){}const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(titulo)+"</b>"+esc(txt||"");if(navigator.vibrate)navigator.vibrate(cls==="ok"?120:[80,60,80]);}
 const claseSel=()=>clases.find(c=>c.id===$("cl").value);
@@ -70,7 +50,7 @@ async function ficha(curp){
   if(!r.alumno){$("ficha").style.display=$("hist").style.display="none";return r;}
   $("datos").innerHTML=[["Nombre",r.alumno.nombre],["CURP",r.alumno.curp],["Área",r.alumno.area],["Semestre",r.alumno.semestre],["Grupo",r.alumno.grupo]].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||"—")}</dd>`).join("");
   $("ficha").style.display=$("hist").style.display="block";
-  const et=a=>a.estado==="falta"?'<span class="tag" style="color:#ff6b78;border-color:#ff6b78">falta · '+esc(a.materia||"")+'</span>':a.estado==="justificada"?'<span class="tag" style="color:#f0dfc4;border-color:#f0dfc4">justificada</span>':a.pendiente?'<span class="tag">pendiente</span>':esc(a.materia||a.docenteNombre||"");
+  const et=a=>a.estado==="falta"?'<span class="tag" style="color:#b3412e;border-color:#b3412e">falta · '+esc(a.materia||"")+'</span>':a.estado==="justificada"?'<span class="tag" style="color:#765647;border-color:#765647">justificada</span>':a.pendiente?'<span class="tag">pendiente</span>':esc(a.materia||a.docenteNombre||"");
   $("lista").innerHTML=r.asistencias.slice(0,30).map(a=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${et(a)}</span></li>`).join("")||"<li>Sin registros</li>";
   return r;
 }
@@ -82,9 +62,9 @@ function mesDatos(c,d){
   return {g,fechas,rs,filas:g.map(a=>[a.nombre,fechas.map(f=>idx.get(a.curp+"|"+f)||"·")])};
 }
 function pintarRejilla(c,d){
-  const m=mesDatos(c,d), col={"✓":"#7dffb0","✗":"#ff6b78","J":"#f0dfc4"}; $("rejilla").style.display="block";
+  const m=mesDatos(c,d), col={"✓":"#3f7d4f","✗":"#b3412e","J":"#765647"}; $("rejilla").style.display="block";
   $("tbl").innerHTML="<tr><th>No.</th><th>Nombre</th>"+m.fechas.map(f=>`<th>${f.slice(8)}/${f.slice(5,7)}</th>`).join("")+"</tr>"+
-    m.filas.map((f,i)=>`<tr><td>${i+1}</td><td>${esc(f[0])}</td>`+f[1].map(v=>`<td style="color:${col[v]||"#8a7d68"};font-weight:bold">${v==="·"?"–":v}</td>`).join("")+"</tr>").join("");
+    m.filas.map((f,i)=>`<tr><td>${i+1}</td><td>${esc(f[0])}</td>`+f[1].map(v=>`<td style="color:${col[v]||"#9a826e"};font-weight:bold">${v==="·"?"–":v}</td>`).join("")+"</tr>").join("");
 }
 async function lista(){
   if(!doc)return; const c=claseSel(), d=await SD.datos(), hoy=new Date().toLocaleDateString("sv-SE");
@@ -135,7 +115,7 @@ $("cerrar").onclick=async()=>{
   const c=claseSel(); if(!c) return aviso("err","Elige una clase","");
   if(!confirm("¿Cerrar lista de "+c.materia+"?\n"+c.semestre+" "+c.area+" "+c.grupo+"\nQuien no haya asistido quedará con falta."))return;
   const f=await SD.cierre(c);
-  f.length?aviso("warn","Faltaron "+f.length+" a "+c.materia,f.join(", ")):aviso("ok","✔ Todos asistieron","Sin faltas en "+c.materia+".");
+  f.length?aviso("warn","Faltaron "+f.length+" a "+c.materia,f.join(", ")):aviso("ok","✔ Sin faltas","Nadie faltó sin permiso en "+c.materia+".");
 };
 $("rep").onclick=async()=>{
   const c=claseSel(); if(!c) return aviso("err","Elige una clase","");
@@ -147,5 +127,6 @@ $("rep").onclick=async()=>{
   aviso("ok","📥 Reporte listo",m.g.length+" alumnos y "+m.fechas.length+" días. Ábrelo con Excel.");
 };
 if(doc){ $("clase").style.display=$("cierre").style.display=$("grupo").style.display="block"; cargarClases(); }
-else{ $("tit").textContent="Ficha del alumno"; $("sub").textContent="Datos y asistencias de tu alumno."; $("buscar").style.display="none"; ficha(s.curpAlumno||""); document.addEventListener("sd-sync",()=>ficha(s.curpAlumno||"")); }
+else if(s.rol==="admin"){ $("tit").textContent="Escáner"; $("sub").textContent="Escanea el QR de un alumno, o escribe su CURP, para ver su ficha e historial."; }
+else{ $("tit").textContent="Ficha del alumno"; $("sub").textContent="Datos y asistencias de tu alumno."; $("buscar").style.display="none"; const ver=async()=>{const a=await SD.alumnoActivo(); if(a) ficha(a.curp);}; ver(); document.addEventListener("sd-sync",ver); }
 </script></body></html>

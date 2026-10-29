@@ -1,25 +1,9 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Alumno</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#050505"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;padding:18px 16px 80px;font-family:Arial,Helvetica,sans-serif;color:#f9f4eb;background:linear-gradient(160deg,#11090a,#2d181b 55%,#1c0f11)}
-main{width:min(480px,100%);margin:auto}
-header{display:flex;align-items:center;gap:10px;margin-bottom:18px}
-header img{width:42px;height:42px;border-radius:10px}
-header b{flex:1;font-size:15px;letter-spacing:1px}header a{color:#efe0c8;font-size:13px;text-decoration:none}
-h1{font-size:24px}.sub{color:#d9ccb8;font-size:14px;margin:4px 0 16px}
-.card{padding:18px;border:1px solid rgba(249,244,235,0.12);border-radius:16px;background:rgba(30,16,18,0.92);margin-bottom:14px}
-.card h2{font-size:13px;color:#fa2e49;letter-spacing:1px;margin-bottom:12px}
-.num{font-size:40px;font-weight:bold}.num small{font-size:14px;color:#d9ccb8;font-weight:normal}
-.btn{display:block;padding:15px;border-radius:12px;color:#f9f4eb;background:linear-gradient(90deg,#a60318,#e50624);font-weight:bold;text-align:center;text-decoration:none;font-size:15px}
-ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid rgba(249,244,235,0.08)}li:last-child{border:0}li span:last-child{color:#d9ccb8}
-.vacio{color:#d9ccb8;font-size:14px}
-.pronto{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pronto span{padding:11px;border-radius:10px;background:rgba(249,244,235,0.05);color:#b59d77;font-size:13px;text-align:center}
-.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
-</style></head><body><main>
-<header><img src="icon-192.png" alt=""><b>SHARK DARK</b><a href="cuenta.html" style="margin-right:12px">Mi cuenta</a><a href="#" onclick="SD.logout();return false">Salir</a></header>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="tema.css">
+</head><body><main>
 <h1>Hola, <span id="nombre"></span> 👋</h1>
 <p class="sub" id="datos"></p>
 <div class="card" style="text-align:center">
@@ -28,12 +12,14 @@ ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;
   <p id="curp" style="margin-top:10px;letter-spacing:2px;font-weight:bold"></p>
   <a class="btn" href="qr_alumno.html" style="margin-top:12px;background:transparent;border:1px solid rgba(250,46,73,0.55)">Ver grande / descargar</a>
 </div>
-<div class="card" style="display:flex;gap:12px"><div style="flex:1"><h2>ASISTENCIAS</h2><div class="num" id="total">0</div></div><div style="flex:1"><h2 style="color:#ff6b78">FALTAS</h2><div class="num" id="faltas">0</div></div></div><p class="sub" style="margin:-6px 0 14px">Este mes</p>
+<div class="card" style="display:flex;gap:12px"><div style="flex:1"><h2>ASISTENCIAS</h2><div class="num" id="total">0</div></div><div style="flex:1"><h2 style="color:#b3412e">FALTAS</h2><div class="num" id="faltas">0</div></div></div><p class="sub" style="margin:-6px 0 14px">Este mes</p>
 <div class="card"><h2>ÚLTIMOS REGISTROS</h2><ul id="lista"></ul></div>
+<div class="card"><h2>MIS MATERIAS</h2><ul id="mats"></ul></div>
 <a class="btn" href="calificaciones.html" style="margin-bottom:14px">📊 Calificaciones</a>
 <div class="card"><h2>PRÓXIMAMENTE</h2><div class="pronto"><span>📚 Materias</span><span>⏰ Horario</span><span>📝 Faltas y permisos</span></div></div>
 </main>
 <script src="app.js"></script>
+<script src="shell.js"></script>
 <script>
 const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require("alumno");
 const hoy=new Date().toLocaleDateString("sv-SE"), mes=hoy.slice(0,7);
@@ -47,7 +33,9 @@ async function pintar(){
   const d=await SD.datos(), m=d.asistencias.filter(a=>a.curp===curp).sort(orden);
   const mm=m.filter(a=>a.fecha.startsWith(mes));
   $("total").textContent=mm.filter(a=>a.estado!=="falta").length; $("faltas").textContent=mm.filter(a=>a.estado==="falta").length;
-  $("lista").innerHTML=m.slice(0,6).map(a=>fila(a,a.estado==="justificada"?'<span style="color:#f0dfc4">justificada · '+esc(a.materia||"")+'</span>':a.estado==="falta"?'<span style="color:#ff6b78">falta · '+esc(a.materia||"")+'</span>':esc(a.materia||a.docenteNombre||""))).join("")||'<li class="vacio">Aún no tienes asistencias</li>';
+  $("lista").innerHTML=m.slice(0,6).map(a=>fila(a,a.estado==="justificada"?'<span style="color:#765647">justificada · '+esc(a.materia||"")+'</span>':a.estado==="falta"?'<span style="color:#b3412e">falta · '+esc(a.materia||"")+'</span>':esc(a.materia||a.docenteNombre||""))).join("")||'<li class="vacio">Aún no tienes asistencias</li>';
 }
-pintar(); document.addEventListener("sd-sync",pintar);
+async function materias(){let c;try{c=await SD.api("/api/clases");localStorage.setItem("sd_mat",JSON.stringify(c));}catch(e){c=JSON.parse(localStorage.getItem("sd_mat")||"[]");}
+  $("mats").innerHTML=c.map(x=>`<li><span>${esc(x.materia)}</span><span>${esc(x.docenteNombre||"")}</span></li>`).join("")||'<li class="vacio">Tu administrador aún no asigna materias a tu grupo.</li>';}
+materias(); pintar(); document.addEventListener("sd-sync",pintar);
 </script></body></html>

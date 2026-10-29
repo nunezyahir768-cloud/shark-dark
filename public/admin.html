@@ -1,29 +1,9 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SHARK DARK | Administración</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#050505"><link rel="icon" href="icon-192.png">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;padding:24px 16px 70px;font-family:Arial,Helvetica,sans-serif;color:#f9f4eb;background:radial-gradient(circle at 12% 12%,rgba(250,46,73,0.16),transparent 27%),radial-gradient(circle at 88% 80%,rgba(166,3,24,0.22),transparent 30%),linear-gradient(135deg,#11090a,#2d181b 52%,#1c0f11)}
-main{width:min(520px,100%);margin:auto}
-.brand{font-weight:900;letter-spacing:2px;font-size:20px;margin-bottom:20px}.brand span{color:#fa2e49}
-h1{font-size:28px;margin-bottom:6px}.sub{color:#d9ccb8;font-size:14px;line-height:1.5;margin-bottom:20px}
-.card{padding:20px;border:1px solid rgba(249,244,235,0.12);border-radius:17px;background:rgba(30,16,18,0.92);margin-bottom:16px}
-.btn{display:block;width:100%;padding:14px;border:0;border-radius:11px;color:#f9f4eb;background:linear-gradient(90deg,#a60318,#e50624);font-size:14px;font-weight:bold;cursor:pointer;margin-top:12px;text-align:center;text-decoration:none}
-input{width:100%;padding:14px 16px;border:1px solid rgba(249,244,235,0.12);border-radius:10px;color:#f9f4eb;background:#321619;font-size:15px;letter-spacing:1px;text-transform:uppercase;outline:none}
-dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:14px}dt{color:#c8b699}dd{word-break:break-word}
-.back{display:inline-block;margin-top:8px;color:#efe0c8;text-decoration:none;font-size:13px}
-.msg{color:#ffb454;font-size:13px;margin-top:10px;min-height:18px}.ok{color:#7dffb0}
-ul{list-style:none;font-size:14px}li{padding:8px 0;border-bottom:1px solid rgba(249,244,235,0.08);display:flex;justify-content:space-between;gap:8px}
-video{width:100%;border-radius:12px;background:#000000;margin-top:12px;display:none}
-.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
-.banner{display:none;padding:20px;border-radius:16px;text-align:center;font-weight:bold;margin-bottom:14px}
-.banner b{display:block;font-size:26px;margin-bottom:4px}.banner.ok{background:#0f5132;border:2px solid #7dffb0}.banner.warn{background:#5c4300;border:2px solid #ffb454}.banner.err{background:#58151c;border:2px solid #ff6b78}
-select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;background:#321619;border:1px solid rgba(249,244,235,0.12);font-size:14px}
-.mini{margin-left:8px;padding:3px 9px;border-radius:8px;border:1px solid rgba(240,223,196,.4);background:transparent;color:#f0dfc4;font-size:12px;cursor:pointer}
-</style></head><body><main>
-<div class="brand">🦈 <span>SHARK</span> DARK</div>
-
+<title>SHARK DARK Admin</title>
+<link rel="manifest" href="manifest-admin.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="tema.css">
+</head><body><main>
 <h1>Administración</h1>
 <div class="banner" id="banner"></div>
 <div class="card" id="acceso">
@@ -32,11 +12,19 @@ select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;b
   <input id="p" type="password" placeholder="Contraseña" style="margin-top:8px;text-transform:none">
   <input id="c" placeholder="Código de administración" autocomplete="off" style="margin-top:8px;display:none;text-transform:none">
   <button class="btn" id="entrar">ENTRAR</button>
-  <button class="btn" id="alt" style="background:transparent;border:1px solid rgba(240,223,196,.4)">Crear cuenta de administrador</button>
+  <button class="btn" id="alt" style="background:transparent;border:1px solid rgba(118,86,71,.45)">Crear cuenta de administrador</button>
 </div>
 <div id="panel" style="display:none">
-  <div style="display:flex;gap:8px;margin-bottom:12px"><button class="mini t" data-t="cuentas" style="margin:0">Cuentas</button><button class="mini t" data-t="grupos" style="margin:0">Grupos</button><button class="mini t" data-t="clases" style="margin:0">Clases</button></div>
-  <div id="v-cuentas"><input id="q" placeholder="Buscar por nombre o CURP" style="text-transform:none;margin-bottom:12px"><div id="lista"></div></div>
+  <div id="v-cuentas">
+    <details class="card"><summary>➕ Crear una cuenta</summary>
+      <select id="nr"><option value="docente">Docente</option><option value="alumno">Alumno</option><option value="tutor">Tutor</option></select>
+      <input id="nn" placeholder="Nombre completo" style="text-transform:none">
+      <input id="ni" placeholder="RFC del docente (13 caracteres)" maxlength="18">
+      <input id="nc" placeholder="Correo (opcional)" style="text-transform:none">
+      <input id="np" type="password" placeholder="Contraseña temporal (mínimo 6)" style="text-transform:none">
+      <select id="nsg" style="display:none"></select>
+      <input id="nca" placeholder="CURP del alumno" maxlength="18" style="display:none">
+      <button class="btn" id="ncrear">CREAR CUENTA</button></details><input id="q" placeholder="Buscar por nombre o CURP" style="text-transform:none;margin-bottom:12px"><div id="lista"></div></div>
   <div id="v-grupos" style="display:none">
     <div class="card"><h2 style="font-size:16px">Nuevo grupo</h2>
       <select id="gs"><option>1-2 semestre</option><option>3-4 semestre</option><option>5-6 semestre</option></select><select id="ga"><option>Programación</option><option>Ofimática</option><option>Enfermería</option><option>Electricidad</option><option>Laboratorios Químicos</option><option>Administración</option></select><select id="gl"><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option></select>
@@ -52,6 +40,7 @@ select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;b
 <a class="back" href="entrada.html">← Volver</a>
 </main>
 <script src="app.js"></script>
+<script src="shell.js"></script>
 <script>
 const $=i=>document.getElementById(i), esc=SD.esc;
 let modo="entrar", todos=[], grupos=[], clases=[];
@@ -63,24 +52,32 @@ async function recargar(){
   grupos.sort((a,b)=>a.nombre.localeCompare(b.nombre)); pintar(); pintarG(); pintarC();
 }
 function ver(t){for(const k of ["cuentas","grupos","clases"])$("v-"+k).style.display=k===t?"block":"none";}
-document.querySelectorAll(".t").forEach(b=>b.onclick=()=>ver(b.dataset.t));
-async function panel(){$("acceso").style.display="none";$("panel").style.display="block";await recargar();}
+const ruta=()=>{const t=(location.hash||"#cuentas").slice(1);ver(["cuentas","grupos","clases"].includes(t)?t:"cuentas");};
+addEventListener("hashchange",ruta);
+const rolSel=()=>{const r=$("nr").value;$("ni").placeholder=r==="docente"?"RFC del docente (13 caracteres)":"CURP (18 caracteres)";$("nsg").style.display=r==="alumno"?"block":"none";$("nca").style.display=r==="tutor"?"block":"none";};
+$("nr").onchange=rolSel;
+$("ncrear").onclick=async()=>{const g=grupos[+$("nsg").value]||{};
+  try{await api("/api/admin/usuarios",{rol:$("nr").value,id:$("ni").value,nombre:$("nn").value,correo:$("nc").value,password:$("np").value,area:g.area,semestre:g.semestre,grupo:g.grupo,curpAlumno:$("nca").value});
+    aviso("ok","✔ Cuenta creada","Dale su usuario y la contraseña temporal. La puede cambiar en Mi cuenta.");for(const i of ["nn","ni","nc","np","nca"])$(i).value="";await recargar();}
+  catch(e){aviso("err","No se pudo crear la cuenta",e.message);}};
+async function panel(){$("acceso").style.display="none";$("panel").style.display="block";ruta();await recargar();}
 function pintar(){
   const q=$("q").value.trim().toLowerCase();
   const l=todos.filter(u=>!q||(u.nombre+" "+(u.curp||u.rfc||"")).toLowerCase().includes(q)).sort((a,b)=>a.nombre.localeCompare(b.nombre)).slice(0,80);
   $("lista").innerHTML=l.map(u=>`<div class="card"><b>${esc(u.nombre)}</b> <span class="tag">${esc(u.rol)}</span>
-    <p class="sub" style="margin:4px 0 8px">${esc(u.curp||u.rfc||"")}${u.rol==="alumno"?" · "+esc(u.semestre)+" "+esc(u.area)+" "+esc(u.grupo):""}${u.curpAlumno?" · alumno "+esc(u.curpAlumno):""}</p>
+    <p class="sub" style="margin:4px 0 8px">${esc(u.curp||u.rfc||"")}${u.rol==="alumno"?" · "+esc(u.semestre)+" "+esc(u.area)+" "+esc(u.grupo):""}${(u.hijos&&u.hijos.length)?" · alumnos: "+esc(u.hijos.join(", ")):""}${(u.tutores&&u.tutores.length)?" · tutores: "+esc(u.tutores.join(", ")):""}</p>
     <button class="mini" data-a="reset" data-r="${u.rol}" data-i="${esc(u.id)}">Restablecer contraseña</button>
     ${u.rol==="alumno"?`<button class="mini" data-a="editar" data-i="${esc(u.id)}">Cambiar grupo</button>`:""}
-    <button class="mini" style="color:#ff6b78" data-a="borrar" data-r="${u.rol}" data-i="${esc(u.id)}">Borrar</button></div>`).join("")||'<p class="sub">Sin resultados.</p>';
+    <button class="mini" style="color:#b3412e" data-a="borrar" data-r="${u.rol}" data-i="${esc(u.id)}">Borrar</button></div>`).join("")||'<p class="sub">Sin resultados.</p>';
 }
 function pintarG(){
-  $("lg").innerHTML=grupos.map(g=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center"><span><b>${esc(g.nombre)}</b><br><small style="color:#8a7d68">${todos.filter(u=>u.rol==="alumno"&&u.area===g.area&&u.semestre===g.semestre&&u.grupo===g.grupo).length} alumnos · ${clases.filter(c=>c.area===g.area&&c.semestre===g.semestre&&c.grupo===g.grupo).length} materias</small></span><button class="mini" style="color:#ff6b78" data-g="${esc(g.id)}">Borrar</button></div>`).join("")||'<p class="sub">Aún no hay grupos.</p>';
+  $("lg").innerHTML=grupos.map(g=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center"><span><b>${esc(g.nombre)}</b><br><small style="color:#9a826e">${todos.filter(u=>u.rol==="alumno"&&u.area===g.area&&u.semestre===g.semestre&&u.grupo===g.grupo).length} alumnos · ${clases.filter(c=>c.area===g.area&&c.semestre===g.semestre&&c.grupo===g.grupo).length} materias</small></span><button class="mini" style="color:#b3412e" data-g="${esc(g.id)}">Borrar</button></div>`).join("")||'<p class="sub">Aún no hay grupos.</p>';
   $("cg").innerHTML=grupos.map((g,i)=>`<option value="${i}">${esc(g.nombre)}</option>`).join("");
+  $("nsg").innerHTML=grupos.map((g,i)=>`<option value="${i}">${esc(g.nombre)}</option>`).join("");
   $("cd").innerHTML=todos.filter(u=>u.rol==="docente").map(u=>`<option value="${esc(u.id)}">${esc(u.nombre)}</option>`).join("")||"<option value=''>No hay docentes registrados</option>";
 }
 function pintarC(){
-  $("lc").innerHTML=clases.sort((a,b)=>(a.semestre+a.area+a.grupo+a.materia).localeCompare(b.semestre+b.area+b.grupo+b.materia)).map(c=>`<div class="card"><b>${esc(c.materia)}</b><p class="sub" style="margin:2px 0 8px">${esc(c.semestre)} ${esc(c.area)} ${esc(c.grupo)} · Prof. ${esc(c.docenteNombre||c.docente)}</p><button class="mini" data-q="${esc(c.id)}">Ver QR</button><button class="mini" style="color:#ff6b78" data-c="${esc(c.id)}">Borrar</button></div>`).join("")||'<p class="sub">Aún no hay clases.</p>';
+  $("lc").innerHTML=clases.sort((a,b)=>(a.semestre+a.area+a.grupo+a.materia).localeCompare(b.semestre+b.area+b.grupo+b.materia)).map(c=>`<div class="card"><b>${esc(c.materia)}</b><p class="sub" style="margin:2px 0 8px">${esc(c.semestre)} ${esc(c.area)} ${esc(c.grupo)} · Prof. ${esc(c.docenteNombre||c.docente)}</p><button class="mini" data-q="${esc(c.id)}">Ver QR</button><button class="mini" style="color:#b3412e" data-c="${esc(c.id)}">Borrar</button></div>`).join("")||'<p class="sub">Aún no hay clases.</p>';
 }
 $("q").addEventListener("input",pintar);
 $("addg").onclick=async()=>{try{await api("/api/admin/grupos",{semestre:$("gs").value,area:$("ga").value,grupo:$("gl").value});aviso("ok","✔ Grupo añadido","");await recargar();}catch(e){aviso("err","No se pudo",e.message);}};
@@ -105,8 +102,8 @@ $("alt").onclick=()=>{modo=modo==="entrar"?"crear":"entrar";$("c").style.display
 $("entrar").onclick=async()=>{
   try{const u=$("u").value.trim().toUpperCase();
     if(modo==="crear"){await SD.register("admin",{usuario:u,nombre:u,correo:u.toLowerCase()+"@admin.local",password:$("p").value,codigo:$("c").value});}
-    await SD.login("admin",u,$("p").value); panel();
-  }catch(err){aviso("err","No se pudo entrar",err.message);}
+    await SD.login("admin",u,$("p").value); location.hash="#cuentas"; location.reload();
+  }catch(err){aviso("err","No se pudo entrar",err.message+(modo==="crear"?" · Revisa: usuario de 4 a 20 letras o números (sin espacios), contraseña de 8 o más, el código de administración exacto, y que tengas internet.":""));}
 };
 if(s&&s.rol==="admin")panel();
 </script></body></html>

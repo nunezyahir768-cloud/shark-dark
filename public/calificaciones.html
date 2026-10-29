@@ -1,30 +1,9 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Calificaciones</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#050505"><link rel="icon" href="icon-192.png">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;padding:24px 16px 70px;font-family:Arial,Helvetica,sans-serif;color:#f9f4eb;background:radial-gradient(circle at 12% 12%,rgba(250,46,73,0.16),transparent 27%),radial-gradient(circle at 88% 80%,rgba(166,3,24,0.22),transparent 30%),linear-gradient(135deg,#11090a,#2d181b 52%,#1c0f11)}
-main{width:min(520px,100%);margin:auto}
-.brand{font-weight:900;letter-spacing:2px;font-size:20px;margin-bottom:20px}.brand span{color:#fa2e49}
-h1{font-size:28px;margin-bottom:6px}.sub{color:#d9ccb8;font-size:14px;line-height:1.5;margin-bottom:20px}
-.card{padding:20px;border:1px solid rgba(249,244,235,0.12);border-radius:17px;background:rgba(30,16,18,0.92);margin-bottom:16px}
-.btn{display:block;width:100%;padding:14px;border:0;border-radius:11px;color:#f9f4eb;background:linear-gradient(90deg,#a60318,#e50624);font-size:14px;font-weight:bold;cursor:pointer;margin-top:12px;text-align:center;text-decoration:none}
-input{width:100%;padding:14px 16px;border:1px solid rgba(249,244,235,0.12);border-radius:10px;color:#f9f4eb;background:#321619;font-size:15px;letter-spacing:1px;text-transform:uppercase;outline:none}
-dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:14px}dt{color:#c8b699}dd{word-break:break-word}
-.back{display:inline-block;margin-top:8px;color:#efe0c8;text-decoration:none;font-size:13px}
-.msg{color:#ffb454;font-size:13px;margin-top:10px;min-height:18px}.ok{color:#7dffb0}
-ul{list-style:none;font-size:14px}li{padding:8px 0;border-bottom:1px solid rgba(249,244,235,0.08);display:flex;justify-content:space-between;gap:8px}
-video{width:100%;border-radius:12px;background:#000000;margin-top:12px;display:none}
-.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
-.banner{display:none;padding:20px;border-radius:16px;text-align:center;font-weight:bold;margin-bottom:14px}
-.banner b{display:block;font-size:26px;margin-bottom:4px}.banner.ok{background:#0f5132;border:2px solid #7dffb0}.banner.warn{background:#5c4300;border:2px solid #ffb454}.banner.err{background:#58151c;border:2px solid #ff6b78}
-select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;background:#321619;border:1px solid rgba(249,244,235,0.12);font-size:14px}
-.mini{margin-left:8px;padding:3px 9px;border-radius:8px;border:1px solid rgba(240,223,196,.4);background:transparent;color:#f0dfc4;font-size:12px;cursor:pointer}
-.tb{border-collapse:collapse;font-size:13px;min-width:100%}.tb th{background:#d3011d;color:#fff;padding:8px 9px;white-space:nowrap}.tb td{padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.1);text-align:center}.tb td:nth-child(2),.tb th:nth-child(2){text-align:left;white-space:nowrap}.tb input{width:70px;padding:6px;text-transform:none;text-align:center}
-</style></head><body><main>
-<div class="brand">🦈 <span>SHARK</span> DARK</div>
-
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="tema.css">
+</head><body><main>
 <h1>Calificaciones</h1>
 <div class="banner" id="banner"></div>
 <div class="card" id="doc" style="display:none">
@@ -33,12 +12,13 @@ select{width:100%;padding:12px;margin-top:8px;border-radius:10px;color:#f9f4eb;b
   <button class="btn" id="cargar">CARGAR ALUMNOS</button>
   <div style="overflow-x:auto;margin-top:12px"><table class="tb" id="tabla"></table></div>
   <button class="btn" id="guardar" style="display:none">GUARDAR MIS CALIFICACIONES</button>
-  <button class="btn" id="xl" style="display:none;background:transparent;border:1px solid rgba(240,223,196,.4)">📥 Descargar en Excel</button>
+  <button class="btn" id="xl" style="display:none;background:transparent;border:1px solid rgba(118,86,71,.45)">📥 Descargar en Excel</button>
 </div>
 <div id="ver"></div>
 <a class="back" id="volver" href="#">← Volver al menú</a>
 </main>
 <script src="app.js"></script>
+<script src="shell.js"></script>
 <script src="excel.js"></script>
 <script>
 const $=i=>document.getElementById(i), esc=SD.esc;
@@ -85,5 +65,5 @@ if(doc){
     const blob=SDExcel.calificaciones({titulo:"CBTIS 170 · SHARK DARK",subtitulo:"Calificaciones · "+cur.semestre+" "+cur.area+" "+cur.grupo+" · Parcial "+$("pa").value,materias:mats,filas});
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=("calificaciones-"+cur.semestre+cur.area+cur.grupo+"-P"+$("pa").value+".xlsx").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w.-]+/g,"_"); a.click();
   };
-}else{ traer().then(ver); }
+}else{ (async()=>{ await traer(); if(s.rol==="tutor"){const a=await SD.alumnoActivo(); notas=notas.filter(n=>a&&n.curp===a.curp);} ver(); })(); }
 </script></body></html>

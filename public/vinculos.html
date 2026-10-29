@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHARK DARK | Escanear QR</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="tema.css">
+</head><body><main>
+<h1 id="tit">Vínculos</h1>
+<p class="sub" id="sub"></p>
+<div class="banner" id="banner"></div>
+<div class="card"><h2>Tu CURP (compártela)</h2><div class="num" style="font-size:20px;letter-spacing:2px" id="mia"></div></div>
+<div class="card"><h2 id="th2">Agregar</h2>
+  <input id="curp" maxlength="18" placeholder="CURP (18 caracteres)" autocapitalize="characters" style="text-transform:uppercase">
+  <button class="btn" id="agregar">AGREGAR</button>
+  <p class="sub" style="margin:10px 0 0" id="nota"></p></div>
+<div id="lista"></div>
+</main>
+<script src="app.js"></script>
+<script src="shell.js"></script>
+<script>
+const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["tutor","alumno"]), tutor=s.rol==="tutor";
+$("mia").textContent=s.curp||s.id;
+$("tit").textContent=tutor?"Mis alumnos":"Mis tutores";
+$("sub").textContent=tutor?"Puedes vincularte con varios alumnos (por ejemplo, tus hijos).":"Agrega la CURP de tu padre, madre o tutor para que reciba tus avisos.";
+$("th2").textContent=tutor?"Agregar un alumno por su CURP":"Agregar un tutor por su CURP";
+$("curp").placeholder=tutor?"CURP del alumno":"CURP de tu tutor";
+$("nota").textContent=tutor?"El vínculo se activa cuando tu alumno también agrega tu CURP en su cuenta (sección Mis tutores).":"El vínculo se activa cuando tu tutor también agrega tu CURP en su cuenta (sección Alumnos).";
+function aviso(cls,t,x){const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(t)+"</b>"+esc(x||"");}
+async function cargar(){
+  const l=await SD.vinculos(), act=localStorage.getItem("sd_alumno");
+  $("lista").innerHTML=l.map(v=>`<div class="card"><b>${esc(v.nombre||v.curp)}</b>
+    <span class="tag" style="${v.estado==="vinculado"?"color:#3f7d4f;border-color:#3f7d4f":""}">${v.estado==="vinculado"?"vinculado ✔":"esperando confirmación"}</span>
+    <p class="sub" style="margin:4px 0 8px">${esc(v.curp)}${v.semestre?" · "+esc(v.semestre+" "+v.area+" "+v.grupo):""}</p>
+    ${tutor&&v.estado==="vinculado"&&v.curp!==act?`<button class="mini" data-a="ver" data-c="${esc(v.curp)}" style="margin-left:0">Ver a este alumno</button>`:""}
+    <button class="mini" data-a="quitar" data-c="${esc(v.curp)}" style="${tutor&&v.estado==="vinculado"&&v.curp!==act?"":"margin-left:0;"}color:#b3412e">Quitar</button></div>`).join("")||'<div class="card"><p class="sub" style="margin:0">Todavía no hay vínculos.</p></div>';
+}
+$("agregar").onclick=async()=>{try{await SD.api("/api/vinculos/agregar",{method:"POST",body:{curp:$("curp").value}});$("curp").value="";aviso("ok","✔ Agregado","Cuando la otra persona también te agregue, el vínculo quedará activo.");cargar();}
+  catch(e){aviso("err","No se pudo agregar",e.status?e.message:"Necesitas internet");}};
+$("lista").addEventListener("click",async ev=>{const b=ev.target.closest("button[data-a]");if(!b)return;
+  if(b.dataset.a==="ver"){localStorage.setItem("sd_alumno",b.dataset.c);location.href="menu_tutor.html";return;}
+  if(!confirm("¿Quitar este vínculo?"))return;
+  try{await SD.api("/api/vinculos/quitar",{method:"POST",body:{curp:b.dataset.c}});cargar();}catch(e){aviso("err","No se pudo",e.message);}});
+cargar();
+</script></body></html>

@@ -1,25 +1,9 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Docente</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#050505"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;padding:18px 16px 80px;font-family:Arial,Helvetica,sans-serif;color:#f9f4eb;background:linear-gradient(160deg,#11090a,#2d181b 55%,#1c0f11)}
-main{width:min(480px,100%);margin:auto}
-header{display:flex;align-items:center;gap:10px;margin-bottom:18px}
-header img{width:42px;height:42px;border-radius:10px}
-header b{flex:1;font-size:15px;letter-spacing:1px}header a{color:#efe0c8;font-size:13px;text-decoration:none}
-h1{font-size:24px}.sub{color:#d9ccb8;font-size:14px;margin:4px 0 16px}
-.card{padding:18px;border:1px solid rgba(249,244,235,0.12);border-radius:16px;background:rgba(30,16,18,0.92);margin-bottom:14px}
-.card h2{font-size:13px;color:#fa2e49;letter-spacing:1px;margin-bottom:12px}
-.num{font-size:40px;font-weight:bold}.num small{font-size:14px;color:#d9ccb8;font-weight:normal}
-.btn{display:block;padding:15px;border-radius:12px;color:#f9f4eb;background:linear-gradient(90deg,#a60318,#e50624);font-weight:bold;text-align:center;text-decoration:none;font-size:15px}
-ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid rgba(249,244,235,0.08)}li:last-child{border:0}li span:last-child{color:#d9ccb8}
-.vacio{color:#d9ccb8;font-size:14px}
-.pronto{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pronto span{padding:11px;border-radius:10px;background:rgba(249,244,235,0.05);color:#b59d77;font-size:13px;text-align:center}
-.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
-</style></head><body><main>
-<header><img src="icon-192.png" alt=""><b>SHARK DARK</b><a href="cuenta.html" style="margin-right:12px">Mi cuenta</a><a href="#" onclick="SD.logout();return false">Salir</a></header>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="tema.css">
+</head><body><main>
 <h1>Hola, <span id="nombre"></span> 👋</h1>
 <p class="sub">Escanea el QR de un alumno para registrar su asistencia.</p>
 <a class="btn" href="escanear.html" style="font-size:18px;padding:22px;margin-bottom:14px">📷 ESCANEAR QR</a>
@@ -31,6 +15,7 @@ ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;
 <div class="card"><h2>PRÓXIMAMENTE</h2><div class="pronto"><span>📚 Materias</span><span>⏰ Horario</span></div></div>
 </main>
 <script src="app.js"></script>
+<script src="shell.js"></script>
 <script>
 const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require("docente");
 const hoy=new Date().toLocaleDateString("sv-SE"), mes=hoy.slice(0,7);
@@ -44,7 +29,7 @@ async function pintar(){
   $("lista").innerHTML=m.slice(0,6).map(a=>`<li><span>${esc(nom[a.curp]||a.curp)} <small style="color:#b59d77">${esc(a.materia||"")}</small></span><span>${a.pendiente?'<span class="tag">pendiente</span>':esc(a.hora)}</span></li>`).join("")||'<li class="vacio">Aún no registras asistencias</li>';
 }
 async function clasesDoc(){let c;try{c=await SD.api("/api/clases");localStorage.setItem("sd_clases",JSON.stringify(c));}catch(e){c=JSON.parse(localStorage.getItem("sd_clases")||"[]");}
-  $("misclases").innerHTML=c.map(x=>`<li><a href="escanear.html" onclick="localStorage.setItem('sd_clase_id','${esc(x.id)}')" style="color:#f0dfc4;text-decoration:none">${esc(x.materia)}</a><span>${esc(x.semestre+" "+x.area+" "+x.grupo)}</span></li>`).join("")||'<li class="vacio">Aún no tienes clases asignadas. Pídelas al administrador.</li>';}
+  $("misclases").innerHTML=c.map(x=>`<li><a href="escanear.html" onclick="localStorage.setItem('sd_clase_id','${esc(x.id)}')" style="color:#765647;text-decoration:none">${esc(x.materia)}</a><span>${esc(x.semestre+" "+x.area+" "+x.grupo)}</span></li>`).join("")||'<li class="vacio">Aún no tienes clases asignadas. Pídelas al administrador.</li>';}
 SD.api("/api/permisos").then(l=>{const k=l.filter(p=>p.estado==="pendiente").length;if(k)$("lp").textContent="📝 Permisos ("+k+" pendientes)";}).catch(()=>{});
 clasesDoc(); pintar(); document.addEventListener("sd-sync",pintar);
 </script></body></html>

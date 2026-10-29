@@ -1,211 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SHARK DARK | Entrada</title>
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#050505">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
-
-<style>
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
-body {
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 25px;
-    font-family: Arial, sans-serif;
-    color: white;
-    background:
-        radial-gradient(circle at 15% 20%, #fa2e4940, transparent 25%),
-        radial-gradient(circle at 85% 75%, #a6031855, transparent 30%),
-        linear-gradient(135deg, #201113, #3a191d 48%, #231315);
-}
-
-.contenedor {
-    width: min(1050px, 100%);
-    min-height: 600px;
-    display: grid;
-    grid-template-columns: 1.05fr 1fr;
-    overflow: hidden;
-    background: #150b0ced;
-    border: 1px solid #f9f4eb20;
-    border-radius: 28px;
-    box-shadow: 0 25px 70px #00000088;
-}
-
-.visual {
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 45px;
-    background:
-        radial-gradient(circle at 20% 25%, #e50624aa, transparent 30%),
-        radial-gradient(circle at 78% 70%, #a6031888, transparent 30%),
-        linear-gradient(145deg, #261417, #311519 55%, #1b0f10);
-}
-
-.visual::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    opacity: .65;
-    background-image:
-        radial-gradient(circle, white 1px, transparent 1.5px);
-    background-size: 45px 45px;
-}
-
-.planeta {
-    position: absolute;
-    width: 360px;
-    height: 360px;
-    border-radius: 50%;
-    top: -105px;
-    left: -95px;
-    background: radial-gradient(circle at 35% 30%,
-        #efe0c8, #e50624 45%, #471e24 72%, #261417);
-    box-shadow: 0 0 60px #fa2e4955;
-}
-
-.visual > *:not(.planeta) {
-    position: relative;
-    z-index: 2;
-}
-
-.marca {
-    font-size: 20px;
-    font-weight: bold;
-    letter-spacing: 2px;
-}
-
-.marca span, .mensaje h2 span {
-    color: #fa2e49;
-}
-
-.mensaje {
-    margin-top: auto;
-    margin-bottom: 25px;
-}
-
-.mensaje h2 {
-    font-size: clamp(35px, 4vw, 52px);
-    line-height: 1.08;
-    margin-bottom: 15px;
-}
-
-.mensaje p {
-    color: #eddfc9;
-    line-height: 1.7;
-    font-size: 15px;
-}
-
-.formulario {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 40px;
-}
-
-.form-contenido {
-    width: 100%;
-    max-width: 430px;
-}
-
-.encabezado {
-    margin-bottom: 28px;
-}
-
-.encabezado h1 {
-    font-size: 36px;
-    margin-bottom: 10px;
-}
-
-.encabezado p {
-    color: #c8b699;
-    font-size: 14px;
-    line-height: 1.6;
-}
-
-.opciones {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.boton {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 18px;
-    text-decoration: none;
-    color: white;
-    background: #321619;
-    border: 1px solid #f9f4eb20;
-    border-radius: 13px;
-    transition: .25s;
-}
-
-.icono {
-    width: 48px;
-    height: 48px;
-    flex-shrink: 0;
-    display: grid;
-    place-items: center;
-    border-radius: 12px;
-    background: #a6031830;
-    font-size: 24px;
-}
-
-.texto h2 {
-    font-size: 17px;
-    margin-bottom: 5px;
-}
-
-.texto p {
-    color: #c8b699;
-    font-size: 12px;
-    line-height: 1.5;
-}
-
-.boton:hover, .boton:focus-visible {
-    outline: none;
-    transform: translateX(5px);
-    border-color: #fa2e49;
-    background: #3a191d;
-    box-shadow: 0 0 0 2px #fa2e4920;
-}
-
-.pie {
-    margin-top: 25px;
-    color: #777083;
-    font-size: 11px;
-    text-align: center;
-}
-
-@media (max-width: 800px) {
-    body { padding: 12px; }
-    .contenedor { grid-template-columns: 1fr; }
-    .visual { min-height: 270px; padding: 30px; }
-    .planeta { width: 250px; height: 250px; }
-    .mensaje h2 { font-size: 36px; }
-    .formulario { padding: 30px 22px; }
-    .encabezado h1 { font-size: 30px; }
-}
-.marca span{color:#f0dfc4 !important}
-</style>
-</head>
-
-<body>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHARK DARK | Entrar</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="tema.css">
+</head><body>
 <!-- SPLASH -->
 <style>
 #splash{position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;transition:opacity .8s;overflow:hidden}
@@ -281,66 +79,29 @@ body {
 })();
 </script>
 <!-- /SPLASH -->
-
-<main class="contenedor">
-
-<section class="visual">
-    <div class="planeta"></div>
-
-    <div class="marca">🦈 <span>SHARK</span> DARK</div>
-
-    <div class="mensaje">
-        <h2>BIENVENIDO<br><span>a tu portal.</span></h2>
-        <p>Una plataforma para conectar a estudiantes,
-        docentes y tutores en un mismo espacio escolar.</p>
-    </div>
-</section>
-
-<section class="formulario">
-<div class="form-contenido">
-
-    <header class="encabezado">
-        <h1>INGRESAR</h1>
-        <p>Selecciona tu perfil para continuar.</p>
-    </header>
-
-    <nav class="opciones">
-
-        <a href="inicio_alumno.html" class="boton">
-            <div class="icono">🎓</div>
-            <div class="texto">
-                <h2>Alumno</h2>
-                <p>Accede a tu registro estudiantil.</p>
-            </div>
-        </a>
-
-        <a href="inicio_docente.html" class="boton">
-            <div class="icono">📚</div>
-            <div class="texto">
-                <h2>Docente</h2>
-                <p>Ingresa al apartado del profesor.</p>
-            </div>
-        </a>
-
-        <a href="inicio_tutor.html" class="boton">
-            <div class="icono">👥</div>
-            <div class="texto">
-                <h2>Tutor</h2>
-                <p>Ingresa al apartado del tutor.</p>
-            </div>
-        </a>
-
-    </nav>
-
-    <div class="pie">
-        SHARK DARK · Portal escolar<br><a href="admin.html" style="color:#8a7d68;font-size:12px;text-decoration:none">Administración</a>
-    </div>
-
-</div>
-</section>
-
-</main>
+<main class="centro">
+  <img class="logo" src="icon-192.png" alt="">
+  <h1>SHARK DARK</h1><p class="sub" style="text-align:center">CBTIS 170 · Portal escolar</p>
+  <div class="card">
+    <label for="rol">Entrar como</label>
+    <select id="rol"><option value="alumno">Alumno</option><option value="tutor">Tutor</option><option value="docente">Docente</option></select>
+    <label for="u" id="lu">CURP</label><input id="u" placeholder="Tu CURP (18 caracteres)" autocomplete="username" autocapitalize="characters" style="text-transform:uppercase">
+    <label for="p">Contraseña</label><input id="p" type="password" placeholder="Tu contraseña" autocomplete="current-password">
+    <button class="btn" id="entrar">ENTRAR</button><p class="msg" id="msg"></p>
+  </div>
+  <div class="card"><h2>¿Eres nuevo? Crea tu cuenta</h2><div class="trio">
+    <a class="btn sec" style="margin:0" href="registro_alumno.html">Soy alumno</a><a class="btn sec" style="margin:0" href="registro_tutor.html">Soy tutor</a><a class="btn sec" style="margin:0" href="registro_docente.html">Soy docente</a></div></div>
+  </main>
 <script src="app.js"></script>
-
-</body>
-</html>
+<script>
+const $=i=>document.getElementById(i), DEST={alumno:"menu_alumnos.html",docente:"menu_docentes.html",tutor:"menu_tutor.html",admin:"admin.html#cuentas"};
+const s=SD.session(); if(s&&DEST[s.rol]) location.replace(DEST[s.rol]);
+async function entrar(){
+  $("msg").textContent="Entrando…";
+  try{const u=await SD.login($("rol").value,$("u").value,$("p").value); location.href=DEST[u.rol];}
+  catch(e){$("msg").textContent=e.message;}
+}
+const lab=()=>{const d=$("rol").value==="docente";$("lu").textContent=d?"RFC":"CURP";$("u").placeholder=d?"Tu RFC (13 caracteres)":"Tu CURP (18 caracteres)";localStorage.setItem("sd_rol",$("rol").value);};
+$("rol").value=localStorage.getItem("sd_rol")||"alumno"; $("rol").onchange=lab; lab();
+$("entrar").onclick=entrar; $("p").addEventListener("keydown",e=>{if(e.key==="Enter")entrar();});
+</script></body></html>

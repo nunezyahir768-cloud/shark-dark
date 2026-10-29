@@ -1,25 +1,9 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Tutor</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#050505"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;padding:18px 16px 80px;font-family:Arial,Helvetica,sans-serif;color:#f9f4eb;background:linear-gradient(160deg,#11090a,#2d181b 55%,#1c0f11)}
-main{width:min(480px,100%);margin:auto}
-header{display:flex;align-items:center;gap:10px;margin-bottom:18px}
-header img{width:42px;height:42px;border-radius:10px}
-header b{flex:1;font-size:15px;letter-spacing:1px}header a{color:#efe0c8;font-size:13px;text-decoration:none}
-h1{font-size:24px}.sub{color:#d9ccb8;font-size:14px;margin:4px 0 16px}
-.card{padding:18px;border:1px solid rgba(249,244,235,0.12);border-radius:16px;background:rgba(30,16,18,0.92);margin-bottom:14px}
-.card h2{font-size:13px;color:#fa2e49;letter-spacing:1px;margin-bottom:12px}
-.num{font-size:40px;font-weight:bold}.num small{font-size:14px;color:#d9ccb8;font-weight:normal}
-.btn{display:block;padding:15px;border-radius:12px;color:#f9f4eb;background:linear-gradient(90deg,#a60318,#e50624);font-weight:bold;text-align:center;text-decoration:none;font-size:15px}
-ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid rgba(249,244,235,0.08)}li:last-child{border:0}li span:last-child{color:#d9ccb8}
-.vacio{color:#d9ccb8;font-size:14px}
-.pronto{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pronto span{padding:11px;border-radius:10px;background:rgba(249,244,235,0.05);color:#b59d77;font-size:13px;text-align:center}
-.tag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid #ffb454;color:#ffb454}
-</style></head><body><main>
-<header><img src="icon-192.png" alt=""><b>SHARK DARK</b><a href="cuenta.html" style="margin-right:12px">Mi cuenta</a><a href="#" onclick="SD.logout();return false">Salir</a></header>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="tema.css">
+</head><body><main>
 <h1>Hola, <span id="nombre"></span> 👋</h1>
 <p class="sub" id="alumno">Cargando alumno…</p>
 <div class="card"><h2>ASISTENCIAS DEL ALUMNO</h2><div class="num" id="total">0 <small>este mes</small></div></div>
@@ -31,6 +15,7 @@ ul{list-style:none;font-size:14px}li{display:flex;justify-content:space-between;
 <div class="card"><h2>PRÓXIMAMENTE</h2><div class="pronto"><span>📑 Reportes</span><span>✉️ Citatorios</span></div></div>
 </main>
 <script src="app.js"></script>
+<script src="shell.js"></script>
 <script>
 const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require("tutor");
 const hoy=new Date().toLocaleDateString("sv-SE"), mes=hoy.slice(0,7);
@@ -38,12 +23,12 @@ const orden=(a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora);
 const fila=(a,txt)=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${a.pendiente?'<span class="tag">pendiente</span>':txt}</span></li>`;
 $("nombre").textContent=(s.nombre||"").split(" ")[0];
 async function pintar(){
-  const d=await SD.datos(), al=d.alumnos.find(a=>a.curp===s.curpAlumno);
-  $("alumno").textContent=al?al.nombre+(al.grupo?" · Grupo "+al.grupo:""):"Sin conexión: abre la app con internet una vez para ver a tu alumno.";
+  const act=await SD.alumnoActivo(), cur=act?act.curp:"", d=await SD.datos(), al=d.alumnos.find(a=>a.curp===cur);
+  $("alumno").textContent=al?al.nombre+(al.grupo?" · Grupo "+al.grupo:""):"Aún no tienes alumnos vinculados: entra a Alumnos y agrega su CURP.";
   const visto=+localStorage.getItem("sd_visto")||0;
   $("avisos").innerHTML=d.avisos.sort((a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora)).slice(0,8).map(a=>`<li style="${a.tipo==="falta"?"color:#ff9aa4":""}"><span>${a.tipo==="falta"?"✖":"✔"} ${esc(a.texto)}</span><span>${esc(a.fecha.slice(5))}</span></li>`).join("")||'<li class="vacio">Sin avisos todavía</li>';
   if("Notification" in window&&Notification.permission==="default")$("notif").style.display="block";
-  const m=d.asistencias.filter(a=>a.curp===s.curpAlumno&&a.estado!=="falta").sort(orden);
+  const m=d.asistencias.filter(a=>a.curp===cur&&a.estado!=="falta").sort(orden);
   $("total").innerHTML=m.filter(a=>a.fecha.startsWith(mes)).length+" <small>este mes</small>";
   $("lista").innerHTML=m.slice(0,5).map(a=>fila(a,esc(a.materia||a.docenteNombre||""))).join("")||'<li class="vacio">Aún no hay asistencias</li>';
 }
