@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Tutor</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#4A0A0E"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="tema.css">
 </head><body><main>
-<h1>Hola, <span id="nombre"></span> 👋</h1>
-<p class="sub" id="alumno">Cargando alumno…</p>
+<div class="hero"><h1>Hola, <span id="nombre"></span> 👋</h1>
+<p class="sub" id="alumno">Cargando alumno…</p></div>
 <div class="card"><h2>ASISTENCIAS DEL ALUMNO</h2><div class="num" id="total">0 <small>este mes</small></div></div>
 <div class="card"><h2>ÚLTIMAS ASISTENCIAS</h2><ul id="lista"></ul></div>
-<div class="card"><h2>🔔 AVISOS</h2><ul id="avisos"></ul><button class="btn" id="notif" style="display:none;margin-top:12px;background:transparent;border:1px solid rgba(250,46,73,0.55)">Activar notificaciones en este teléfono</button></div>
+<div class="card"><h2>FALTAS DEL ALUMNO (fecha, horario y materia)</h2><ul id="lfaltas"></ul></div>
+<div class="card"><h2>🔔 AVISOS</h2><ul id="avisos"></ul><button class="btn" id="notif" style="display:none;margin-top:12px;background:transparent;border:1px solid rgba(122,31,38,.45)">Activar notificaciones en este teléfono</button></div>
 <a class="btn" href="escanear.html" style="margin-bottom:14px">🎓 Ver ficha completa</a>
 <a class="btn" href="calificaciones.html" style="margin-bottom:14px">📊 Calificaciones</a>
 <a class="btn" id="lp" href="permisos.html" style="margin-bottom:14px">📝 Permisos</a>
@@ -22,13 +23,15 @@ const hoy=new Date().toLocaleDateString("sv-SE"), mes=hoy.slice(0,7);
 const orden=(a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora);
 const fila=(a,txt)=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${a.pendiente?'<span class="tag">pendiente</span>':txt}</span></li>`;
 $("nombre").textContent=(s.nombre||"").split(" ")[0];
+const faltasHtml=l=>l.filter(a=>a.estado==="falta").slice(0,10).map(a=>`<li><span>${a.fecha.split("-").reverse().join("/")}${a.horaInicio?" · de "+a.horaInicio+" a "+a.horaFin:""}</span><span>${esc(a.materia||"")}</span></li>`).join("")||'<li class="vacio">Sin faltas</li>';
 async function pintar(){
   const act=await SD.alumnoActivo(), cur=act?act.curp:"", d=await SD.datos(), al=d.alumnos.find(a=>a.curp===cur);
   $("alumno").textContent=al?al.nombre+(al.grupo?" · Grupo "+al.grupo:""):"Aún no tienes alumnos vinculados: entra a Alumnos y agrega su CURP.";
   const visto=+localStorage.getItem("sd_visto")||0;
-  $("avisos").innerHTML=d.avisos.sort((a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora)).slice(0,8).map(a=>`<li style="${a.tipo==="falta"?"color:#ff9aa4":""}"><span>${a.tipo==="falta"?"✖":"✔"} ${esc(a.texto)}</span><span>${esc(a.fecha.slice(5))}</span></li>`).join("")||'<li class="vacio">Sin avisos todavía</li>';
+  $("avisos").innerHTML=d.avisos.sort((a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora)).slice(0,8).map(a=>`<li style="${a.tipo==="falta"?"color:#c0392b":""}"><span>${a.tipo==="falta"?"✖":"✔"} ${esc(a.texto)}</span><span>${esc(a.fecha.slice(5))}</span></li>`).join("")||'<li class="vacio">Sin avisos todavía</li>';
   if("Notification" in window&&Notification.permission==="default")$("notif").style.display="block";
   const m=d.asistencias.filter(a=>a.curp===cur&&a.estado!=="falta").sort(orden);
+  $("lfaltas").innerHTML=faltasHtml(d.asistencias.filter(a=>a.curp===cur).sort(orden));
   $("total").innerHTML=m.filter(a=>a.fecha.startsWith(mes)).length+" <small>este mes</small>";
   $("lista").innerHTML=m.slice(0,5).map(a=>fila(a,esc(a.materia||a.docenteNombre||""))).join("")||'<li class="vacio">Aún no hay asistencias</li>';
 }

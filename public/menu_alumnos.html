@@ -1,18 +1,13 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Alumno</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#4A0A0E"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="tema.css">
 </head><body><main>
-<h1>Hola, <span id="nombre"></span> 👋</h1>
-<p class="sub" id="datos"></p>
-<div class="card" style="text-align:center">
-  <h2>MI CÓDIGO QR</h2>
-  <div id="qr" style="width:230px;max-width:100%;margin:auto;border-radius:10px;overflow:hidden;background:#f9f4eb"></div>
-  <p id="curp" style="margin-top:10px;letter-spacing:2px;font-weight:bold"></p>
-  <a class="btn" href="qr_alumno.html" style="margin-top:12px;background:transparent;border:1px solid rgba(250,46,73,0.55)">Ver grande / descargar</a>
-</div>
-<div class="card" style="display:flex;gap:12px"><div style="flex:1"><h2>ASISTENCIAS</h2><div class="num" id="total">0</div></div><div style="flex:1"><h2 style="color:#b3412e">FALTAS</h2><div class="num" id="faltas">0</div></div></div><p class="sub" style="margin:-6px 0 14px">Este mes</p>
+<div class="hero"><h1>Hola, <span id="nombre"></span> 👋</h1>
+<p class="sub" id="datos"></p></div>
+<div class="card" style="display:flex;gap:12px"><div style="flex:1"><h2>ASISTENCIAS</h2><div class="num" id="total">0</div></div><div style="flex:1"><h2 style="color:#c0392b">FALTAS</h2><div class="num" id="faltas">0</div></div></div><p class="sub" style="margin:-6px 0 14px">Este mes</p>
+<div class="card"><h2>MIS FALTAS (fecha, horario y materia)</h2><ul id="lfaltas"></ul></div>
 <div class="card"><h2>ÚLTIMOS REGISTROS</h2><ul id="lista"></ul></div>
 <div class="card"><h2>MIS MATERIAS</h2><ul id="mats"></ul></div>
 <a class="btn" href="calificaciones.html" style="margin-bottom:14px">📊 Calificaciones</a>
@@ -27,13 +22,14 @@ const orden=(a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora);
 const fila=(a,txt)=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${a.pendiente?'<span class="tag">pendiente</span>':txt}</span></li>`;
 $("nombre").textContent=(s.nombre||"").split(" ")[0];
 const curp=s.curp||s.id;
-$("qr").innerHTML=SD.qr(curp); $("curp").textContent=curp;
 $("datos").textContent=[s.area,s.semestre,s.grupo&&"Grupo "+s.grupo].filter(Boolean).join(" · ");
+const faltasHtml=l=>l.filter(a=>a.estado==="falta").slice(0,10).map(a=>`<li><span>${a.fecha.split("-").reverse().join("/")}${a.horaInicio?" · de "+a.horaInicio+" a "+a.horaFin:""}</span><span>${esc(a.materia||"")}</span></li>`).join("")||'<li class="vacio">Sin faltas</li>';
 async function pintar(){
   const d=await SD.datos(), m=d.asistencias.filter(a=>a.curp===curp).sort(orden);
   const mm=m.filter(a=>a.fecha.startsWith(mes));
   $("total").textContent=mm.filter(a=>a.estado!=="falta").length; $("faltas").textContent=mm.filter(a=>a.estado==="falta").length;
-  $("lista").innerHTML=m.slice(0,6).map(a=>fila(a,a.estado==="justificada"?'<span style="color:#765647">justificada · '+esc(a.materia||"")+'</span>':a.estado==="falta"?'<span style="color:#b3412e">falta · '+esc(a.materia||"")+'</span>':esc(a.materia||a.docenteNombre||""))).join("")||'<li class="vacio">Aún no tienes asistencias</li>';
+  $("lfaltas").innerHTML=faltasHtml(m);
+  $("lista").innerHTML=m.slice(0,6).map(a=>fila(a,a.estado==="justificada"?'<span style="color:#7a1f26">justificada · '+esc(a.materia||"")+'</span>':a.estado==="falta"?'<span style="color:#c0392b">falta · '+esc(a.materia||"")+'</span>':esc(a.materia||a.docenteNombre||""))).join("")||'<li class="vacio">Aún no tienes asistencias</li>';
 }
 async function materias(){let c;try{c=await SD.api("/api/clases");localStorage.setItem("sd_mat",JSON.stringify(c));}catch(e){c=JSON.parse(localStorage.getItem("sd_mat")||"[]");}
   $("mats").innerHTML=c.map(x=>`<li><span>${esc(x.materia)}</span><span>${esc(x.docenteNombre||"")}</span></li>`).join("")||'<li class="vacio">Tu administrador aún no asigna materias a tu grupo.</li>';}

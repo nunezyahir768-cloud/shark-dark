@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Escanear QR</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#4A0A0E"><link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="tema.css">
 </head><body><main>
 <h1 id="tit">Vínculos</h1>
@@ -31,7 +31,7 @@ async function cargar(){
     <span class="tag" style="${v.estado==="vinculado"?"color:#3f7d4f;border-color:#3f7d4f":""}">${v.estado==="vinculado"?"vinculado ✔":"esperando confirmación"}</span>
     <p class="sub" style="margin:4px 0 8px">${esc(v.curp)}${v.semestre?" · "+esc(v.semestre+" "+v.area+" "+v.grupo):""}</p>
     ${tutor&&v.estado==="vinculado"&&v.curp!==act?`<button class="mini" data-a="ver" data-c="${esc(v.curp)}" style="margin-left:0">Ver a este alumno</button>`:""}
-    <button class="mini" data-a="quitar" data-c="${esc(v.curp)}" style="${tutor&&v.estado==="vinculado"&&v.curp!==act?"":"margin-left:0;"}color:#b3412e">Quitar</button></div>`).join("")||'<div class="card"><p class="sub" style="margin:0">Todavía no hay vínculos.</p></div>';
+    <button class="mini" data-a="quitar" data-c="${esc(v.curp)}" style="${tutor&&v.estado==="vinculado"&&v.curp!==act?"":"margin-left:0;"}color:#c0392b">Quitar</button></div>`).join("")||'<div class="card"><p class="sub" style="margin:0">Todavía no hay vínculos.</p></div>';
 }
 $("agregar").onclick=async()=>{try{await SD.api("/api/vinculos/agregar",{method:"POST",body:{curp:$("curp").value}});$("curp").value="";aviso("ok","✔ Agregado","Cuando la otra persona también te agregue, el vínculo quedará activo.");cargar();}
   catch(e){aviso("err","No se pudo agregar",e.status?e.message:"Necesitas internet");}};

@@ -59,7 +59,7 @@ const auth = (req, res, next) => {
 };
 const publico = ({ salt, hash, _id, ...r }) => r;
 
-let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos;
+let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios;
 
 /* CURPs que cada rol puede ver: docente = todas, alumno = la suya, tutor = la de su alumno */
 async function permitidas(u) {
@@ -79,8 +79,8 @@ async function ligados(t) {
 }
 
 /* Crea un aviso para cada tutor vinculado al alumno (idempotente) */
-const esMiClase = async (doc, area, semestre, grupo, materia) => (await clases.find({ docente: doc }).toArray())
-    .some(c => c.area === area && c.semestre === semestre && c.grupo === grupo && c.materia.toLowerCase() === String(materia).toLowerCase());
+const miClase = async (doc, area, semestre, grupo, materia) => (await clases.find({ docente: doc }).toArray())
+    .find(c => c.area === area && c.semestre === semestre && c.grupo === grupo && c.materia.toLowerCase() === String(materia).toLowerCase());
 
 async function avisar(alumno, tipo, hora, fecha, clave, materia, extra) {
     const cand = [...await usuarios.find({ rol: 'tutor', hijos: alumno.curp }).toArray(), ...await usuarios.find({ rol: 'tutor', curpAlumno: alumno.curp }).toArray()];
@@ -163,9 +163,10 @@ app.post('/api/asistencias', auth, h(async (req, res) => {
     const materia = limpiaMat(a.materia), key = materia.toLowerCase();
     const alumno = await usuarios.findOne({ _id: 'alumno:' + curp });
     if (!alumno) return bad(res, 'Alumno no encontrado', 404);
-    if (!await esMiClase(req.u.id, alumno.area, alumno.semestre, alumno.grupo, materia)) return bad(res, 'Esa materia no es tuya o el alumno no es de ese grupo', 403);
+    const cl = await miClase(req.u.id, alumno.area, alumno.semestre, alumno.grupo, materia);
+    if (!cl) return bad(res, 'Esa materia no es tuya o el alumno no es de ese grupo', 403);
     try {
-        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: a.fecha, hora: a.hora, estado: 'asistio', materia, materiaKey: key, docente: req.u.id, docenteNombre: s(a.docenteNombre) });
+        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: a.fecha, hora: a.hora, estado: 'asistio', materia, materiaKey: key, horaInicio: cl.horaInicio || '', horaFin: cl.horaFin || '', docente: req.u.id, docenteNombre: s(a.docenteNombre) });
     } catch (e) { if (e.code === 11000) return bad(res, 'Ya registrada', 409); throw e; }
     await asistencias.deleteOne({ _id: `F:${curp}:${a.fecha}:${key}` });   // si estaba marcada falta, ya no
     await avisar(alumno, 'asistio', a.hora, a.fecha, s(a.uid), materia);
@@ -178,7 +179,9 @@ app.post('/api/cierre', auth, h(async (req, res) => {
     const { area, semestre, grupo, fecha, hora } = req.body || {};
     const materia = limpiaMat((req.body || {}).materia), key = materia.toLowerCase();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s(fecha)) || !/^\d{2}:\d{2}$/.test(s(hora)) || !area || !semestre || !grupo || !materia) return bad(res, 'Datos inválidos');
-    if (!await esMiClase(req.u.id, s(area), s(semestre), s(grupo), materia)) return bad(res, 'Esa clase no es tuya', 403);
+    const cl = await miClase(req.u.id, s(area), s(semestre), s(grupo), materia);
+    if (!cl) return bad(res, 'Esa clase no es tuya', 403);
+    const hr = cl.horaInicio ? ` (${cl.horaInicio} a ${cl.horaFin})` : '';
     const aprobados = await permisos.find({ estado: 'aprobado' }).toArray();
     const alumnos = await usuarios.find({ rol: 'alumno', area: s(area), semestre: s(semestre), grupo: s(grupo) }).toArray();
     const presentes = new Set((await asistencias.find({ fecha, estado: 'asistio', materiaKey: key }).toArray()).map(a => a.curp));
@@ -186,11 +189,11 @@ app.post('/api/cierre', auth, h(async (req, res) => {
     for (const al of alumnos.filter(x => !presentes.has(x.curp))) {
         const p = aprobados.find(x => x.curp === al.curp && x.desde <= fecha && fecha <= x.hasta);
         try {
-            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}`, curp: al.curp, fecha, hora, estado: p ? 'justificada' : 'falta', motivo: p ? 'Permiso: ' + p.motivo : undefined, materia, materiaKey: key, docente: req.u.id, docenteNombre: s(req.body.docenteNombre) });
+            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}`, curp: al.curp, fecha, hora, estado: p ? 'justificada' : 'falta', motivo: p ? 'Permiso: ' + p.motivo : undefined, materia, materiaKey: key, horaInicio: cl.horaInicio || '', horaFin: cl.horaFin || '', docente: req.u.id, docenteNombre: s(req.body.docenteNombre) });
             if (!p) faltas++;
         } catch (e) { if (e.code !== 11000) throw e; }
         if (p) await avisar(al, 'justificada', hora, fecha, `${al.curp}:${fecha}:${key}`, materia, `${al.nombre} no asistió a ${materia}: justificado por permiso`);
-        else await avisar(al, 'falta', hora, fecha, `${al.curp}:${fecha}:${key}`, materia);
+        else await avisar(al, 'falta', hora, fecha, `${al.curp}:${fecha}:${key}`, materia, `${al.nombre} faltó a ${materia}${hr} el ${fecha.split('-').reverse().join('/')}`);
     }
     res.json({ ok: true, faltas });
 }));
@@ -293,13 +296,29 @@ app.post('/api/admin/clases', auth, soloAdmin, h(async (req, res) => {
     const d = await usuarios.findOne({ _id: 'docente:' + doc });
     if (!d) return bad(res, 'Docente no encontrado', 404);
     const id = crypto.randomBytes(4).toString('hex').toUpperCase();
-    await clases.insertOne({ _id: id, materia, area, semestre, grupo, docente: doc, docenteNombre: d.nombre });
+    const HH = v => /^\d{2}:\d{2}$/.test(s(v)) ? s(v) : '';
+    await clases.insertOne({ _id: id, materia, area, semestre, grupo, docente: doc, docenteNombre: d.nombre, horaInicio: HH(req.body.horaInicio), horaFin: HH(req.body.horaFin) });
     res.status(201).json({ ok: true, id });
 }));
 app.post('/api/admin/clases/borrar', auth, soloAdmin, h(async (req, res) => {
     await clases.deleteOne({ _id: s(req.body.id).toUpperCase() });
     res.json({ ok: true });
 }));
+
+/* ---------- Avisos de la administración (anuncios) ---------- */
+const DESTINOS = { tutor: ['tutor'], docente: ['docente'], alumno: ['alumno'], 'alumno,docente': ['alumno', 'docente'], 'tutor,alumno': ['tutor', 'alumno'], 'tutor,docente': ['tutor', 'docente'], todos: ['tutor', 'docente', 'alumno'] };
+app.post('/api/anuncios', auth, soloAdmin, h(async (req, res) => {
+    const titulo = s(req.body.titulo).slice(0, 80), mensaje = s(req.body.mensaje).slice(0, 1000), para = DESTINOS[s(req.body.destino)];
+    if (!titulo || !mensaje || !para) return bad(res, 'Escribe el título, el mensaje y elige a quién va');
+    const id = crypto.randomBytes(5).toString('hex');
+    await anuncios.insertOne({ _id: id, titulo, mensaje, para, creado: new Date(), por: req.u.id });
+    res.status(201).json({ ok: true, id });
+}));
+app.get('/api/anuncios', auth, h(async (req, res) => {
+    const l = await anuncios.find({}).limit(500).toArray();
+    res.json(l.filter(a => req.u.rol === 'admin' || a.para.includes(req.u.rol)).sort((a, b) => new Date(b.creado) - new Date(a.creado)).slice(0, 50).map(({ _id, ...r }) => ({ id: _id, ...r })));
+}));
+app.post('/api/anuncios/:id/borrar', auth, soloAdmin, h(async (req, res) => { await anuncios.deleteOne({ _id: s(req.params.id) }); res.json({ ok: true }); }));
 
 /* ---------- Vínculos tutor ↔ alumno ---------- */
 app.get('/api/vinculos', auth, h(async (req, res) => {
@@ -387,17 +406,15 @@ app.get('/api/permisos', auth, h(async (req, res) => {
     if (req.u.rol === 'tutor') l = await permisos.find({ tutor: req.u.id }).limit(200).toArray();
     else if (req.u.rol === 'docente') {
         const gs = new Set((await clases.find({ docente: req.u.id }).toArray()).map(claveG));
-        l = (await permisos.find({}).limit(1000).toArray()).filter(p => gs.has(claveG(p)));
+        l = (await permisos.find({}).limit(1000).toArray()).filter(p => p.estado === 'aprobado' && gs.has(claveG(p)));
     } else if (req.u.rol === 'admin') l = await permisos.find({}).limit(500).toArray();
     else l = await permisos.find({ curp: req.u.id }).limit(200).toArray();
     res.json(l.sort((a, b) => new Date(b.creado) - new Date(a.creado)).slice(0, 100).map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
-app.post('/api/permisos/:id/resolver', auth, h(async (req, res) => {
-    if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
+app.post('/api/permisos/:id/resolver', auth, soloAdmin, h(async (req, res) => {
     const p = await permisos.findOne({ _id: s(req.params.id) });
     if (!p) return bad(res, 'Permiso no encontrado', 404);
     if (p.estado !== 'pendiente') return bad(res, 'Ese permiso ya fue resuelto', 409);
-    if (!(await clases.find({ docente: req.u.id }).toArray()).some(c => claveG(c) === claveG(p))) return bad(res, 'Ese alumno no es de tus grupos', 403);
     const aprobar = req.body.accion === 'aprobar', estado = aprobar ? 'aprobado' : 'rechazado';
     await permisos.updateOne({ _id: p._id }, { $set: { estado, resueltoPor: req.u.id } });
     if (aprobar) for (const f of (await asistencias.find({ curp: p.curp, estado: 'falta' }).toArray()).filter(f => f.fecha >= p.desde && f.fecha <= p.hasta))
@@ -438,6 +455,7 @@ async function iniciarServidor() {
         grupos = db.collection('grupos');
         clases = db.collection('clases');
         permisos = db.collection('permisos');
+        anuncios = db.collection('anuncios');
         avisos = db.collection('avisos');
         await asistencias.createIndex({ curp: 1, fecha: -1 });
 

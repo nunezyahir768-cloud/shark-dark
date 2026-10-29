@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Permisos</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#4A0A0E"><link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="tema.css">
 </head><body><main>
 <h1>Permisos</h1>
@@ -19,23 +19,23 @@
 <script src="app.js"></script>
 <script src="shell.js"></script>
 <script>
-const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["tutor","docente"]), doc=s.rol==="docente";
-$("volver").href=doc?"menu_docentes.html":"menu_tutor.html";
-$("sub").textContent=doc?"Solicitudes de los tutores de tus grupos. Si apruebas, ese día no cuenta como falta.":"Pide un permiso y un docente de su grupo lo aprobará.";
+const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["tutor","docente","admin"]), adm=s.rol==="admin", doc=s.rol==="docente";
+$("volver").href={tutor:"menu_tutor.html",docente:"menu_docentes.html",admin:"admin.html"}[s.rol];
+$("sub").textContent=adm?"Solicitudes de los tutores. La administración las aprueba o las rechaza.":doc?"Permisos aprobados para los alumnos de tus grupos.":"Pide un permiso: la administración lo revisará y se te avisará.";
 function aviso(cls,t,x){const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(t)+"</b>"+esc(x||"");}
 const hoy=new Date().toLocaleDateString("sv-SE"), fmt=f=>f.slice(8)+"/"+f.slice(5,7);
-const COL={pendiente:"#b9770e",aprobado:"#3f7d4f",rechazado:"#b3412e"};
+const COL={pendiente:"#b9770e",aprobado:"#3f7d4f",rechazado:"#c0392b"};
 async function cargar(){
   let l=[]; try{l=await SD.api("/api/permisos");}catch(e){$("lista").innerHTML='<div class="card"><p class="sub" style="margin:0">Necesitas internet para ver los permisos.</p></div>';return;}
   $("lista").innerHTML=l.map(p=>`<div class="card"><b>${esc(p.alumno)}</b> <span class="tag" style="color:${COL[p.estado]};border-color:${COL[p.estado]}">${esc(p.estado)}</span>
     <p class="sub" style="margin:4px 0 6px">Del ${fmt(p.desde)} al ${fmt(p.hasta)} · ${esc(p.motivo)}</p>
-    ${doc&&p.estado==="pendiente"?`<button class="mini" data-i="${esc(p.id)}" data-a="aprobar" style="margin-left:0">Aprobar</button><button class="mini" data-i="${esc(p.id)}" data-a="rechazar" style="color:#b3412e">Rechazar</button>`:""}</div>`).join("")||'<div class="card"><p class="sub" style="margin:0">No hay permisos.</p></div>';
+    ${adm&&p.estado==="pendiente"?`<button class="mini" data-i="${esc(p.id)}" data-a="aprobar" style="margin-left:0">Aprobar</button><button class="mini" data-i="${esc(p.id)}" data-a="rechazar" style="color:#c0392b">Rechazar</button>`:""}</div>`).join("")||'<div class="card"><p class="sub" style="margin:0">No hay permisos.</p></div>';
 }
 $("lista").addEventListener("click",async ev=>{const b=ev.target.closest("button[data-i]");if(!b)return;
   try{await SD.api("/api/permisos/"+b.dataset.i+"/resolver",{method:"POST",body:{accion:b.dataset.a}});aviso("ok",b.dataset.a==="aprobar"?"✔ Permiso aprobado":"Permiso rechazado","Se avisó al tutor.");cargar();}
   catch(e){aviso("err","No se pudo",e.status?e.message:"Necesitas internet");}});
-if(!doc){ $("nuevo").style.display="block"; SD.vinculos().then(l=>{const ok=l.filter(x=>x.estado==="vinculado");$("al").innerHTML=ok.map(x=>`<option value="${esc(x.curp)}">${esc(x.nombre)}</option>`).join("")||"<option value=''>Primero vincula a un alumno</option>";const a=localStorage.getItem("sd_alumno");if(a)$("al").value=a;}); $("d1").value=$("d2").value=hoy;
-  $("enviar").onclick=async()=>{try{await SD.api("/api/permisos",{method:"POST",body:{curp:$("al").value,desde:$("d1").value,hasta:$("d2").value,motivo:$("mo").value}});$("mo").value="";aviso("ok","✔ Solicitud enviada","El docente de su grupo la revisará.");cargar();}
+if(s.rol==="tutor"){ $("nuevo").style.display="block"; SD.vinculos().then(l=>{const ok=l.filter(x=>x.estado==="vinculado");$("al").innerHTML=ok.map(x=>`<option value="${esc(x.curp)}">${esc(x.nombre)}</option>`).join("")||"<option value=''>Primero vincula a un alumno</option>";const a=localStorage.getItem("sd_alumno");if(a)$("al").value=a;}); $("d1").value=$("d2").value=hoy;
+  $("enviar").onclick=async()=>{try{await SD.api("/api/permisos",{method:"POST",body:{curp:$("al").value,desde:$("d1").value,hasta:$("d2").value,motivo:$("mo").value}});$("mo").value="";aviso("ok","✔ Solicitud enviada","La administración la revisará.");cargar();}
     catch(e){aviso("err","No se pudo enviar",e.status?e.message:"Necesitas internet");}};}
 cargar();
 </script></body></html>

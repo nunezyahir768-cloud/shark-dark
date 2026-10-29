@@ -121,7 +121,7 @@
     const ya = (await all('asistencias')).find(a => a.curp === curp && a.fecha === fecha && a.estado !== 'falta' && mat(a.materia).toLowerCase() === k);
     if (ya) return { duplicada: true, asistencia: ya };
     await del('asistencias', `F:${curp}:${fecha}:${k}`);
-    const a = { uid: crypto.randomUUID(), curp, fecha, hora, estado: 'asistio', materia, docente: s.id, docenteNombre: s.nombre, pendiente: true };
+    const a = { uid: crypto.randomUUID(), curp, fecha, hora, estado: 'asistio', materia, horaInicio: clase.horaInicio || '', horaFin: clase.horaFin || '', docente: s.id, docenteNombre: s.nombre, pendiente: true };
     await put('asistencias', a);
     await put('cola', { tipo: 'asistencia', uid: a.uid, datos: a });
     refrescarBadge();
@@ -138,7 +138,7 @@
     const ausentes = d.alumnos.filter(x => x.area === clase.area && x.semestre === clase.semestre && x.grupo === clase.grupo && !presentes.has(x.curp));
     let ap = []; if (navigator.onLine) { try { ap = (await api('/api/permisos')).filter(p => p.estado === 'aprobado'); } catch (e) {} }
     const just = x => ap.some(p => p.curp === x.curp && p.desde <= fecha && fecha <= p.hasta);
-    for (const x of ausentes) await put('asistencias', { uid: `F:${x.curp}:${fecha}:${k}`, curp: x.curp, fecha, hora, estado: just(x) ? 'justificada' : 'falta', materia, docente: s.id, docenteNombre: s.nombre, pendiente: true });
+    for (const x of ausentes) await put('asistencias', { uid: `F:${x.curp}:${fecha}:${k}`, curp: x.curp, fecha, hora, estado: just(x) ? 'justificada' : 'falta', materia, horaInicio: clase.horaInicio || '', horaFin: clase.horaFin || '', docente: s.id, docenteNombre: s.nombre, pendiente: true });
     await put('cola', { tipo: 'cierre', datos: { area: clase.area, semestre: clase.semestre, grupo: clase.grupo, materia, fecha, hora, docenteNombre: s.nombre } });
     refrescarBadge(); sync();
     return ausentes.filter(x => !just(x)).map(x => x.nombre);
@@ -204,6 +204,13 @@
           await put('avisos', av);
           if (antes.size && !antes.has(av.id)) notificar(av.texto);
         }
+      }
+      if (s && s.token && s.rol !== 'admin') {         // avisos de la administración
+        try {
+          const an = await api('/api/anuncios'), antes = JSON.parse(localStorage.getItem('sd_an') || 'null');
+          localStorage.setItem('sd_an', JSON.stringify(an.map(x => x.id)));
+          if (antes) for (const x of an) if (!antes.includes(x.id)) notificar(x.titulo + ': ' + x.mensaje.slice(0, 80));
+        } catch (e) {}
       }
       if (s && s.token) {                              // descarga lo que este rol puede ver
         for (const a of await api('/api/alumnos')) await put('alumnos', a);

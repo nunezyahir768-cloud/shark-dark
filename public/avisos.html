@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHARK DARK | Escanear QR</title>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#4A0A0E"><link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="tema.css">
+</head><body><main>
+<h1>Avisos</h1>
+<p class="sub" id="sub"></p>
+<div class="banner" id="banner"></div>
+<div class="card" id="nuevo" style="display:none"><h2>Enviar un aviso</h2>
+  <label for="dest">¿A quién se lo mandas?</label>
+  <select id="dest"><option value="tutor">Tutores</option><option value="docente">Docentes</option><option value="alumno">Alumnos</option><option value="alumno,docente">Alumnos y docentes</option><option value="tutor,alumno">Tutores y alumnos</option><option value="tutor,docente">Tutores y docentes</option><option value="todos">Todos (tutores, docentes y alumnos)</option></select>
+  <input id="ti" placeholder="Título" maxlength="80" style="margin-top:10px;text-transform:none">
+  <textarea id="me" placeholder="Escribe el mensaje" maxlength="1000" rows="4" style="width:100%;margin-top:10px;padding:13px 15px;border:1px solid var(--linea);border-radius:14px;background:var(--suave);font:15px inherit;font-family:inherit;color:var(--oscuro);resize:vertical"></textarea>
+  <button class="btn" id="enviar">ENVIAR AVISO</button></div>
+<div id="lista"></div>
+</main>
+<script src="app.js"></script>
+<script src="shell.js"></script>
+<script>
+const $=i=>document.getElementById(i), esc=SD.esc, s=SD.require(["alumno","tutor","docente","admin"]), adm=s.rol==="admin";
+const NOM={tutor:"Tutores",docente:"Docentes",alumno:"Alumnos"}, fmt=f=>{const d=new Date(f);return d.toLocaleDateString("es-MX")+" "+d.toTimeString().slice(0,5);};
+$("sub").textContent=adm?"Los avisos que envíes aparecerán en la sección Avisos de cada persona.":"Mensajes de la administración del plantel.";
+function aviso(cls,t,x){const b=$("banner");b.className="banner "+cls;b.style.display="block";b.innerHTML="<b>"+esc(t)+"</b>"+esc(x||"");}
+async function cargar(){
+  let l=[]; try{l=await SD.api("/api/anuncios");localStorage.setItem("sd_anun",JSON.stringify(l));}catch(e){l=JSON.parse(localStorage.getItem("sd_anun")||"[]");}
+  $("lista").innerHTML=l.map(a=>`<div class="card anuncio"><b>${esc(a.titulo)}</b>
+    <p style="margin:6px 0;white-space:pre-wrap">${esc(a.mensaje)}</p>
+    <p class="sub" style="margin:0">${esc(fmt(a.creado))}${adm?" · Para: "+esc(a.para.map(r=>NOM[r]).join(", ")):""}</p>
+    ${adm?`<button class="mini" data-b="${esc(a.id)}" style="margin:8px 0 0;color:#c0392b">Borrar</button>`:""}</div>`).join("")||'<div class="card"><p class="sub" style="margin:0">No hay avisos por ahora.</p></div>';
+}
+$("lista").addEventListener("click",async ev=>{const b=ev.target.closest("button[data-b]");if(!b||!confirm("¿Borrar este aviso?"))return;
+  try{await SD.api("/api/anuncios/"+b.dataset.b+"/borrar",{method:"POST",body:{}});cargar();}catch(e){aviso("err","No se pudo",e.message);}});
+if(adm){ $("nuevo").style.display="block";
+  $("enviar").onclick=async()=>{try{await SD.api("/api/anuncios",{method:"POST",body:{destino:$("dest").value,titulo:$("ti").value,mensaje:$("me").value}});$("ti").value=$("me").value="";aviso("ok","✔ Aviso enviado","Ya lo pueden ver en su sección Avisos.");cargar();}
+    catch(e){aviso("err","No se pudo enviar",e.status?e.message:"Necesitas internet");}};}
+cargar();
+</script></body></html>

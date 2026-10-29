@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK Admin</title>
-<link rel="manifest" href="manifest-admin.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest-admin.webmanifest"><meta name="theme-color" content="#4A0A0E"><link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="tema.css">
 </head><body><main>
 <h1>Administración</h1>
@@ -12,7 +12,7 @@
   <input id="p" type="password" placeholder="Contraseña" style="margin-top:8px;text-transform:none">
   <input id="c" placeholder="Código de administración" autocomplete="off" style="margin-top:8px;display:none;text-transform:none">
   <button class="btn" id="entrar">ENTRAR</button>
-  <button class="btn" id="alt" style="background:transparent;border:1px solid rgba(118,86,71,.45)">Crear cuenta de administrador</button>
+  <button class="btn" id="alt" style="background:transparent;border:1px solid rgba(122,31,38,.45)">Crear cuenta de administrador</button>
 </div>
 <div id="panel" style="display:none">
   <div id="v-cuentas">
@@ -32,7 +32,7 @@
     <div id="lg"></div></div>
   <div id="v-clases" style="display:none">
     <div class="card"><h2 style="font-size:16px">Nueva clase (materia de un grupo)</h2>
-      <select id="cg"></select><input id="cm" placeholder="Materia (ej. Matemáticas)" maxlength="60" style="margin-top:8px;text-transform:none"><select id="cd"></select>
+      <select id="cg"></select><input id="cm" placeholder="Materia (ej. Matemáticas)" maxlength="60" style="margin-top:8px;text-transform:none"><div style="display:flex;gap:8px;margin-top:8px"><div style="flex:1"><label style="margin:0">De las</label><input type="time" id="ch1"></div><div style="flex:1"><label style="margin:0">A las</label><input type="time" id="ch2"></div></div><select id="cd"></select>
       <button class="btn" id="addc">AÑADIR CLASE</button></div>
     <div class="card" id="qrc" style="display:none;text-align:center"></div>
     <div id="lc"></div></div>
@@ -68,21 +68,21 @@ function pintar(){
     <p class="sub" style="margin:4px 0 8px">${esc(u.curp||u.rfc||"")}${u.rol==="alumno"?" · "+esc(u.semestre)+" "+esc(u.area)+" "+esc(u.grupo):""}${(u.hijos&&u.hijos.length)?" · alumnos: "+esc(u.hijos.join(", ")):""}${(u.tutores&&u.tutores.length)?" · tutores: "+esc(u.tutores.join(", ")):""}</p>
     <button class="mini" data-a="reset" data-r="${u.rol}" data-i="${esc(u.id)}">Restablecer contraseña</button>
     ${u.rol==="alumno"?`<button class="mini" data-a="editar" data-i="${esc(u.id)}">Cambiar grupo</button>`:""}
-    <button class="mini" style="color:#b3412e" data-a="borrar" data-r="${u.rol}" data-i="${esc(u.id)}">Borrar</button></div>`).join("")||'<p class="sub">Sin resultados.</p>';
+    <button class="mini" style="color:#c0392b" data-a="borrar" data-r="${u.rol}" data-i="${esc(u.id)}">Borrar</button></div>`).join("")||'<p class="sub">Sin resultados.</p>';
 }
 function pintarG(){
-  $("lg").innerHTML=grupos.map(g=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center"><span><b>${esc(g.nombre)}</b><br><small style="color:#9a826e">${todos.filter(u=>u.rol==="alumno"&&u.area===g.area&&u.semestre===g.semestre&&u.grupo===g.grupo).length} alumnos · ${clases.filter(c=>c.area===g.area&&c.semestre===g.semestre&&c.grupo===g.grupo).length} materias</small></span><button class="mini" style="color:#b3412e" data-g="${esc(g.id)}">Borrar</button></div>`).join("")||'<p class="sub">Aún no hay grupos.</p>';
+  $("lg").innerHTML=grupos.map(g=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center"><span><b>${esc(g.nombre)}</b><br><small style="color:#9a7a74">${todos.filter(u=>u.rol==="alumno"&&u.area===g.area&&u.semestre===g.semestre&&u.grupo===g.grupo).length} alumnos · ${clases.filter(c=>c.area===g.area&&c.semestre===g.semestre&&c.grupo===g.grupo).length} materias</small></span><button class="mini" style="color:#c0392b" data-g="${esc(g.id)}">Borrar</button></div>`).join("")||'<p class="sub">Aún no hay grupos.</p>';
   $("cg").innerHTML=grupos.map((g,i)=>`<option value="${i}">${esc(g.nombre)}</option>`).join("");
   $("nsg").innerHTML=grupos.map((g,i)=>`<option value="${i}">${esc(g.nombre)}</option>`).join("");
   $("cd").innerHTML=todos.filter(u=>u.rol==="docente").map(u=>`<option value="${esc(u.id)}">${esc(u.nombre)}</option>`).join("")||"<option value=''>No hay docentes registrados</option>";
 }
 function pintarC(){
-  $("lc").innerHTML=clases.sort((a,b)=>(a.semestre+a.area+a.grupo+a.materia).localeCompare(b.semestre+b.area+b.grupo+b.materia)).map(c=>`<div class="card"><b>${esc(c.materia)}</b><p class="sub" style="margin:2px 0 8px">${esc(c.semestre)} ${esc(c.area)} ${esc(c.grupo)} · Prof. ${esc(c.docenteNombre||c.docente)}</p><button class="mini" data-q="${esc(c.id)}">Ver QR</button><button class="mini" style="color:#b3412e" data-c="${esc(c.id)}">Borrar</button></div>`).join("")||'<p class="sub">Aún no hay clases.</p>';
+  $("lc").innerHTML=clases.sort((a,b)=>(a.semestre+a.area+a.grupo+a.materia).localeCompare(b.semestre+b.area+b.grupo+b.materia)).map(c=>`<div class="card"><b>${esc(c.materia)}</b><p class="sub" style="margin:2px 0 8px">${esc(c.semestre)} ${esc(c.area)} ${esc(c.grupo)} · Prof. ${esc(c.docenteNombre||c.docente)}${c.horaInicio?" · "+esc(c.horaInicio)+" a "+esc(c.horaFin):""}</p><button class="mini" data-q="${esc(c.id)}">Ver QR</button><button class="mini" style="color:#c0392b" data-c="${esc(c.id)}">Borrar</button></div>`).join("")||'<p class="sub">Aún no hay clases.</p>';
 }
 $("q").addEventListener("input",pintar);
 $("addg").onclick=async()=>{try{await api("/api/admin/grupos",{semestre:$("gs").value,area:$("ga").value,grupo:$("gl").value});aviso("ok","✔ Grupo añadido","");await recargar();}catch(e){aviso("err","No se pudo",e.message);}};
 $("addc").onclick=async()=>{const g=grupos[+$("cg").value];if(!g)return aviso("err","Primero crea un grupo","");
-  try{const r=await api("/api/admin/clases",{area:g.area,semestre:g.semestre,grupo:g.grupo,materia:$("cm").value,docente:$("cd").value});$("cm").value="";aviso("ok","✔ Clase añadida","Se generó su QR: búscala abajo y toca Ver QR.");await recargar();}catch(e){aviso("err","No se pudo",e.message);}};
+  try{const r=await api("/api/admin/clases",{area:g.area,semestre:g.semestre,grupo:g.grupo,materia:$("cm").value,docente:$("cd").value,horaInicio:$("ch1").value,horaFin:$("ch2").value});$("cm").value="";aviso("ok","✔ Clase añadida","Se generó su QR: búscala abajo y toca Ver QR.");await recargar();}catch(e){aviso("err","No se pudo",e.message);}};
 $("lg").addEventListener("click",async ev=>{const b=ev.target.closest("button[data-g]");if(!b||!confirm("¿Borrar este grupo y sus materias?"))return;
   try{await api("/api/admin/grupos/borrar",{id:b.dataset.g});await recargar();}catch(e){aviso("err","No se pudo",e.message);}});
 $("lc").addEventListener("click",async ev=>{const b=ev.target.closest("button");if(!b)return;

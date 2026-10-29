@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHARK DARK | Escanear QR</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FBF1DE"><link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#4A0A0E"><link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="tema.css">
 </head><body><main>
 <h1 id="tit">Escanear QR</h1>
 <p class="sub" id="sub">Elige tu clase (o escanea su QR) y luego escanea a los alumnos.</p>
 <div class="banner" id="banner"></div>
 <div class="card" id="clase" style="display:none">
-  <h2 style="font-size:13px;color:#765647;letter-spacing:1px;margin-bottom:8px">CLASE DE AHORA</h2>
+  <h2 style="font-size:13px;color:#7a1f26;letter-spacing:1px;margin-bottom:8px">CLASE DE AHORA</h2>
   <select id="cl"></select>
   <button class="mini" id="vqr" style="margin:10px 0 0 0">Ver QR de esta clase</button>
   <div id="qrbox" style="display:none;margin-top:12px;text-align:center"></div>
@@ -21,7 +21,7 @@
 <div class="card" id="ficha" style="display:none"><dl id="datos"></dl></div>
 <div class="card" id="hist" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Historial</h2><ul id="lista"></ul></div>
 <div class="card" id="cierre" style="display:none"><p class="sub" style="margin:0 0 4px">Al terminar la clase, marca falta a quien no escaneó y avisa a su tutor.</p><button class="btn" id="cerrar">CERRAR LISTA DE ESTA CLASE</button></div>
-<div class="card" id="grupo" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Lista de la clase <span id="cont"></span></h2><ul id="lg"></ul><button class="btn" id="rep" style="margin-top:12px;background:transparent;border:1px solid rgba(118,86,71,.45)">📥 Descargar reporte del mes (Excel)</button></div>
+<div class="card" id="grupo" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Lista de la clase <span id="cont"></span></h2><ul id="lg"></ul><button class="btn" id="rep" style="margin-top:12px;background:transparent;border:1px solid rgba(122,31,38,.45)">📥 Descargar reporte del mes (Excel)</button></div>
 <div class="card" id="rejilla" style="display:none"><h2 style="font-size:16px;margin-bottom:8px">Asistencia del mes</h2><div style="overflow-x:auto"><table class="tb" id="tbl"></table></div><p class="sub" style="margin:8px 0 0">✓ asistió · ✗ faltó · J justificada · – sin registro</p></div>
 <a class="back" id="volver" href="#">← Volver al menú</a>
 </main>
@@ -50,7 +50,7 @@ async function ficha(curp){
   if(!r.alumno){$("ficha").style.display=$("hist").style.display="none";return r;}
   $("datos").innerHTML=[["Nombre",r.alumno.nombre],["CURP",r.alumno.curp],["Área",r.alumno.area],["Semestre",r.alumno.semestre],["Grupo",r.alumno.grupo]].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||"—")}</dd>`).join("");
   $("ficha").style.display=$("hist").style.display="block";
-  const et=a=>a.estado==="falta"?'<span class="tag" style="color:#b3412e;border-color:#b3412e">falta · '+esc(a.materia||"")+'</span>':a.estado==="justificada"?'<span class="tag" style="color:#765647;border-color:#765647">justificada</span>':a.pendiente?'<span class="tag">pendiente</span>':esc(a.materia||a.docenteNombre||"");
+  const et=a=>a.estado==="falta"?'<span class="tag" style="color:#c0392b;border-color:#c0392b">falta · '+esc(a.materia||"")+'</span>':a.estado==="justificada"?'<span class="tag" style="color:#7a1f26;border-color:#7a1f26">justificada</span>':a.pendiente?'<span class="tag">pendiente</span>':esc(a.materia||a.docenteNombre||"");
   $("lista").innerHTML=r.asistencias.slice(0,30).map(a=>`<li><span>${esc(a.fecha)} · ${esc(a.hora)}</span><span>${et(a)}</span></li>`).join("")||"<li>Sin registros</li>";
   return r;
 }
@@ -62,9 +62,9 @@ function mesDatos(c,d){
   return {g,fechas,rs,filas:g.map(a=>[a.nombre,fechas.map(f=>idx.get(a.curp+"|"+f)||"·")])};
 }
 function pintarRejilla(c,d){
-  const m=mesDatos(c,d), col={"✓":"#3f7d4f","✗":"#b3412e","J":"#765647"}; $("rejilla").style.display="block";
+  const m=mesDatos(c,d), col={"✓":"#3f7d4f","✗":"#c0392b","J":"#7a1f26"}; $("rejilla").style.display="block";
   $("tbl").innerHTML="<tr><th>No.</th><th>Nombre</th>"+m.fechas.map(f=>`<th>${f.slice(8)}/${f.slice(5,7)}</th>`).join("")+"</tr>"+
-    m.filas.map((f,i)=>`<tr><td>${i+1}</td><td>${esc(f[0])}</td>`+f[1].map(v=>`<td style="color:${col[v]||"#9a826e"};font-weight:bold">${v==="·"?"–":v}</td>`).join("")+"</tr>").join("");
+    m.filas.map((f,i)=>`<tr><td>${i+1}</td><td>${esc(f[0])}</td>`+f[1].map(v=>`<td style="color:${col[v]||"#9a7a74"};font-weight:bold">${v==="·"?"–":v}</td>`).join("")+"</tr>").join("");
 }
 async function lista(){
   if(!doc)return; const c=claseSel(), d=await SD.datos(), hoy=new Date().toLocaleDateString("sv-SE");
@@ -98,7 +98,7 @@ async function procesar(txt){
   if(!doc) return;
   const c=claseSel(); if(!c) return aviso("err","Elige una clase","Selecciona tu clase arriba o escanea su QR.");
   if(r.alumno.area!==c.area||r.alumno.semestre!==c.semestre||r.alumno.grupo!==c.grupo) return aviso("warn","No es de este grupo",r.alumno.nombre+" es de "+r.alumno.semestre+" "+r.alumno.area+" "+r.alumno.grupo);
-  const x=await SD.asistencia(txt,{materia:c.materia}); await ficha(txt);
+  const x=await SD.asistencia(txt,c); await ficha(txt);
   if(x.duplicada) aviso("warn","Ya registrado",r.alumno.nombre+" ya tenía asistencia en "+c.materia+" ("+x.asistencia.hora+")");
   else aviso("ok","✔ ASISTIÓ",r.alumno.nombre+" · "+c.materia+" · "+x.asistencia.hora+(navigator.onLine?"":" (se enviará al tutor al volver internet)"));
 }
