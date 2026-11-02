@@ -1,7 +1,7 @@
 {
   "name": "SHARK DARK · Portal escolar",
   "short_name": "SHARK DARK",
-  "start_url": "entrada.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#F9EEE9",

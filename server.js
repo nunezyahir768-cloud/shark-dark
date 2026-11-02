@@ -20,7 +20,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public'), {
     setHeaders: (res, file) => { if (file.endsWith('sw.js')) res.setHeader('Cache-Control', 'no-cache'); }
 }));
-app.get('/', (req, res) => res.redirect('/entrada.html'));
 
 /* ---------- Utilidades ---------- */
 const s = v => String(v ?? '').trim();
@@ -59,7 +58,7 @@ const auth = (req, res, next) => {
 };
 const publico = ({ salt, hash, _id, ...r }) => r;
 
-let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios;
+let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios;
 
 /* CURPs que cada rol puede ver: docente = todas, alumno = la suya, tutor = la de su alumno */
 async function permitidas(u) {
@@ -79,6 +78,11 @@ async function ligados(t) {
 }
 
 /* Crea un aviso para cada tutor vinculado al alumno (idempotente) */
+const bloqueDe = async (cl, fecha) => {
+    const dia = new Date(fecha + 'T12:00:00').getDay();
+    const b = (await horarios.find({ claseId: cl._id }).toArray()).find(x => x.dia === dia);
+    return b ? { inicio: b.inicio, fin: b.fin } : { inicio: '', fin: '' };
+};
 const miClase = async (doc, area, semestre, grupo, materia) => (await clases.find({ docente: doc }).toArray())
     .find(c => c.area === area && c.semestre === semestre && c.grupo === grupo && c.materia.toLowerCase() === String(materia).toLowerCase());
 
@@ -93,49 +97,29 @@ async function avisar(alumno, tipo, hora, fecha, clave, materia, extra) {
 }
 
 /* ---------- Registro y login ---------- */
-app.post('/api/registro', h(async (req, res) => {
-    const { rol, datos: d = {} } = req.body || {};
-    if (!['alumno', 'docente', 'tutor', 'admin'].includes(rol)) return bad(res, 'Rol inválido');
-    const campo = { docente: 'rfc', admin: 'usuario' }[rol] || 'curp';
-    const id = s(d[campo]).toUpperCase();
-    if (!({ docente: RX.rfc, admin: /^[A-Z0-9_]{4,20}$/ }[rol] || RX.curp).test(id)) return bad(res, { docente: 'RFC inválido', admin: 'Usuario inválido (4 a 20 letras, números o _)' }[rol] || 'CURP inválida');
-    const pw = String(d.password ?? '');
-    if (s(d.nombre).length < 3) return bad(res, 'Nombre inválido');
-    if (!/^\S+@\S+\.\S+$/.test(s(d.correo))) return bad(res, 'Correo inválido');
-    if (pw.length < (rol === 'alumno' ? 6 : 8)) return bad(res, 'Contraseña demasiado corta');
-
-    if (rol === 'docente' || rol === 'admin') {   // solo se registra quien tenga el código
-        const env = rol === 'admin' ? 'CODIGO_ADMIN' : 'CODIGO_DOCENTE';
-        if (!process.env[env]) return bad(res, `El registro aún no está habilitado (falta ${env} en el servidor)`, 403);
-        if (s(d.codigo) !== process.env[env]) return bad(res, 'Código incorrecto', 403);
-    }
-    const doc = { _id: `${rol}:${id}`, rol, id, nombre: s(d.nombre), correo: s(d.correo).toLowerCase(), ...hashPw(pw), creado: new Date() };
-    if (rol === 'alumno') {
-        const tc = s(d.tutorCurp).toUpperCase();
-        if (tc && !RX.curp.test(tc)) return bad(res, 'CURP del tutor inválida');
-        Object.assign(doc, { curp: id, area: s(d.area), semestre: s(d.semestre), grupo: s(d.grupo), tutores: tc ? [tc] : [] });
-    }
-    if (rol === 'tutor') {
-        const ca = s(d.curpAlumno).toUpperCase();
-        if (ca && !RX.curp.test(ca)) return bad(res, 'CURP del alumno inválida');
-        Object.assign(doc, { curp: id, hijos: ca ? [ca] : [] });
-    }
-    if (rol === 'docente') doc.rfc = id;
-
-    try { await usuarios.insertOne(doc); }
-    catch (e) { if (e.code === 11000) return bad(res, `Ya existe una cuenta con ese ${rol === 'docente' ? 'RFC' : 'CURP'}`, 409); throw e; }
-    res.status(201).json({ ok: true });
-}));
-
+const ADMIN_RFC = (process.env.ADMIN_RFC || 'ADDO7508201B3').toUpperCase(), ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const igual = (a, b) => crypto.timingSafeEqual(crypto.createHash('sha256').update(a).digest(), crypto.createHash('sha256').update(b).digest());
 app.post('/api/login', h(async (req, res) => {
     const id = s(req.body.id).toUpperCase(), password = String(req.body.password ?? ''), rol = s(req.body.rol);
-    if (!['alumno', 'tutor', 'docente', 'admin'].includes(rol)) return bad(res, 'Elige cómo quieres entrar');
+    if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Elige cómo quieres entrar');
     const llave = `${req.ip}|${rol}:${id}`;
     if (bloqueado(llave)) return bad(res, 'Demasiados intentos. Espera 15 minutos e inténtalo de nuevo', 429);
-    const u = await usuarios.findOne({ _id: `${rol}:${id}` });
-    if (!u || !okPw(password, u)) { fallo(llave); return bad(res, 'Usuario o contraseña incorrectos', 401); }
+    let u = null;
+    if (rol === 'docente' && id === ADMIN_RFC) {            // Servicios Escolares: RFC fijo y contraseña definida en Render
+        if (ADMIN_PASSWORD && igual(password, ADMIN_PASSWORD)) u = { rol: 'admin', id, nombre: 'Servicios Escolares' };
+    } else {
+        const x = await usuarios.findOne({ _id: `${rol}:${id}` });
+        if (x && okPw(password, x)) u = publico(x);
+    }
+    if (!u) { fallo(llave); return bad(res, 'Usuario o contraseña incorrectos', 401); }
     fallos.delete(llave);
-    res.json({ token: firmar({ id: u.id, rol: u.rol, exp: Date.now() + 30 * 864e5 }), usuario: publico(u) });
+    res.json({ token: firmar({ id: u.id, rol: u.rol, exp: Date.now() + 30 * 864e5 }), usuario: u });
+}));
+
+app.get('/api/yo', auth, h(async (req, res) => {
+    if (req.u.rol === 'admin') return res.json({ rol: 'admin', id: req.u.id, nombre: 'Servicios Escolares' });
+    const u = await usuarios.findOne({ _id: `${req.u.rol}:${req.u.id}` });
+    u ? res.json(publico(u)) : bad(res, 'No encontrado', 404);
 }));
 
 /* ---------- Alumnos ---------- */
@@ -165,8 +149,9 @@ app.post('/api/asistencias', auth, h(async (req, res) => {
     if (!alumno) return bad(res, 'Alumno no encontrado', 404);
     const cl = await miClase(req.u.id, alumno.area, alumno.semestre, alumno.grupo, materia);
     if (!cl) return bad(res, 'Esa materia no es tuya o el alumno no es de ese grupo', 403);
+    const bl = await bloqueDe(cl, s(a.fecha));
     try {
-        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: a.fecha, hora: a.hora, estado: 'asistio', materia, materiaKey: key, horaInicio: cl.horaInicio || '', horaFin: cl.horaFin || '', docente: req.u.id, docenteNombre: s(a.docenteNombre) });
+        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: a.fecha, hora: a.hora, estado: 'asistio', materia, materiaKey: key, horaInicio: bl.inicio, horaFin: bl.fin, docente: req.u.id, docenteNombre: s(a.docenteNombre) });
     } catch (e) { if (e.code === 11000) return bad(res, 'Ya registrada', 409); throw e; }
     await asistencias.deleteOne({ _id: `F:${curp}:${a.fecha}:${key}` });   // si estaba marcada falta, ya no
     await avisar(alumno, 'asistio', a.hora, a.fecha, s(a.uid), materia);
@@ -181,7 +166,7 @@ app.post('/api/cierre', auth, h(async (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s(fecha)) || !/^\d{2}:\d{2}$/.test(s(hora)) || !area || !semestre || !grupo || !materia) return bad(res, 'Datos inválidos');
     const cl = await miClase(req.u.id, s(area), s(semestre), s(grupo), materia);
     if (!cl) return bad(res, 'Esa clase no es tuya', 403);
-    const hr = cl.horaInicio ? ` (${cl.horaInicio} a ${cl.horaFin})` : '';
+    const bl = await bloqueDe(cl, s(fecha)), hr = bl.inicio ? ` (${bl.inicio} a ${bl.fin})` : '';
     const aprobados = await permisos.find({ estado: 'aprobado' }).toArray();
     const alumnos = await usuarios.find({ rol: 'alumno', area: s(area), semestre: s(semestre), grupo: s(grupo) }).toArray();
     const presentes = new Set((await asistencias.find({ fecha, estado: 'asistio', materiaKey: key }).toArray()).map(a => a.curp));
@@ -189,7 +174,7 @@ app.post('/api/cierre', auth, h(async (req, res) => {
     for (const al of alumnos.filter(x => !presentes.has(x.curp))) {
         const p = aprobados.find(x => x.curp === al.curp && x.desde <= fecha && fecha <= x.hasta);
         try {
-            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}`, curp: al.curp, fecha, hora, estado: p ? 'justificada' : 'falta', motivo: p ? 'Permiso: ' + p.motivo : undefined, materia, materiaKey: key, horaInicio: cl.horaInicio || '', horaFin: cl.horaFin || '', docente: req.u.id, docenteNombre: s(req.body.docenteNombre) });
+            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}`, curp: al.curp, fecha, hora, estado: p ? 'justificada' : 'falta', motivo: p ? 'Permiso: ' + p.motivo : undefined, materia, materiaKey: key, horaInicio: bl.inicio, horaFin: bl.fin, docente: req.u.id, docenteNombre: s(req.body.docenteNombre) });
             if (!p) faltas++;
         } catch (e) { if (e.code !== 11000) throw e; }
         if (p) await avisar(al, 'justificada', hora, fecha, `${al.curp}:${fecha}:${key}`, materia, `${al.nombre} no asistió a ${materia}: justificado por permiso`);
@@ -223,6 +208,7 @@ app.get('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
 app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     const d = req.body || {}, rol = s(d.rol), id = s(d.id).toUpperCase(), pw = String(d.password ?? '');
     if (!['alumno', 'docente', 'tutor'].includes(rol)) return bad(res, 'Tipo de cuenta inválido');
+    if (rol === 'docente' && s(d.id).toUpperCase() === ADMIN_RFC) return bad(res, 'Ese RFC está reservado para Servicios Escolares');
     if (!(rol === 'docente' ? RX.rfc : RX.curp).test(id)) return bad(res, rol === 'docente' ? 'RFC inválido (13 caracteres)' : 'CURP inválida (18 caracteres)');
     if (s(d.nombre).length < 3 || pw.length < 6) return bad(res, 'Escribe el nombre y una contraseña de 6 o más caracteres');
     const doc = { _id: `${rol}:${id}`, rol, id, nombre: s(d.nombre), correo: (s(d.correo) || id.toLowerCase() + '@correo.local').toLowerCase(), ...hashPw(pw), creado: new Date() };
@@ -263,7 +249,7 @@ app.post('/api/admin/borrar', auth, soloAdmin, h(async (req, res) => {
 }));
 
 /* ---------- Grupos y clases (materia + grupo + docente) ---------- */
-app.get('/api/grupos', h(async (req, res) => {
+app.get('/api/grupos', auth, h(async (req, res) => {
     res.json((await grupos.find({}).limit(500).toArray()).map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
 app.post('/api/admin/grupos', auth, soloAdmin, h(async (req, res) => {
@@ -302,6 +288,40 @@ app.post('/api/admin/clases', auth, soloAdmin, h(async (req, res) => {
 }));
 app.post('/api/admin/clases/borrar', auth, soloAdmin, h(async (req, res) => {
     await clases.deleteOne({ _id: s(req.body.id).toUpperCase() });
+    res.json({ ok: true });
+}));
+
+/* ---------- Horarios (los captura Servicios Escolares) ---------- */
+app.get('/api/horarios', auth, h(async (req, res) => {
+    let l = await horarios.find({}).limit(5000).toArray();
+    if (req.u.rol === 'docente') l = l.filter(b => b.docente === req.u.id);
+    else if (req.u.rol !== 'admin') {
+        const gs = new Set();
+        for (const c of await permitidas(req.u)) { const al = await usuarios.findOne({ _id: 'alumno:' + c }); if (al) gs.add(`${al.area}|${al.semestre}|${al.grupo}`); }
+        l = l.filter(b => gs.has(`${b.area}|${b.semestre}|${b.grupo}`));
+    }
+    res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
+}));
+app.post('/api/admin/horarios', auth, soloAdmin, h(async (req, res) => {
+    const b = req.body || {}, area = s(b.area), semestre = s(b.semestre), grupo = s(b.grupo).toUpperCase(), dia = Number(b.dia), tipo = b.tipo === 'descanso' ? 'descanso' : 'clase', HM = /^\d{2}:\d{2}$/;
+    if (!await grupos.findOne({ _id: `${semestre}|${area}|${grupo}` })) return bad(res, 'Grupo inválido');
+    if (!(dia >= 1 && dia <= 6) || !HM.test(s(b.inicio)) || !HM.test(s(b.fin)) || s(b.fin) <= s(b.inicio)) return bad(res, 'Revisa el día y las horas');
+    const doc = { _id: crypto.randomBytes(5).toString('hex'), area, semestre, grupo, dia, inicio: s(b.inicio), fin: s(b.fin), tipo, materia: 'Descanso', claseId: '', docente: '', docenteNombre: '' };
+    if (tipo === 'clase') {
+        const cl = await clases.findOne({ _id: s(b.claseId).toUpperCase() });
+        if (!cl || `${cl.area}|${cl.semestre}|${cl.grupo}` !== `${area}|${semestre}|${grupo}`) return bad(res, 'Elige una clase de ese grupo');
+        Object.assign(doc, { materia: cl.materia, claseId: cl._id, docente: cl.docente, docenteNombre: cl.docenteNombre });
+    }
+    await horarios.insertOne(doc);
+    res.status(201).json({ ok: true });
+}));
+app.post('/api/admin/horarios/borrar', auth, soloAdmin, h(async (req, res) => { await horarios.deleteOne({ _id: s(req.body.id) }); res.json({ ok: true }); }));
+app.post('/api/admin/vincular', auth, soloAdmin, h(async (req, res) => {
+    const t = s(req.body.tutor).toUpperCase(), a = s(req.body.alumno).toUpperCase();
+    const tu = await usuarios.findOne({ _id: 'tutor:' + t }), al = await usuarios.findOne({ _id: 'alumno:' + a });
+    if (!tu || !al) return bad(res, 'No se encontró el tutor o el alumno', 404);
+    await usuarios.updateOne({ _id: tu._id }, { $addToSet: { hijos: a } });
+    await usuarios.updateOne({ _id: al._id }, { $addToSet: { tutores: t } });
     res.json({ ok: true });
 }));
 
@@ -354,6 +374,7 @@ app.post('/api/vinculos/:accion', auth, h(async (req, res) => {
 
 /* ---------- Mi cuenta ---------- */
 app.post('/api/cuenta/password', auth, h(async (req, res) => {
+    if (req.u.rol === 'admin') return bad(res, 'La contraseña de Servicios Escolares se cambia en Render (variable ADMIN_PASSWORD)');
     const u = await usuarios.findOne({ _id: `${req.u.rol}:${req.u.id}` });
     if (!u || !okPw(String(req.body.actual ?? ''), u)) return bad(res, 'La contraseña actual no es correcta', 401);
     if (String(req.body.nueva ?? '').length < 6) return bad(res, 'La nueva contraseña debe tener al menos 6 caracteres');
@@ -439,6 +460,7 @@ app.get('/api/asistencias', auth, h(async (req, res) => {
 /* ---------- Arranque ---------- */
 async function iniciarServidor() {
     if (!MONGODB_URI) { console.error('Error: No se encontró MONGODB_URI en el archivo .env'); process.exit(1); }
+    if (!ADMIN_PASSWORD) console.warn('Aviso: define ADMIN_PASSWORD en Render para que Servicios Escolares pueda entrar.');
     if (!SECRET || SECRET.length < 16) { console.error('Error: define TOKEN_SECRET (mínimo 16 caracteres) en .env'); process.exit(1); }
 
     const limpia = MONGODB_URI.trim().replace(/^["']|["']$/g, '');
@@ -456,6 +478,7 @@ async function iniciarServidor() {
         clases = db.collection('clases');
         permisos = db.collection('permisos');
         anuncios = db.collection('anuncios');
+        horarios = db.collection('horarios');
         avisos = db.collection('avisos');
         await asistencias.createIndex({ curp: 1, fecha: -1 });
 
