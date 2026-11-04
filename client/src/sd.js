@@ -50,23 +50,20 @@
 
   /* ---------- Registro / login (online u offline) ---------- */
   /* Entrar solo con usuario y contraseña: la app descubre si es alumno, tutor, docente o administrador */
-  async function login(rol, id, password) {
+  async function login(rol, id) {
     id = String(id).trim().toUpperCase();
     try {
-      const r = await api('/api/login', { method: 'POST', body: { rol: rol || '', id, password } });
+      const r = await api('/api/login', { method: 'POST', body: { rol: rol || '', id } });
       rol = r.usuario.rol;
-      const salt = crypto.randomUUID();
-      const u = { ...r.usuario, _id: rol + ':' + id, rol, id, salt, hash: await hash(password, salt), token: r.token };
+      const u = { ...r.usuario, _id: rol + ':' + id, rol, id, token: r.token };
       await put('usuarios', u);
       await cambioDeUsuario(rol, id);
       setSes(u);
       sync();
       return u;
     } catch (e) {
-      if (e.status) throw e;                       // contraseña incorrecta, etc.
-      let u = null;
-      for (const x of (await all('usuarios')).filter(x => x.id === id && (!rol || x.rol === rol || (rol === 'docente' && x.rol === 'admin'))))
-        if (x.hash === await hash(password, x.salt)) { u = x; break; }
+      if (e.status) throw e;                       // la CURP no existe, etc.
+      const u = (await all('usuarios')).find(x => x.id === id && (!rol || x.rol === rol || (rol === 'docente' && x.rol === 'admin')));
       if (!u) throw new Error('Sin conexión: solo puedes entrar con una cuenta que ya usaste en este dispositivo');
       await cambioDeUsuario(u.rol, id);
       setSes(u);

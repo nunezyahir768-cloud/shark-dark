@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import SD from './sd.js';
-import { Card, Hero, Banner, useBanner, QR, useDatos, useCached, useAlumno, TutorCtx, DIAS, hh, fmtF, hoyISO, post, msgErr, delGrupo, estadoHorario, resumenAsistencia, ListaFaltas, nombreGrupo } from './ui.jsx';
+import { conDescanso, Card, Hero, Banner, useBanner, QR, useDatos, useCached, useAlumno, TutorCtx, DIAS, hh, fmtF, hoyISO, post, msgErr, delGrupo, estadoHorario, resumenAsistencia, ListaFaltas, nombreGrupo } from './ui.jsx';
 
 const Sin = () => <Card><p className="vacio">No tienes un alumno vinculado. Pide a Servicios Escolares que vinculen a tu alumno con tu cuenta.</p></Card>;
 
@@ -23,7 +23,7 @@ export function Inicio() {
   const av = d.avisos.filter(a => a.curp === al.curp).sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora)).slice(0, 5);
   return (<>
     <Hero titulo={`Hola, ${ses.nombre.split(' ')[0]}`} sub={ses.rol === 'tutor' ? `Alumno: ${al.nombre} · ${al.semestre} ${al.area} ${al.grupo}` : `${al.area} · ${al.semestre} · Grupo ${al.grupo}`} />
-    <ClaseAhora bl={delGrupo(bl, al)} />
+    <ClaseAhora bl={conDescanso(delGrupo(bl, al))} />
     <Card title="Este mes"><div className="stats">
       <div><div className="num">{r.asist}</div><small className="vacio">Asistencias</small></div>
       <div><div className="num rojo">{r.falt}</div><small className="vacio">Faltas</small></div>
@@ -40,7 +40,7 @@ export function PerfilAlumno() {
   if (!al) return null;
   return (<>
     <Hero titulo="Perfil" sub="Tus datos escolares" />
-    <Card title="Datos del alumno"><dl><dt>Nombre</dt><dd>{al.nombre}</dd><dt>CURP</dt><dd>{al.curp}</dd><dt>Carrera</dt><dd>{al.area}</dd><dt>Semestre</dt><dd>{al.semestre}</dd><dt>Grupo</dt><dd>{al.grupo}</dd><dt>Correo</dt><dd>{al.correo || '—'}</dd></dl></Card>
+    <Card title="Datos del alumno"><dl><dt>Nombre</dt><dd>{al.nombre}</dd><dt>CURP</dt><dd>{al.curp}</dd><dt>Carrera</dt><dd>{al.area}</dd><dt>Semestre</dt><dd>{al.semestre}</dd><dt>Grupo</dt><dd>{al.grupo}</dd></dl></Card>
     <Card title="Mi código QR"><QR texto={al.curp} /><p className="sub" style={{ textAlign: 'center', margin: '8px 0 0' }}>Muéstralo al docente para registrar tu asistencia.</p></Card>
     <Card title="Mis tutores"><ul className="l">{tut.map(t => <li key={t.curp}><span>{t.nombre || t.curp}</span><span>{t.estado === 'vinculado' ? 'vinculado' : 'pendiente'}</span></li>)}{!tut.length && <li className="vacio">Sin tutores vinculados</li>}</ul></Card>
   </>);
@@ -51,7 +51,7 @@ export function PerfilesTutor() {
   useEffect(() => { SD.api('/api/yo').then(setYo).catch(() => {}); }, []);
   return (<>
     <Hero titulo="Perfiles" sub="Tu perfil y el de tus alumnos" />
-    {yo && <Card title="Mi perfil"><dl><dt>Nombre</dt><dd>{yo.nombre}</dd><dt>CURP</dt><dd>{yo.curp}</dd><dt>Correo</dt><dd>{yo.correo || '—'}</dd></dl></Card>}
+    {yo && <Card title="Mi perfil"><dl><dt>Nombre</dt><dd>{yo.nombre}</dd><dt>CURP</dt><dd>{yo.curp}</dd></dl></Card>}
     {vinc.filter(v => v.estado === 'vinculado').map(v => (
       <Card key={v.curp} title={'Alumno' + (v.curp === activo ? ' · en pantalla' : '')}>
         <dl><dt>Nombre</dt><dd>{v.nombre}</dd><dt>CURP</dt><dd>{v.curp}</dd><dt>Carrera</dt><dd>{v.area}</dd><dt>Semestre</dt><dd>{v.semestre}</dd><dt>Grupo</dt><dd>{v.grupo}</dd></dl>
@@ -84,13 +84,13 @@ export function AsistenciaVer() {
 
 export function Horario() {
   const rol = SD.session().rol, al = useAlumno(), [bl] = useCached('horario', '/api/horarios');
-  const lista = rol === 'docente' ? (bl || []) : delGrupo(bl, al);
+  const base = rol === 'docente' ? (bl || []) : delGrupo(bl, al), lista = conDescanso(base);
   if (rol !== 'docente' && !al) return <Sin />;
   const dias = [1, 2, 3, 4, 5, 6].filter(d => d <= 5 || lista.some(b => b.dia === d));
   return (<>
     <Hero titulo="Horario" sub={rol === 'docente' ? 'Tus clases de la semana' : `${al.semestre} ${al.area} ${al.grupo}`} />
-    {!lista.length && <Card><p className="vacio">Servicios Escolares aún no captura el horario.</p></Card>}
-    {lista.length > 0 && dias.map(d => (
+    {!base.length && <Card><p className="vacio">Servicios Escolares aún no captura el horario (el descanso de 9:30 a 10:00 ya está fijo).</p></Card>}
+    {dias.map(d => (
       <Card key={d} title={DIAS[d]} className="dia"><ul className="l">
         {lista.filter(b => b.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(b => (
           <li key={b.id} className={b.tipo === 'descanso' ? 'desc' : ''}><span>{hh(b.inicio)} a {hh(b.fin)} - {b.materia}</span><span>{rol === 'docente' ? `${b.semestre} ${b.area} ${b.grupo}` : (b.docenteNombre || '')}</span></li>))}
@@ -173,16 +173,11 @@ export function ReporteVer() {
 }
 
 export function Cuenta() {
-  const ses = SD.session(), [yo, setYo] = useState(null), [b, ban] = useBanner(), [f, setF] = useState({ actual: '', nueva: '' });
+  const ses = SD.session(), [yo, setYo] = useState(null);
   useEffect(() => { SD.api('/api/yo').then(setYo).catch(() => setYo(ses)); }, []);
-  const cambiar = async e => { e.preventDefault(); try { await post('/api/cuenta/password', f); await SD.login(ses.rol === 'admin' ? 'docente' : ses.rol, ses.id, f.nueva); setF({ actual: '', nueva: '' }); ban('ok', 'Contraseña cambiada'); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
   return (<>
-    <Hero titulo="Mi cuenta" sub={yo ? yo.nombre : ''} /><Banner b={b} />
-    {yo && <Card title="Datos"><dl><dt>Usuario</dt><dd>{yo.curp || yo.rfc || yo.id}</dd><dt>Correo</dt><dd>{yo.correo || '—'}</dd></dl></Card>}
-    {ses.rol !== 'admin' ? <Card title="Cambiar contraseña"><form onSubmit={cambiar}>
-      <label>Contraseña actual</label><input type="password" value={f.actual} onChange={e => setF({ ...f, actual: e.target.value })} required />
-      <label>Nueva contraseña (mínimo 6)</label><input type="password" value={f.nueva} onChange={e => setF({ ...f, nueva: e.target.value })} minLength="6" required />
-      <button className="btn" type="submit">GUARDAR CONTRASEÑA</button></form></Card>
-      : <Card><p className="vacio">La contraseña de Servicios Escolares se cambia en Render (variable ADMIN_PASSWORD).</p></Card>}
+    <Hero titulo="Mi cuenta" sub={yo ? yo.nombre : ''} />
+    {yo && <Card title="Datos"><dl><dt>Nombre</dt><dd>{yo.nombre}</dd><dt>CURP</dt><dd>{yo.curp || yo.id}</dd>{yo.semestre && <><dt>Grupo</dt><dd>{yo.semestre} {yo.area} {yo.grupo}</dd></>}</dl></Card>}
+    <Card><p className="vacio">Esta cuenta entra solo con la CURP. Si algún dato está mal, acude con Servicios Escolares.</p></Card>
   </>);
 }

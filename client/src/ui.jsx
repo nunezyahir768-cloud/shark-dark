@@ -58,6 +58,12 @@ export function estadoHorario(bl) {
   const sig = i >= 0 ? hoy[i + 1] : hoy.find(b => toMin(b.inicio) > n);
   return { hoy, ahora: i >= 0 ? hoy[i] : null, sig, minutosParaFin: i >= 0 ? toMin(hoy[i].fin) - n : null };
 }
+export const DESCANSO = { inicio: '09:30', fin: '10:00' };
+export const conDescanso = bl => {
+  const l = [...(bl || [])];
+  for (let d = 1; d <= 5; d++) if (!l.some(b => b.dia === d && b.tipo === 'descanso')) l.push({ id: 'desc' + d, dia: d, inicio: DESCANSO.inicio, fin: DESCANSO.fin, tipo: 'descanso', materia: 'Descanso', docenteNombre: '' });
+  return l;
+};
 export const delGrupo = (bl, a) => (bl || []).filter(b => a && b.area === a.area && b.semestre === a.semestre && b.grupo === a.grupo);
 
 /* Asistencias de una clase en un mes (para tabla y Excel) */

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import SD from './sd.js';
-import { Card, Hero, Banner, useBanner, QR, DIAS, SEMESTRES, AREAS, hh, post, msgErr, nombreGrupo } from './ui.jsx';
+import { Card, Hero, Banner, useBanner, QR, DIAS, SEMESTRES, AREAS, hh, post, msgErr, nombreGrupo, conDescanso } from './ui.jsx';
 import { Camara } from './docente.jsx';
 
 function useServicios() {
@@ -14,59 +14,54 @@ function useServicios() {
 
 export function Cuentas() {
   const { u, g, cargar } = useServicios(), [b, ban] = useBanner(), [q, setQ] = useState('');
-  const [f, setF] = useState({ rol: 'docente', nombre: '', id: '', correo: '', password: '', gi: 0, curpAlumno: '' });
+  const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A' });
   const crear = async e => {
-    e.preventDefault(); const gr = g[+f.gi] || {};
-    try { await post('/api/admin/usuarios', { rol: f.rol, id: f.id, nombre: f.nombre, correo: f.correo, password: f.password, area: gr.area, semestre: gr.semestre, grupo: gr.grupo });
-      if (f.rol === 'tutor' && f.curpAlumno) await post('/api/admin/vincular', { tutor: f.id, alumno: f.curpAlumno });
-      ban('ok', 'Cuenta creada', 'Dale su usuario y la contraseña temporal. La puede cambiar en Mi cuenta.'); setF({ ...f, nombre: '', id: '', correo: '', password: '', curpAlumno: '' }); cargar(); }
+    e.preventDefault();
+    try { await post('/api/admin/usuarios', f); ban('ok', 'Cuenta creada', 'Ya puede entrar con su CURP.'); setF({ ...f, nombre: '', id: '' }); cargar(); }
     catch (er) { ban('err', 'No se pudo crear la cuenta', msgErr(er)); }
   };
   const acc = async (a, x) => {
     try {
-      if (a === 'reset') { if (!confirm('¿Restablecer la contraseña de este usuario?')) return; const r = await post('/api/admin/reset', { rol: x.rol, id: x.id }); ban('ok', 'Contraseña temporal', r.temporal + '  (dísela al usuario; que la cambie en Mi cuenta)'); }
-      else if (a === 'borrar') { if (!confirm('¿Borrar esta cuenta? No se puede deshacer.')) return; await post('/api/admin/borrar', { rol: x.rol, id: x.id }); cargar(); }
+      if (a === 'borrar') { if (!confirm('¿Borrar esta cuenta? No se puede deshacer.')) return; await post('/api/admin/borrar', { rol: x.rol, id: x.id }); cargar(); }
       else if (a === 'grupo') { const n = prompt('Número del grupo nuevo:\n' + g.map((k, i) => `${i + 1}) ${nombreGrupo(k)}`).join('\n')), k = g[(+n) - 1]; if (!k) return; await post('/api/admin/editar', { id: x.id, area: k.area, semestre: k.semestre, grupo: k.grupo }); cargar(); }
       else if (a === 'vincular') { const ca = prompt('CURP del alumno que quieres vincular a este tutor:'); if (!ca) return; await post('/api/admin/vincular', { tutor: x.id, alumno: ca }); ban('ok', 'Vinculado', 'El tutor ya puede ver a ese alumno.'); cargar(); }
     } catch (er) { ban('err', 'No se pudo', msgErr(er)); }
   };
-  const l = u.filter(x => !q || (x.nombre + ' ' + (x.curp || x.rfc || '')).toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.nombre.localeCompare(b.nombre)).slice(0, 80);
+  const l = u.filter(x => !q || (x.nombre + ' ' + (x.curp || x.id)).toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.nombre.localeCompare(b.nombre)).slice(0, 80);
   return (<>
-    <Hero titulo="Cuentas" sub="Aquí se crean las cuentas de docentes, alumnos y tutores." /><Banner b={b} />
+    <Hero titulo="Cuentas" sub="Aquí se dan de alta docentes, alumnos y tutores. Todos entran solo con su CURP." /><Banner b={b} />
     <Card title="Crear una cuenta"><form onSubmit={crear}>
-      <select value={f.rol} onChange={e => setF({ ...f, rol: e.target.value })}><option value="docente">Docente</option><option value="alumno">Alumno</option><option value="tutor">Tutor</option></select>
+      <select value={f.rol} onChange={e => setF({ ...f, rol: e.target.value })}><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select>
       <input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Nombre completo" required />
-      <input value={f.id} onChange={e => setF({ ...f, id: e.target.value.toUpperCase() })} placeholder={f.rol === 'docente' ? 'RFC (13 caracteres)' : 'CURP (18 caracteres)'} required />
-      <input value={f.correo} onChange={e => setF({ ...f, correo: e.target.value })} placeholder="Correo (opcional)" />
-      <input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder="Contraseña temporal (mínimo 6)" required />
-      {f.rol === 'alumno' && <select value={f.gi} onChange={e => setF({ ...f, gi: e.target.value })}>{g.map((k, i) => <option key={k.id} value={i}>{nombreGrupo(k)}</option>)}{!g.length && <option>Primero crea un grupo</option>}</select>}
-      {f.rol === 'tutor' && <input value={f.curpAlumno} onChange={e => setF({ ...f, curpAlumno: e.target.value.toUpperCase() })} placeholder="CURP del alumno (puedes vincular más después)" />}
+      <input value={f.id} onChange={e => setF({ ...f, id: e.target.value.toUpperCase() })} placeholder="CURP (18 caracteres)" maxLength="18" required />
+      {f.rol === 'alumno' && <>
+        <label>Semestre</label><select value={f.semestre} onChange={e => setF({ ...f, semestre: e.target.value })}>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select>
+        <label>Área</label><select value={f.area} onChange={e => setF({ ...f, area: e.target.value })}>{AREAS.map(s => <option key={s}>{s}</option>)}</select>
+        <label>Grupo</label><select value={f.grupo} onChange={e => setF({ ...f, grupo: e.target.value })}>{['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}</select></>}
       <button className="btn" type="submit">CREAR CUENTA</button></form></Card>
     <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o CURP" style={{ marginBottom: 12 }} />
     {l.map(x => (
       <Card key={x.rol + x.id}><b>{x.nombre}</b><span className="tag">{x.rol}</span>
-        <p className="sub" style={{ margin: '4px 0 8px' }}>{x.curp || x.rfc || x.id}{x.rol === 'alumno' ? ` · ${x.semestre} ${x.area} ${x.grupo}` : ''}{x.hijos && x.hijos.length ? ` · alumnos: ${x.hijos.join(', ')}` : ''}{x.tutores && x.tutores.length ? ` · tutores: ${x.tutores.join(', ')}` : ''}</p>
-        <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('reset', x)}>Restablecer contraseña</button>
-        {x.rol === 'alumno' && <button className="mini" onClick={() => acc('grupo', x)}>Cambiar grupo</button>}
-        {x.rol === 'tutor' && <button className="mini" onClick={() => acc('vincular', x)}>Vincular alumno</button>}
-        <button className="mini rojo" onClick={() => acc('borrar', x)}>Borrar</button></Card>))}
+        <p className="sub" style={{ margin: '4px 0 8px' }}>{x.curp || x.id}{x.rol === 'alumno' ? ` · ${x.semestre} ${x.area} ${x.grupo}` : ''}{x.hijos && x.hijos.length ? ` · alumnos: ${x.hijos.join(', ')}` : ''}{x.tutores && x.tutores.length ? ` · tutores: ${x.tutores.join(', ')}` : ''}</p>
+        {x.rol === 'alumno' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('grupo', x)}>Cambiar grupo</button>}
+        {x.rol === 'tutor' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('vincular', x)}>Vincular alumno</button>}
+        <button className={'mini rojo'} style={x.rol === 'docente' ? { marginLeft: 0 } : {}} onClick={() => acc('borrar', x)}>Borrar</button></Card>))}
     {!l.length && <Card><p className="vacio">Sin resultados.</p></Card>}
   </>);
 }
 
 export function Grupos() {
-  const { g, u, c, cargar } = useServicios(), [b, ban] = useBanner(), [f, setF] = useState({ semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A' });
-  const crear = async e => { e.preventDefault(); try { await post('/api/admin/grupos', f); ban('ok', 'Grupo añadido'); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
-  const borrar = async k => { if (!confirm('¿Borrar este grupo y sus materias?')) return; try { await post('/api/admin/grupos/borrar', { id: k.id }); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
+  const { g, u, c, cargar } = useServicios(), [b, ban] = useBanner();
+  const cuenta = k => u.filter(x => x.rol === 'alumno' && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length;
+  const borrar = async k => {
+    if (!confirm(`¿Eliminar el grupo ${nombreGrupo(k)}?\n\nSe borrarán sus ${cuenta(k)} cuentas de alumnos (con sus asistencias y calificaciones), sus clases y su horario. No se puede deshacer.`)) return;
+    try { const r = await post('/api/admin/grupos/borrar', { id: k.id }); ban('ok', 'Grupo eliminado', `${r.alumnos} cuentas de alumnos borradas.`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); }
+  };
   return (<>
-    <Hero titulo="Grupos" sub="Semestre, carrera y letra." /><Banner b={b} />
-    <Card title="Nuevo grupo"><form onSubmit={crear}>
-      <select value={f.semestre} onChange={e => setF({ ...f, semestre: e.target.value })}>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select>
-      <select value={f.area} onChange={e => setF({ ...f, area: e.target.value })}>{AREAS.map(s => <option key={s}>{s}</option>)}</select>
-      <select value={f.grupo} onChange={e => setF({ ...f, grupo: e.target.value })}>{'ABCDEF'.split('').map(s => <option key={s}>{s}</option>)}</select>
-      <button className="btn" type="submit">AÑADIR GRUPO</button></form></Card>
-    {g.map(k => <Card key={k.id}><b>{nombreGrupo(k)}</b><p className="sub" style={{ margin: '4px 0 8px' }}>{u.filter(x => x.rol === 'alumno' && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length} alumnos · {c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length} materias</p>
-      <button className="mini rojo" style={{ marginLeft: 0 }} onClick={() => borrar(k)}>Borrar</button></Card>)}
+    <Hero titulo="Grupos" sub="Los grupos se crean solos al dar de alta al primer alumno de cada grupo." /><Banner b={b} />
+    {g.map(k => <Card key={k.id}><b>{nombreGrupo(k)}</b><p className="sub" style={{ margin: '4px 0 8px' }}>{cuenta(k)} alumnos · {c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length} materias</p>
+      <button className="mini rojo" style={{ marginLeft: 0 }} onClick={() => borrar(k)}>Eliminar grupo y sus cuentas</button></Card>)}
+    {!g.length && <Card><p className="vacio">Todavía no hay grupos. Crea la cuenta de un alumno y su grupo aparecerá aquí.</p></Card>}
   </>);
 }
 
@@ -91,26 +86,26 @@ export function Clases() {
 
 export function Horarios() {
   const { g, c, h, cargar } = useServicios(), [b, ban] = useBanner(), [gi, setGi] = useState(0);
-  const [f, setF] = useState({ dia: 1, inicio: '07:00', fin: '07:50', tipo: 'clase', claseId: '' });
+  const [f, setF] = useState({ dia: 1, inicio: '07:00', fin: '07:50', claseId: '' });
   const k = g[+gi], cl = k ? c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo) : [], bl = k ? h.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo) : [];
+  const todo = conDescanso(bl);
   const añadir = async e => {
-    e.preventDefault(); if (!k) return ban('err', 'Primero crea un grupo');
-    try { await post('/api/admin/horarios', { area: k.area, semestre: k.semestre, grupo: k.grupo, dia: +f.dia, inicio: f.inicio, fin: f.fin, tipo: f.tipo, claseId: f.claseId || (cl[0] && cl[0].id) });
+    e.preventDefault(); if (!k) return ban('err', 'Primero da de alta a un alumno de ese grupo');
+    try { await post('/api/admin/horarios', { area: k.area, semestre: k.semestre, grupo: k.grupo, dia: +f.dia, inicio: f.inicio, fin: f.fin, tipo: 'clase', claseId: f.claseId || (cl[0] && cl[0].id) });
       ban('ok', 'Bloque añadido', `${DIAS[f.dia]} ${hh(f.inicio)} a ${hh(f.fin)}`); setF({ ...f, inicio: f.fin, fin: '' }); cargar(); }
     catch (er) { ban('err', 'No se pudo', msgErr(er)); }
   };
   const borrar = async x => { try { await post('/api/admin/horarios/borrar', { id: x.id }); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
   return (<>
-    <Hero titulo="Horarios" sub="Los alumnos, tutores y docentes solo lo consultan." /><Banner b={b} />
-    <Card title="Grupo"><select value={gi} onChange={e => setGi(e.target.value)}>{g.map((x, i) => <option key={x.id} value={i}>{nombreGrupo(x)}</option>)}</select></Card>
-    <Card title="Añadir un bloque"><form onSubmit={añadir}>
+    <Hero titulo="Horarios" sub="El descanso de 9:30 a 10:00 ya está fijo todos los días." /><Banner b={b} />
+    <Card title="Grupo"><select value={gi} onChange={e => setGi(e.target.value)}>{g.map((x, i) => <option key={x.id} value={i}>{nombreGrupo(x)}</option>)}{!g.length && <option>Aún no hay grupos</option>}</select></Card>
+    <Card title="Añadir una clase al horario"><form onSubmit={añadir}>
       <select value={f.dia} onChange={e => setF({ ...f, dia: e.target.value })}>{[1, 2, 3, 4, 5, 6].map(d => <option key={d} value={d}>{DIAS[d]}</option>)}</select>
       <div className="fila2"><div><label>De las</label><input type="time" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value })} required /></div><div><label>A las</label><input type="time" value={f.fin} onChange={e => setF({ ...f, fin: e.target.value })} required /></div></div>
-      <select value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}><option value="clase">Clase</option><option value="descanso">Descanso</option></select>
-      {f.tipo === 'clase' && <select value={f.claseId} onChange={e => setF({ ...f, claseId: e.target.value })}>{cl.map(x => <option key={x.id} value={x.id}>{x.materia} · {x.docenteNombre}</option>)}{!cl.length && <option value="">Primero crea las clases de este grupo</option>}</select>}
-      <button className="btn" type="submit">AÑADIR BLOQUE</button></form></Card>
-    {[1, 2, 3, 4, 5, 6].filter(d => bl.some(x => x.dia === d)).map(d => (
-      <Card key={d} title={DIAS[d]}><ul className="l">{bl.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia}</span><span><button className="mini rojo" onClick={() => borrar(x)}>Quitar</button></span></li>)}</ul></Card>))}
+      <select value={f.claseId} onChange={e => setF({ ...f, claseId: e.target.value })}>{cl.map(x => <option key={x.id} value={x.id}>{x.materia} · {x.docenteNombre}</option>)}{!cl.length && <option value="">Primero crea las clases de este grupo</option>}</select>
+      <button className="btn" type="submit">AÑADIR AL HORARIO</button></form></Card>
+    {[1, 2, 3, 4, 5, 6].filter(d => todo.some(x => x.dia === d)).map(d => (
+      <Card key={d} title={DIAS[d]}><ul className="l">{todo.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia}</span><span>{String(x.id).startsWith('desc') ? 'fijo' : <button className="mini rojo" onClick={() => borrar(x)}>Quitar</button>}</span></li>)}</ul></Card>))}
   </>);
 }
 

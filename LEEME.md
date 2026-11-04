@@ -67,22 +67,29 @@ Render detecta el cambio solo y publica la nueva versión en unos minutos.
 - **Environment (variables):**
   - `MONGODB_URI` → la dirección de tu Atlas (con tu clave)
   - `TOKEN_SECRET` → una frase larga y secreta
-  - `ADMIN_PASSWORD` → la contraseña de Servicios Escolares (la defines tú)
-  - `ADMIN_RFC` → opcional; si no la pones se usa `ADDO7508201B3`
-- Ya NO se usan `CODIGO_DOCENTE` ni `CODIGO_ADMIN`: puedes borrarlas.
+  - `ADMIN_CURP` → la CURP de la persona de Servicios Escolares (18 caracteres)
+- Ya NO se usan `ADMIN_PASSWORD`, `ADMIN_RFC`, `CODIGO_DOCENTE` ni `CODIGO_ADMIN`: puedes borrarlas.
 
-## Servicios Escolares (antes "Administrador")
+## Cómo se entra (sin contraseñas)
 
-- Ya no es una app aparte. Entra en la pantalla normal con **Entrar como: Docente**,
-  RFC `ADDO7508201B3` y la contraseña que pusiste en `ADMIN_PASSWORD`.
-- Nadie puede crear cuenta solo: **Servicios Escolares crea** las cuentas de docentes, alumnos y tutores.
+- Todos entran con **Entrar como** + su **CURP**: Alumno, Tutor o Docente.
+- **Servicios Escolares** entra igual: **Entrar como: Docente** y la CURP que pusiste en `ADMIN_CURP`.
+- Nadie puede crear cuenta solo: **Servicios Escolares da de alta** a docentes, alumnos y tutores.
 
 Orden recomendado para empezar:
-1. **Grupos** (semestre, carrera y letra)
-2. **Cuentas** (docentes, alumnos y tutores; el tutor puede vincularse a varios alumnos)
+1. **Cuentas** → crea docentes, tutores y alumnos (el alumno lleva semestre, área y grupo A, B o C; el grupo se crea solo)
+2. **Cuentas → Vincular alumno** → une a cada tutor con sus hijos
 3. **Clases** (materia + grupo + docente)
-4. **Horarios** (bloques por día, incluido el descanso)
+4. **Horarios** (el descanso de 9:30 a 10:00 ya está fijo)
 5. **Avisos** y **Permisos** cuando haga falta
+
+**Grupos** solo muestra los grupos; ahí se puede **eliminar un grupo con todas sus cuentas**.
+
+## Importante sobre la seguridad
+
+Como no hay contraseña, **quien conozca una CURP puede entrar con ella**. Por eso:
+- No compartas la CURP de Servicios Escolares.
+- Si más adelante quieres más seguridad, se puede agregar un PIN corto.
 
 ## Notas
 

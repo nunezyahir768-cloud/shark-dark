@@ -4,11 +4,10 @@ import { Card } from './ui.jsx';
 
 export default function Login({ onOk }) {
   const [rol, setRol] = useState(localStorage.getItem('sd_rol') || 'alumno');
-  const [u, setU] = useState(''), [p, setP] = useState(''), [msg, setMsg] = useState('');
-  const docente = rol === 'docente';
+  const [u, setU] = useState(''), [msg, setMsg] = useState('');
   async function entrar(e) {
     e.preventDefault(); setMsg('Entrando…');
-    try { await SD.login(rol, u, p); localStorage.setItem('sd_rol', rol); onOk(); }
+    try { await SD.login(rol, u); localStorage.setItem('sd_rol', rol); onOk(); }
     catch (err) { setMsg(err.message); }
   }
   return (
@@ -21,15 +20,13 @@ export default function Login({ onOk }) {
           <select id="rol" value={rol} onChange={e => setRol(e.target.value)}>
             <option value="alumno">Alumno</option><option value="tutor">Tutor</option><option value="docente">Docente</option>
           </select>
-          <label htmlFor="u">{docente ? 'RFC' : 'CURP'}</label>
-          <input id="u" value={u} onChange={e => setU(e.target.value.toUpperCase())} placeholder={docente ? 'Tu RFC' : 'Tu CURP (18 caracteres)'} autoComplete="username" required />
-          <label htmlFor="p">Contraseña</label>
-          <input id="p" type="password" value={p} onChange={e => setP(e.target.value)} placeholder="Tu contraseña" autoComplete="current-password" required />
+          <label htmlFor="u">CURP</label>
+          <input id="u" value={u} onChange={e => setU(e.target.value.toUpperCase())} placeholder="Tu CURP (18 caracteres)" maxLength="18" autoComplete="username" required />
           <button className="btn" type="submit">ENTRAR</button>
           <p className="msg">{msg}</p>
         </form>
       </Card>
-      <p className="sub" style={{ textAlign: 'center' }}>Las cuentas las crea Servicios Escolares. Si no puedes entrar, acude con ellos.</p>
+      <p className="sub" style={{ textAlign: 'center' }}>Las cuentas las da de alta Servicios Escolares. Si tu CURP no entra, acude con ellos.</p>
     </main>
   );
 }

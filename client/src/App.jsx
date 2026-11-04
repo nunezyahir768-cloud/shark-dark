@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import SD from './sd.js';
 import Intro from './Intro.jsx';
 import Login from './Login.jsx';
-import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, hh } from './ui.jsx';
+import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
 import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, ReporteVer, Cuenta } from './paginas.jsx';
 import { AsistenciaDocente, CalifDocente, ReporteDocente } from './docente.jsx';
 import { Cuentas, Grupos, Clases, Horarios, Escaner } from './servicios.jsx';
@@ -47,7 +47,7 @@ function useAvisoSiguiente(alumno, activo) {
       const t = `Termina ${e.ahora.materia} en ${e.minutosParaFin} min. ` + (e.sig ? (e.sig.tipo === 'descanso' ? `Sigue el descanso (${hh(e.sig.inicio)}).` : `Sigue: ${e.sig.materia} a las ${hh(e.sig.inicio)}.`) : 'Es la última clase del día.');
       setToast(t); SD.notificar(t); setTimeout(() => setToast(''), 20000);
     };
-    SD.cached('horario', '/api/horarios').then(l => { bl.current = delGrupo(l, alumno); rev(); });
+    SD.cached('horario', '/api/horarios').then(l => { bl.current = conDescanso(delGrupo(l, alumno)); rev(); });
     const i = setInterval(rev, 20000); return () => clearInterval(i);
   }, [alumno && alumno.curp, activo]);
   return toast;
