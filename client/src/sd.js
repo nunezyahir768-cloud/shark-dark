@@ -54,12 +54,18 @@
     if (!navigator.onLine) throw new Error('Necesitas conexión a internet para iniciar sesión. Si ya habías iniciado sesión, puedes seguir usando la sesión guardada sin conexión.');
     const r = await api('/api/login', { method: 'POST', body: { rol: rol || '', id, password } });
     rol = r.usuario.rol;
-    const u = { ...r.usuario, _id: rol + ':' + id, rol, id, token: r.token };
+    const uid = r.usuario.id || id;
+    const u = { ...r.usuario, _id: rol + ':' + uid, rol, id: uid, token: r.token };
     await put('usuarios', u);
-    await cambioDeUsuario(rol, id);
+    await cambioDeUsuario(rol, uid);
     setSes(u);
     sync();
     return u;
+  }
+
+  async function activarAlumno(curp, nombre, password, confirmar) {
+    if (!navigator.onLine) throw new Error('Necesitas conexión a internet para crear tu contraseña.');
+    return api('/api/alumno/activar', { method: 'POST', body: { curp: String(curp).trim().toUpperCase(), nombre, password, confirmar } });
   }
 
   async function solicitarRecuperacion(rol, id) {
@@ -331,5 +337,5 @@
     try { const r = await api(path); localStorage.setItem('sdc_' + key, JSON.stringify(r)); return r; }
     catch (e) { return JSON.parse(localStorage.getItem('sdc_' + key) || '[]'); }
   }
-  const SD = { login, solicitarRecuperacion, cambiarPassword, logout, session: ses, asistencia, consultar, sync, scan, qr, datos, cierre, corregir, permisoAvisos, api, vinculos, alumnoActivo, notificar, cached };
+  const SD = { login, activarAlumno, solicitarRecuperacion, cambiarPassword, logout, session: ses, asistencia, consultar, sync, scan, qr, datos, cierre, corregir, permisoAvisos, api, vinculos, alumnoActivo, notificar, cached };
   export default SD;

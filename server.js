@@ -102,12 +102,20 @@ async function avisar(alumno, tipo, hora, fecha, clave, materia, extra) {
 /* ---------- Registro y login con CURP + contraseña ---------- */
 /* Servicios Escolares entra como Docente con ADMIN_CURP y contraseña propia almacenada en la cuenta admin. */
 const ADMIN_CURP = (process.env.ADMIN_CURP || '').toUpperCase();
+const ADMIN_ACCESS_PASSWORD = process.env.ADMIN_ACCESS_PASSWORD || 'admin170';
 app.post('/api/login', h(async (req, res) => {
     const id = s(req.body.id).toUpperCase(), rol = s(req.body.rol), password = String(req.body.password || '');
-    if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Elige cómo quieres entrar');
-    if (!RX.curp.test(id) || !password) return bad(res, 'Escribe una CURP válida y tu contraseña');
     const llave = 'ip:' + req.ip;
     if (bloqueado(llave, 40)) return bad(res, 'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo', 429);
+    if (rol === 'admin') {
+        const a = Buffer.from(password), b = Buffer.from(ADMIN_ACCESS_PASSWORD);
+        if (!password || a.length !== b.length || !crypto.timingSafeEqual(a, b)) { fallo('ip:' + req.ip); return bad(res, 'Contraseña de administrador incorrecta', 401); }
+        fallos.delete('ip:' + req.ip);
+        const adminId = ADMIN_CURP || 'ADMIN';
+        return res.json({ token: firmar({ id: adminId, rol: 'admin', exp: Date.now() + 12 * 3600e3 }), usuario: { id: adminId, curp: adminId, rol: 'admin', nombre: 'Servicios Escolares', debeCambiarPassword: false } });
+    }
+    if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Elige cómo quieres entrar');
+    if (!RX.curp.test(id) || !password) return bad(res, 'Escribe una CURP válida y tu contraseña');
     let u = null;
     if (rol === 'docente' && ADMIN_CURP && id === ADMIN_CURP) {
         const admin = await usuarios.findOne({ _id: 'admin:' + id });
@@ -119,6 +127,26 @@ app.post('/api/login', h(async (req, res) => {
     const rolReal = u.rol === 'admin' ? 'admin' : rol;
     const datos = publico(u);
     res.json({ token: firmar({ id: u.id, rol: rolReal, exp: Date.now() + 12 * 3600e3 }), usuario: { ...datos, rol: rolReal, debeCambiarPassword: !!u.debeCambiarPassword } });
+}));
+
+/* El alumno crea su contraseña al activar por primera vez una cuenta dada de alta por Servicios Escolares. */
+app.post('/api/alumno/activar', h(async (req, res) => {
+    const curp = s(req.body.curp).toUpperCase(), nombre = s(req.body.nombre).replace(/\s+/g, ' ').toLocaleLowerCase('es-MX');
+    const password = String(req.body.password || ''), confirmar = String(req.body.confirmar || '');
+    if (!RX.curp.test(curp)) return bad(res, 'Escribe una CURP válida de 18 caracteres');
+    if (!validaPassword(password)) return bad(res, 'La contraseña debe tener entre 10 y 128 caracteres');
+    if (password !== confirmar) return bad(res, 'Las contraseñas no coinciden');
+    const llave = 'activar:' + req.ip;
+    if (bloqueado(llave, 8)) return bad(res, 'Demasiados intentos. Espera 15 minutos.', 429);
+    const cuenta = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
+    const nombreGuardado = s(cuenta?.nombre).replace(/\s+/g, ' ').toLocaleLowerCase('es-MX');
+    if (!cuenta || !cuenta.debeCambiarPassword || !nombre || nombre !== nombreGuardado) {
+        fallo(llave); return bad(res, 'No se pudo validar la cuenta. Revisa tu CURP y nombre o solicita ayuda a Servicios Escolares.', 401);
+    }
+    const hp = hashPw(password);
+    await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date(), activadaPorAlumno: true } });
+    fallos.delete(llave);
+    res.json({ ok: true, mensaje: 'Contraseña creada. Ya puedes iniciar sesión desde cualquier dispositivo con tu CURP.' });
 }));
 
 /* Solicitud pública: respuesta genérica para no revelar si una CURP está registrada. */
