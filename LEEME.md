@@ -68,16 +68,17 @@ Render detecta el cambio solo y publica la nueva versión en unos minutos.
   - `MONGODB_URI` → la dirección de tu Atlas (con tu clave). El servidor selecciona la base `SHARK-DARK`.
   - `TOKEN_SECRET` → una frase larga y secreta
   - `ADMIN_CURP` → la CURP de Servicios Escolares (18 caracteres)
-  - `ADMIN_INITIAL_PASSWORD` → contraseña inicial de Servicios Escolares (10+ caracteres; se usa solo para crear la cuenta inicial)
+  - `ADMIN_INITIAL_PASSWORD` → contraseña inicial heredada de Servicios Escolares (10+ caracteres)
+  - `ADMIN_ACCESS_PASSWORD` → contraseña de acceso del rol Administrador (por defecto `admin170`; cámbiala en producción)
 - Ya NO se usan `ADMIN_PASSWORD`, `ADMIN_RFC`, `CODIGO_DOCENTE` ni `CODIGO_ADMIN`: puedes borrarlas.
 
 ## Inicio de sesión y contraseñas
 
-- Todos entran con **tipo de cuenta + CURP + contraseña**.
-- Al crear una cuenta, el sistema genera una contraseña temporal. Administración debe entregarla al titular por un medio privado; al entrar, el usuario debe cambiarla.
-- La contraseña se guarda protegida con `scrypt`, nunca en texto plano.
-- **Servicios Escolares** entra como Docente con la CURP de `ADMIN_CURP` y la contraseña inicial configurada en `ADMIN_INITIAL_PASSWORD`.
-- En Render configura `ADMIN_INITIAL_PASSWORD` (mínimo 10 caracteres) la primera vez que se cree la cuenta administrativa. La cuenta se crea una sola vez; después puede cambiar la contraseña desde el flujo de actualización.
+- Alumnos, tutores y docentes entran con **tipo de cuenta + CURP + contraseña**.
+- El administrador da de alta primero al alumno. El alumno activa su cuenta en el inicio con CURP, nombre registrado y una contraseña propia (mínimo 10 caracteres). Solo puede hacerlo una vez mientras la cuenta esté pendiente de activación.
+- La contraseña se guarda protegida con `scrypt`, nunca en texto plano. Alumnos pueden usar la misma CURP y contraseña en otros dispositivos conectados a internet.
+- **Servicios Escolares** selecciona el tipo de cuenta **Administrador** e ingresa la contraseña configurada en `ADMIN_ACCESS_PASSWORD` (por defecto `admin170`). Cambia ese valor en las variables de entorno de Render por una contraseña larga y privada antes de publicar.
+- `ADMIN_INITIAL_PASSWORD` sigue siendo útil para inicializar la cuenta administrativa heredada que entra como docente mediante su CURP; el nuevo acceso Administrador es independiente.
 - Si alguien olvida su contraseña, envía una solicitud desde el inicio de sesión. Administración la revisa en **Cuentas → Solicitudes de restablecimiento**, verifica la identidad y genera una contraseña temporal.
 - La contraseña temporal se muestra una sola vez al administrador. Debe entregarse al titular por un canal privado; al entrar tendrá que crear otra.
 - Las solicitudes no revelan si una CURP existe y tienen limitación de frecuencia.
@@ -113,3 +114,11 @@ Orden recomendado para empezar:
 - La interfaz usa negro, dorado champagne y crema.
 - En Inicio aparece el apartado **Conoce tu plataforma escolar**. Cuando tengas tu video, guárdalo con el nombre `tutorial.mp4` dentro de `public/`. La ruta debe quedar `public/tutorial.mp4`; después ejecuta `npm run build` y sube los cambios.
 - El horario permite elegir el día y muestra cada materia en una tarjeta con docente, salón y horas. Los datos reales siguen dependiendo de lo que capture Servicios Escolares.
+
+
+### Acceso actualizado de alumnos y administrador
+
+- Servicios Escolares primero da de alta al alumno con su nombre y CURP.
+- En la pantalla de entrada, el alumno elige **¿Primera vez? Crea tu contraseña**, escribe CURP, nombre exactamente como quedó registrado y crea una contraseña de al menos 10 caracteres.
+- La contraseña se guarda en MongoDB como hash con salt; no se almacena en texto plano. Después puede entrar en cualquier dispositivo con CURP y contraseña.
+- El administrador elige **Administrador** y usa la contraseña `admin170`. En producción se recomienda cambiar `ADMIN_ACCESS_PASSWORD` en las variables de entorno de Render por una contraseña larga y privada.

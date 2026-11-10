@@ -129,25 +129,32 @@ app.post('/api/login', h(async (req, res) => {
     res.json({ token: firmar({ id: u.id, rol: rolReal, exp: Date.now() + 12 * 3600e3 }), usuario: { ...datos, rol: rolReal, debeCambiarPassword: !!u.debeCambiarPassword } });
 }));
 
-/* El alumno crea su contraseña al activar por primera vez una cuenta dada de alta por Servicios Escolares. */
-app.post('/api/alumno/activar', h(async (req, res) => {
+/* Alumnos, tutores y docentes activan cuentas previamente dadas de alta. */
+const activarCuenta = h(async (req, res) => {
+    const rol = s(req.body.rol);
     const curp = s(req.body.curp).toUpperCase(), nombre = s(req.body.nombre).replace(/\s+/g, ' ').toLocaleLowerCase('es-MX');
     const password = String(req.body.password || ''), confirmar = String(req.body.confirmar || '');
+    if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Tipo de cuenta inválido');
     if (!RX.curp.test(curp)) return bad(res, 'Escribe una CURP válida de 18 caracteres');
     if (!validaPassword(password)) return bad(res, 'La contraseña debe tener entre 10 y 128 caracteres');
     if (password !== confirmar) return bad(res, 'Las contraseñas no coinciden');
     const llave = 'activar:' + req.ip;
     if (bloqueado(llave, 8)) return bad(res, 'Demasiados intentos. Espera 15 minutos.', 429);
-    const cuenta = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
+    const cuenta = await usuarios.findOne({ _id: `${rol}:${curp}`, rol });
     const nombreGuardado = s(cuenta?.nombre).replace(/\s+/g, ' ').toLocaleLowerCase('es-MX');
     if (!cuenta || !cuenta.debeCambiarPassword || !nombre || nombre !== nombreGuardado) {
         fallo(llave); return bad(res, 'No se pudo validar la cuenta. Revisa tu CURP y nombre o solicita ayuda a Servicios Escolares.', 401);
     }
     const hp = hashPw(password);
-    await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date(), activadaPorAlumno: true } });
+    await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date(), activadaPorUsuario: true } });
     fallos.delete(llave);
     res.json({ ok: true, mensaje: 'Contraseña creada. Ya puedes iniciar sesión desde cualquier dispositivo con tu CURP.' });
-}));
+});
+app.post('/api/cuenta/activar', activarCuenta);
+app.post('/api/alumno/activar', (req, res, next) => {
+    req.body = { ...req.body, rol: 'alumno' };
+    activarCuenta(req, res, next);
+});
 
 /* Solicitud pública: respuesta genérica para no revelar si una CURP está registrada. */
 app.post('/api/recuperacion', h(async (req, res) => {

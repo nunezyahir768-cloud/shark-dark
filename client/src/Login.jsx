@@ -15,7 +15,7 @@ export default function Login({ onOk }) {
   }
   async function activar(e) {
     e.preventDefault(); setMsg(''); setCargando(true);
-    try { await SD.activarAlumno(u, nombre, password, confirmar); setModo('login'); setRol('alumno'); setPassword(''); setConfirmar(''); setMsg('¡Contraseña creada! Ya puedes iniciar sesión con tu CURP y contraseña.'); }
+    try { await SD.activarCuenta(rol, u, nombre, password, confirmar); setModo('login'); setPassword(''); setConfirmar(''); setMsg('¡Contraseña creada! Ya puedes iniciar sesión con tu CURP y contraseña.'); }
     catch (err) { setMsg(err.message); } finally { setCargando(false); }
   }
   async function pedir(e) {
@@ -30,7 +30,7 @@ export default function Login({ onOk }) {
       <h1>SHARK DARK</h1><p className="sub" style={{ textAlign: 'center' }}>CBTIS 170 · Portal escolar</p>
       <Card>
         {modo === 'activar' ? <form onSubmit={activar}>
-        <h2>Crea tu contraseña</h2><p className="sub">Activa la cuenta que te dio de alta Servicios Escolares. Usa exactamente tu nombre registrado.</p>
+        <h2>Crea tu contraseña</h2><p className="sub">Activa tu cuenta de {rol}. Usa exactamente tu nombre registrado por Servicios Escolares.</p>
         <label>CURP</label><input value={u} onChange={e => setU(e.target.value.toUpperCase())} maxLength="18" autoComplete="username" required />
         <label>Nombre completo registrado</label><input value={nombre} onChange={e => setNombre(e.target.value)} autoComplete="name" required />
         <label>Crea una contraseña (mínimo 10 caracteres)</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} minLength="10" autoComplete="new-password" required />
@@ -44,7 +44,7 @@ export default function Login({ onOk }) {
           <label htmlFor="pw">Contraseña</label>
           <input id="pw" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Escribe tu contraseña" autoComplete="current-password" required />
           <button className="btn" type="submit" disabled={cargando}>{cargando ? 'VERIFICANDO…' : 'INICIAR SESIÓN'}</button>
-          {rol === 'alumno' && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('activar'); setMsg(''); }}>¿Primera vez? Crea tu contraseña</button>}
+          {rol !== 'admin' && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('activar'); setMsg(''); }}>¿Primera vez? Crea tu contraseña</button>}
           {rol !== 'admin' && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('recuperar'); setMsg(''); }}>¿Olvidaste tu contraseña?</button>}
           <p className="msg" role="alert">{msg}</p>
         </form> : <form onSubmit={pedir}>

@@ -63,10 +63,11 @@
     return u;
   }
 
-  async function activarAlumno(curp, nombre, password, confirmar) {
+  async function activarCuenta(rol, curp, nombre, password, confirmar) {
     if (!navigator.onLine) throw new Error('Necesitas conexión a internet para crear tu contraseña.');
-    return api('/api/alumno/activar', { method: 'POST', body: { curp: String(curp).trim().toUpperCase(), nombre, password, confirmar } });
+    return api('/api/cuenta/activar', { method: 'POST', body: { rol, curp: String(curp).trim().toUpperCase(), nombre, password, confirmar } });
   }
+  const activarAlumno = (curp, nombre, password, confirmar) => activarCuenta('alumno', curp, nombre, password, confirmar);
 
   async function solicitarRecuperacion(rol, id) {
     return api('/api/recuperacion', { method: 'POST', body: { rol, id: String(id).trim().toUpperCase() } });
@@ -337,5 +338,5 @@
     try { const r = await api(path); localStorage.setItem('sdc_' + key, JSON.stringify(r)); return r; }
     catch (e) { return JSON.parse(localStorage.getItem('sdc_' + key) || '[]'); }
   }
-  const SD = { login, activarAlumno, solicitarRecuperacion, cambiarPassword, logout, session: ses, asistencia, consultar, sync, scan, qr, datos, cierre, corregir, permisoAvisos, api, vinculos, alumnoActivo, notificar, cached };
+  const SD = { login, activarCuenta, activarAlumno, solicitarRecuperacion, cambiarPassword, logout, session: ses, asistencia, consultar, sync, scan, qr, datos, cierre, corregir, permisoAvisos, api, vinculos, alumnoActivo, notificar, cached };
   export default SD;
