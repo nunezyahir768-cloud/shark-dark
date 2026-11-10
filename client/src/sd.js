@@ -29,7 +29,7 @@
   const ses = () => { try { return JSON.parse(localStorage.getItem('sd_ses')); } catch { return null; } };
   const setSes = u => localStorage.setItem('sd_ses', JSON.stringify({
     rol: u.rol, id: u.id, nombre: u.nombre, curp: u.curp, area: u.area, semestre: u.semestre,
-    grupo: u.grupo, curpAlumno: u.curpAlumno, token: u.token || null
+    grupo: u.grupo, curpAlumno: u.curpAlumno, debeCambiarPassword: !!u.debeCambiarPassword, token: u.token || null
   }));
 
   async function api(path, opt = {}) {
@@ -48,27 +48,27 @@
     return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
   }
 
-  /* ---------- Registro / login (online u offline) ---------- */
-  /* Entrar solo con usuario y contraseña: la app descubre si es alumno, tutor, docente o administrador */
-  async function login(rol, id) {
+  /* ---------- Inicio de sesión con contraseña ---------- */
+  async function login(rol, id, password) {
     id = String(id).trim().toUpperCase();
-    try {
-      const r = await api('/api/login', { method: 'POST', body: { rol: rol || '', id } });
-      rol = r.usuario.rol;
-      const u = { ...r.usuario, _id: rol + ':' + id, rol, id, token: r.token };
-      await put('usuarios', u);
-      await cambioDeUsuario(rol, id);
-      setSes(u);
-      sync();
-      return u;
-    } catch (e) {
-      if (e.status) throw e;                       // la CURP no existe, etc.
-      const u = (await all('usuarios')).find(x => x.id === id && (!rol || x.rol === rol || (rol === 'docente' && x.rol === 'admin')));
-      if (!u) throw new Error('Sin conexión: solo puedes entrar con una cuenta que ya usaste en este dispositivo');
-      await cambioDeUsuario(u.rol, id);
-      setSes(u);
-      return u;
-    }
+    if (!navigator.onLine) throw new Error('Necesitas conexión a internet para iniciar sesión. Si ya habías iniciado sesión, puedes seguir usando la sesión guardada sin conexión.');
+    const r = await api('/api/login', { method: 'POST', body: { rol: rol || '', id, password } });
+    rol = r.usuario.rol;
+    const u = { ...r.usuario, _id: rol + ':' + id, rol, id, token: r.token };
+    await put('usuarios', u);
+    await cambioDeUsuario(rol, id);
+    setSes(u);
+    sync();
+    return u;
+  }
+
+  async function solicitarRecuperacion(rol, id) {
+    return api('/api/recuperacion', { method: 'POST', body: { rol, id: String(id).trim().toUpperCase() } });
+  }
+  async function cambiarPassword(actual, nueva) {
+    const r = await api('/api/cambiar-password', { method: 'POST', body: { actual, nueva } });
+    const u = ses(); if (u) { u.debeCambiarPassword = false; localStorage.setItem('sd_ses', JSON.stringify(u)); }
+    return r;
   }
 
   async function cambioDeUsuario(rol, id) {
@@ -331,5 +331,5 @@
     try { const r = await api(path); localStorage.setItem('sdc_' + key, JSON.stringify(r)); return r; }
     catch (e) { return JSON.parse(localStorage.getItem('sdc_' + key) || '[]'); }
   }
-  const SD = { login, logout, session: ses, asistencia, consultar, sync, scan, qr, datos, cierre, corregir, permisoAvisos, api, vinculos, alumnoActivo, notificar, cached };
+  const SD = { login, solicitarRecuperacion, cambiarPassword, logout, session: ses, asistencia, consultar, sync, scan, qr, datos, cierre, corregir, permisoAvisos, api, vinculos, alumnoActivo, notificar, cached };
   export default SD;

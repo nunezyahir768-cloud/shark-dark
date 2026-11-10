@@ -65,21 +65,27 @@ Render detecta el cambio solo y publica la nueva versión en unos minutos.
 - **Build Command:** `npm install && npm run build`
 - **Start Command:** `npm start`
 - **Environment (variables):**
-  - `MONGODB_URI` → la dirección de tu Atlas (con tu clave)
+  - `MONGODB_URI` → la dirección de tu Atlas (con tu clave). El servidor selecciona la base `SHARK-DARK`.
   - `TOKEN_SECRET` → una frase larga y secreta
-  - `ADMIN_CURP` → la CURP de la persona de Servicios Escolares (18 caracteres)
+  - `ADMIN_CURP` → la CURP de Servicios Escolares (18 caracteres)
+  - `ADMIN_INITIAL_PASSWORD` → contraseña inicial de Servicios Escolares (10+ caracteres; se usa solo para crear la cuenta inicial)
 - Ya NO se usan `ADMIN_PASSWORD`, `ADMIN_RFC`, `CODIGO_DOCENTE` ni `CODIGO_ADMIN`: puedes borrarlas.
 
-## Cómo se entra (sin contraseñas)
+## Inicio de sesión y contraseñas
 
-- Todos entran con **Entrar como** + su **CURP**: Alumno, Tutor o Docente.
-- **Servicios Escolares** entra igual: **Entrar como: Docente** y la CURP que pusiste en `ADMIN_CURP`.
-- Nadie puede crear cuenta solo: **Servicios Escolares da de alta** a docentes, alumnos y tutores.
+- Todos entran con **tipo de cuenta + CURP + contraseña**.
+- Al crear una cuenta, el sistema genera una contraseña temporal. Administración debe entregarla al titular por un medio privado; al entrar, el usuario debe cambiarla.
+- La contraseña se guarda protegida con `scrypt`, nunca en texto plano.
+- **Servicios Escolares** entra como Docente con la CURP de `ADMIN_CURP` y la contraseña inicial configurada en `ADMIN_INITIAL_PASSWORD`.
+- En Render configura `ADMIN_INITIAL_PASSWORD` (mínimo 10 caracteres) la primera vez que se cree la cuenta administrativa. La cuenta se crea una sola vez; después puede cambiar la contraseña desde el flujo de actualización.
+- Si alguien olvida su contraseña, envía una solicitud desde el inicio de sesión. Administración la revisa en **Cuentas → Solicitudes de restablecimiento**, verifica la identidad y genera una contraseña temporal.
+- La contraseña temporal se muestra una sola vez al administrador. Debe entregarse al titular por un canal privado; al entrar tendrá que crear otra.
+- Las solicitudes no revelan si una CURP existe y tienen limitación de frecuencia.
 
 Orden recomendado para empezar:
 1. **Cuentas** → crea docentes, tutores y alumnos (el alumno lleva semestre, área y grupo A, B o C; el grupo se crea solo)
 2. **Cuentas → Vincular alumno** → une a cada tutor con sus hijos
-3. **Clases** (materia + grupo + docente)
+3. **Materias** (materia + grupo + docente)
 4. **Horarios** (el descanso de 9:30 a 10:00 ya está fijo)
 5. **Avisos** y **Permisos** cuando haga falta
 
@@ -87,12 +93,23 @@ Orden recomendado para empezar:
 
 ## Importante sobre la seguridad
 
-Como no hay contraseña, **quien conozca una CURP puede entrar con ella**. Por eso:
-- No compartas la CURP de Servicios Escolares.
-- Si más adelante quieres más seguridad, se puede agregar un PIN corto.
+- No compartas la contraseña inicial ni las contraseñas temporales.
+- Servicios Escolares debe comprobar la identidad antes de aprobar una recuperación.
+- La contraseña temporal se debe entregar por un canal privado y no debe enviarse en grupos.
+- Mantén `TOKEN_SECRET`, `MONGODB_URI` y `ADMIN_INITIAL_PASSWORD` únicamente en variables de entorno; nunca las subas a GitHub.
+- Los usuarios que ya existían antes de activar el inicio con contraseña deben solicitar un restablecimiento para recibir su contraseña temporal.
 
 ## Notas
 
 - El aviso de "faltan 5 minutos para que termine la clase" le llega al alumno cuando tiene la app abierta (o en segundo plano).
   Para que llegue con la app cerrada se necesita un servicio de notificaciones push (siguiente etapa).
 - Si cambias de equipo, borra el archivo `package-lock.json` viejo del repositorio; `npm install` crea uno nuevo.
+
+
+## Identidad visual, tutorial y horario
+
+- El logo dorado/negro de `public/img/tiburon.png` se usa en la animación de entrada.
+- Los iconos instalables del teléfono están en `public/icon-192.png` y `public/icon-512.png`.
+- La interfaz usa negro, dorado champagne y crema.
+- En Inicio aparece el apartado **Conoce tu plataforma escolar**. Cuando tengas tu video, guárdalo con el nombre `tutorial.mp4` dentro de `public/`. La ruta debe quedar `public/tutorial.mp4`; después ejecuta `npm run build` y sube los cambios.
+- El horario permite elegir el día y muestra cada materia en una tarjeta con docente, salón y horas. Los datos reales siguen dependiendo de lo que capture Servicios Escolares.

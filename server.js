@@ -58,7 +58,10 @@ const auth = (req, res, next) => {
 };
 const publico = ({ salt, hash, _id, ...r }) => r;
 
-let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios;
+let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion;
+const intentosRecuperacion = new Map();
+const validaPassword = pw => typeof pw === 'string' && pw.length >= 10 && pw.length <= 128;
+const generaTemporal = () => crypto.randomBytes(9).toString('base64url');
 
 /* CURPs que cada rol puede ver: docente = todas, alumno = la suya, tutor = la de su alumno */
 async function permitidas(u) {
@@ -96,19 +99,52 @@ async function avisar(alumno, tipo, hora, fecha, clave, materia, extra) {
     }
 }
 
-/* ---------- Registro y login ---------- */
-/* Entrar solo con la CURP y el tipo de cuenta. Servicios Escolares = la CURP definida en Render (ADMIN_CURP), entrando como Docente */
+/* ---------- Registro y login con CURP + contraseña ---------- */
+/* Servicios Escolares entra como Docente con ADMIN_CURP y contraseña propia almacenada en la cuenta admin. */
 const ADMIN_CURP = (process.env.ADMIN_CURP || '').toUpperCase();
 app.post('/api/login', h(async (req, res) => {
-    const id = s(req.body.id).toUpperCase(), rol = s(req.body.rol);
+    const id = s(req.body.id).toUpperCase(), rol = s(req.body.rol), password = String(req.body.password || '');
     if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Elige cómo quieres entrar');
+    if (!RX.curp.test(id) || !password) return bad(res, 'Escribe una CURP válida y tu contraseña');
     const llave = 'ip:' + req.ip;
     if (bloqueado(llave, 40)) return bad(res, 'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo', 429);
     let u = null;
-    if (rol === 'docente' && ADMIN_CURP && id === ADMIN_CURP) u = { rol: 'admin', id, nombre: 'Servicios Escolares' };
-    else { const x = await usuarios.findOne({ _id: `${rol}:${id}` }); if (x) u = publico(x); }
-    if (!u) { fallo(llave); return bad(res, 'Esa CURP no está registrada para ese tipo de cuenta. Pide a Servicios Escolares que te den de alta.', 401); }
-    res.json({ token: firmar({ id: u.id, rol: u.rol, exp: Date.now() + 30 * 864e5 }), usuario: u });
+    if (rol === 'docente' && ADMIN_CURP && id === ADMIN_CURP) {
+        const admin = await usuarios.findOne({ _id: 'admin:' + id });
+        if (admin) u = admin;
+    } else u = await usuarios.findOne({ _id: `${rol}:${id}` });
+    if (!u || !u.salt || !u.hash) { fallo(llave); return bad(res, 'Cuenta sin contraseña configurada. Solicita a Servicios Escolares que la habilite.', 401); }
+    if (!okPw(password, u)) { fallo(llave); return bad(res, 'CURP o contraseña incorrectas', 401); }
+    fallos.delete(llave);
+    const rolReal = u.rol === 'admin' ? 'admin' : rol;
+    const datos = publico(u);
+    res.json({ token: firmar({ id: u.id, rol: rolReal, exp: Date.now() + 12 * 3600e3 }), usuario: { ...datos, rol: rolReal, debeCambiarPassword: !!u.debeCambiarPassword } });
+}));
+
+/* Solicitud pública: respuesta genérica para no revelar si una CURP está registrada. */
+app.post('/api/recuperacion', h(async (req, res) => {
+    const id = s(req.body.id).toUpperCase(), rol = s(req.body.rol), llave = 'rec:' + req.ip;
+    if (!RX.curp.test(id) || !['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Revisa el tipo de cuenta y la CURP');
+    const ahora = Date.now(), previo = intentosRecuperacion.get(llave);
+    if (previo && ahora - previo < 60 * 60e3) return bad(res, 'Ya se envió una solicitud recientemente. Inténtalo más tarde.', 429);
+    intentosRecuperacion.set(llave, ahora);
+    const cuenta = await usuarios.findOne({ _id: `${rol}:${id}` });
+    if (cuenta) {
+        const pendiente = await solicitudesRecuperacion.findOne({ curp: id, rol, estado: 'pendiente' });
+        if (!pendiente) await solicitudesRecuperacion.insertOne({ curp: id, rol, nombre: cuenta.nombre, estado: 'pendiente', creado: new Date(), ipHash: crypto.createHash('sha256').update(req.ip || '').digest('hex') });
+    }
+    res.json({ ok: true, mensaje: 'Si los datos corresponden a una cuenta, la solicitud fue enviada a Servicios Escolares.' });
+}));
+
+app.post('/api/cambiar-password', auth, h(async (req, res) => {
+    const actual = String(req.body.actual || ''), nueva = String(req.body.nueva || '');
+    if (!validaPassword(nueva)) return bad(res, 'La nueva contraseña debe tener entre 10 y 128 caracteres');
+    const rol = req.u.rol === 'admin' ? 'admin' : req.u.rol;
+    const u = await usuarios.findOne({ _id: `${rol}:${req.u.id}` });
+    if (!u || !u.salt || !okPw(actual, u)) return bad(res, 'La contraseña actual no es correcta', 401);
+    const hp = hashPw(nueva);
+    await usuarios.updateOne({ _id: u._id }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date() } });
+    res.json({ ok: true });
 }));
 
 app.get('/api/yo', auth, h(async (req, res) => {
@@ -200,13 +236,35 @@ app.get('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     const l = await usuarios.find({ rol: { $in: ['alumno', 'docente', 'tutor'] } }).limit(3000).toArray();
     res.json(l.map(publico));
 }));
+app.get('/api/admin/recuperaciones', auth, soloAdmin, h(async (req, res) => {
+    const l = await solicitudesRecuperacion.find({ estado: 'pendiente' }).sort({ creado: 1 }).limit(200).toArray();
+    res.json(l.map(({ _id, ipHash, ...r }) => ({ id: _id, ...r })));
+}));
+app.post('/api/admin/recuperaciones/:id/resolver', auth, soloAdmin, h(async (req, res) => {
+    const solicitud = await solicitudesRecuperacion.findOne({ _id: s(req.params.id), estado: 'pendiente' });
+    if (!solicitud) return bad(res, 'La solicitud ya fue atendida o no existe', 404);
+    const accion = s(req.body.accion);
+    if (accion === 'rechazar') {
+        await solicitudesRecuperacion.updateOne({ _id: solicitud._id }, { $set: { estado: 'rechazada', resuelta: new Date(), resueltaPor: req.u.id } });
+        return res.json({ ok: true });
+    }
+    if (accion !== 'restablecer') return bad(res, 'Acción inválida');
+    const temporal = generaTemporal(), hp = hashPw(temporal);
+    const cuenta = await usuarios.findOne({ _id: `${solicitud.rol}:${solicitud.curp}` });
+    if (!cuenta) return bad(res, 'La cuenta ya no existe', 404);
+    await usuarios.updateOne({ _id: cuenta._id }, { $set: { ...hp, debeCambiarPassword: true, passwordActualizada: new Date() } });
+    await solicitudesRecuperacion.updateOne({ _id: solicitud._id }, { $set: { estado: 'restablecida', resuelta: new Date(), resueltaPor: req.u.id } });
+    res.json({ ok: true, passwordTemporal: temporal });
+}));
 app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     const d = req.body || {}, rol = s(d.rol), id = s(d.id).toUpperCase();
     if (!['alumno', 'docente', 'tutor'].includes(rol)) return bad(res, 'Tipo de cuenta inválido');
     if (!RX.curp.test(id)) return bad(res, 'CURP inválida (18 letras y números)');
     if (ADMIN_CURP && id === ADMIN_CURP) return bad(res, 'Esa CURP está reservada para Servicios Escolares');
     if (s(d.nombre).length < 3) return bad(res, 'Escribe el nombre completo');
-    const doc = { _id: `${rol}:${id}`, rol, id, curp: id, nombre: s(d.nombre), creado: new Date() };
+    const temporal = generaTemporal();
+    const hp = hashPw(temporal);
+    const doc = { _id: `${rol}:${id}`, rol, id, curp: id, nombre: s(d.nombre), ...hp, debeCambiarPassword: true, creado: new Date() };
     if (rol === 'alumno') {            // el grupo se crea solo la primera vez que se usa
         const semestre = s(d.semestre).slice(0, 20), area = s(d.area).slice(0, 40), grupo = s(d.grupo).toUpperCase().slice(0, 3);
         if (!semestre || !area || !['A', 'B', 'C'].includes(grupo)) return bad(res, 'Elige el semestre, el área y el grupo (A, B o C)');
@@ -215,7 +273,7 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     if (rol === 'tutor') doc.hijos = [];
     try { await usuarios.insertOne(doc); } catch (e) { if (e.code === 11000) return bad(res, 'Ya existe esa cuenta', 409); throw e; }
     if (rol === 'alumno') await grupos.updateOne({ _id: `${doc.semestre}|${doc.area}|${doc.grupo}` }, { $set: { semestre: doc.semestre, area: doc.area, grupo: doc.grupo, nombre: `${doc.semestre} ${doc.area} ${doc.grupo}` } }, { upsert: true });
-    res.status(201).json({ ok: true });
+    res.status(201).json({ ok: true, passwordTemporal: temporal });
 }));
 app.post('/api/admin/editar', auth, soloAdmin, h(async (req, res) => {
     const id = 'alumno:' + s(req.body.id).toUpperCase(), c = {};
@@ -445,9 +503,19 @@ async function iniciarServidor() {
     const cliente = new MongoClient(limpia, { family: 4, serverSelectionTimeoutMS: 20000, tls: true });
     try {
         await cliente.connect();
-        const db = cliente.db('SharkDark');
+        const db = cliente.db('SHARK-DARK');
         await db.command({ ping: 1 });
         usuarios = db.collection('usuarios');
+        if (ADMIN_CURP) {
+            const adminId = 'admin:' + ADMIN_CURP;
+            const adminActual = await usuarios.findOne({ _id: adminId });
+            const inicial = process.env.ADMIN_INITIAL_PASSWORD || '';
+            if ((!adminActual || !adminActual.hash || !adminActual.salt) && validaPassword(inicial)) {
+                const cred = { rol: 'admin', id: ADMIN_CURP, curp: ADMIN_CURP, nombre: 'Servicios Escolares', ...hashPw(inicial), debeCambiarPassword: true, creado: adminActual?.creado || new Date() };
+                await usuarios.updateOne({ _id: adminId }, { $set: cred }, { upsert: true });
+                console.log('Credenciales iniciales de Servicios Escolares configuradas; cambia la contraseña al entrar.');
+            } else if (!adminActual || !adminActual.hash) console.warn('Define ADMIN_INITIAL_PASSWORD (10+ caracteres) para habilitar la cuenta de Servicios Escolares.');
+        }
         asistencias = db.collection('asistencias');
         calificaciones = db.collection('calificaciones');
         grupos = db.collection('grupos');
@@ -456,10 +524,12 @@ async function iniciarServidor() {
         anuncios = db.collection('anuncios');
         horarios = db.collection('horarios');
         avisos = db.collection('avisos');
+        solicitudesRecuperacion = db.collection('solicitudesRecuperacion');
+        await solicitudesRecuperacion.createIndex({ curp: 1, rol: 1, estado: 1 });
         await asistencias.createIndex({ curp: 1, fecha: -1 });
 
         console.log('✅ Conexión exitosa a MongoDB Atlas');
-        console.log('🦈 Base de datos: SharkDark');
+        console.log('🦈 Base de datos: SHARK-DARK');
         app.listen(PORT, () => console.log(`🚀 Shark Dark está disponible en http://localhost:${PORT}`));
     } catch (error) {
         console.error('❌ Error al conectar con MongoDB Atlas:');

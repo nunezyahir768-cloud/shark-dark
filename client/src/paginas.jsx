@@ -23,6 +23,17 @@ export function Inicio() {
   const av = d.avisos.filter(a => a.curp === al.curp).sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora)).slice(0, 5);
   return (<>
     <Hero titulo={`Hola, ${ses.nombre.split(' ')[0]}`} sub={ses.rol === 'tutor' ? `Alumno: ${al.nombre} · ${al.semestre} ${al.area} ${al.grupo}` : `${al.area} · ${al.semestre} · Grupo ${al.grupo}`} />
+    <Card title="Conoce tu plataforma escolar">
+      <p className="sub">Te mostraremos cómo utilizar las herramientas de SHARK DARK.</p>
+      <details className="tutorial-box">
+        <summary className="tutorial-play"><span>▶</span>Ver tutorial<br/><small style={{fontWeight:400}}>Presiona para abrir el video</small></summary>
+        <video className="tutorial-video" controls preload="none" playsInline>
+          <source src="tutorial.mp4" type="video/mp4" />
+          Tu navegador no puede reproducir este video.
+        </video>
+        <p className="tutorial-note">El video se agregará después como public/tutorial.mp4.</p>
+      </details>
+    </Card>
     <ClaseAhora bl={conDescanso(delGrupo(bl, al))} />
     <Card title="Este mes"><div className="stats">
       <div><div className="num">{r.asist}</div><small className="vacio">Asistencias</small></div>
@@ -85,16 +96,24 @@ export function AsistenciaVer() {
 export function Horario() {
   const rol = SD.session().rol, al = useAlumno(), [bl] = useCached('horario', '/api/horarios');
   const base = rol === 'docente' ? (bl || []) : delGrupo(bl, al), lista = conDescanso(base);
-  if (rol !== 'docente' && !al) return <Sin />;
   const dias = [1, 2, 3, 4, 5, 6].filter(d => d <= 5 || lista.some(b => b.dia === d));
+  const hoy = new Date().getDay(), [dia, setDia] = useState(dias.includes(hoy) ? hoy : 1);
+  if (rol !== 'docente' && !al) return <Sin />;
+  const clases = lista.filter(b => b.dia === dia).sort((a, b) => a.inicio.localeCompare(b.inicio));
+  const abrevia = {1:'LUN',2:'MAR',3:'MIÉ',4:'JUE',5:'VIE',6:'SÁB'};
   return (<>
-    <Hero titulo="Horario" sub={rol === 'docente' ? 'Tus clases de la semana' : `${al.semestre} ${al.area} ${al.grupo}`} />
-    {!base.length && <Card><p className="vacio">Servicios Escolares aún no captura el horario (el descanso de 9:30 a 10:00 ya está fijo).</p></Card>}
-    {dias.map(d => (
-      <Card key={d} title={DIAS[d]} className="dia"><ul className="l">
-        {lista.filter(b => b.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(b => (
-          <li key={b.id} className={b.tipo === 'descanso' ? 'desc' : ''}><span>{hh(b.inicio)} a {hh(b.fin)} - {b.materia}</span><span>{rol === 'docente' ? `${b.semestre} ${b.area} ${b.grupo}` : (b.docenteNombre || '')}</span></li>))}
-        {!lista.some(b => b.dia === d) && <li className="vacio">Sin clases</li>}</ul></Card>))}
+    <Hero titulo="Mi horario escolar" sub={rol === 'docente' ? 'CBTIS 170 · HORARIO DE CLASES' : `${al.semestre} · ${al.area} · Grupo ${al.grupo}`} />
+    <Card title="Selecciona el día">
+      <div className="dias-selector">{dias.map(d => <button key={d} className={dia === d ? 'activo' : ''} onClick={() => setDia(d)}>{abrevia[d]}</button>)}</div>
+    </Card>
+    <Card title={`${DIAS[dia]} · Clases del día`}>
+      {!base.length && <p className="vacio">Servicios Escolares aún no captura el horario.</p>}
+      {clases.map(b => <div key={b.id} className={'clase-horario' + (b.tipo === 'descanso' ? ' descanso' : '')}>
+        <div><div className="materia">{b.materia}</div><div className="detalle">{b.tipo === 'descanso' ? 'Tiempo de descanso' : rol === 'docente' ? `${b.semestre || ''} ${b.area || ''} ${b.grupo || ''}` : `Docente: ${b.docenteNombre || 'Por configurar'}`}</div>{b.tipo !== 'descanso' && <div className="detalle">Salón: {b.salon || 'Por asignar'}</div>}</div>
+        <div className="hora">{hh(b.inicio)}–{hh(b.fin)}</div>
+      </div>)}
+      {base.length && !clases.length && <p className="vacio">No hay clases registradas para este día.</p>}
+    </Card>
   </>);
 }
 

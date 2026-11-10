@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import SD from './sd.js';
 import Intro from './Intro.jsx';
-import Login from './Login.jsx';
+import Login, { CambiarPassword } from './Login.jsx';
 import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
 import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, ReporteVer, Cuenta } from './paginas.jsx';
 import { AsistenciaDocente, CalifDocente, ReporteDocente } from './docente.jsx';
@@ -108,6 +108,6 @@ export default function App() {
   useEffect(() => { sessionStorage.setItem('sd_intro', '1'); }, []);
   return (<>
     {intro && <Intro onFin={() => setIntro(false)} />}
-    {ses ? <Shell ses={ses} /> : <Login onOk={() => { location.hash = ''; setSes(SD.session()); }} />}
+    {ses ? (ses.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={ses} />) : <Login onOk={() => { location.hash = ''; setSes(SD.session()); }} />}
   </>);
 }

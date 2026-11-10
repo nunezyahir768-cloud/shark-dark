@@ -13,11 +13,13 @@ function useServicios() {
 }
 
 export function Cuentas() {
-  const { u, g, cargar } = useServicios(), [b, ban] = useBanner(), [q, setQ] = useState('');
+  const { u, g, cargar } = useServicios(), [b, ban] = useBanner(), [q, setQ] = useState(''), [temp, setTemp] = useState(''), [solicitudes, setSolicitudes] = useState([]);
   const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A' });
+  const cargarSolicitudes = async () => { try { setSolicitudes(await SD.api('/api/admin/recuperaciones')); } catch (e) {} };
+  useEffect(() => { cargarSolicitudes(); }, []);
   const crear = async e => {
     e.preventDefault();
-    try { await post('/api/admin/usuarios', f); ban('ok', 'Cuenta creada', 'Ya puede entrar con su CURP.'); setF({ ...f, nombre: '', id: '' }); cargar(); }
+    try { const r = await post('/api/admin/usuarios', f); setTemp(r.passwordTemporal || ''); ban('ok', 'Cuenta creada', 'Entrega la contraseña temporal al titular por un medio seguro.'); setF({ ...f, nombre: '', id: '' }); cargar(); }
     catch (er) { ban('err', 'No se pudo crear la cuenta', msgErr(er)); }
   };
   const acc = async (a, x) => {
@@ -29,7 +31,8 @@ export function Cuentas() {
   };
   const l = u.filter(x => !q || (x.nombre + ' ' + (x.curp || x.id)).toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.nombre.localeCompare(b.nombre)).slice(0, 80);
   return (<>
-    <Hero titulo="Cuentas" sub="Aquí se dan de alta docentes, alumnos y tutores. Todos entran solo con su CURP." /><Banner b={b} />
+    <Hero titulo="Cuentas" sub="Aquí se dan de alta docentes, alumnos y tutores. El acceso requiere CURP y contraseña." /><Banner b={b} />
+    {temp && <Card title="Contraseña temporal · mostrar una sola vez"><p>Entrégala al titular por un medio privado. Al iniciar sesión tendrá que crear una contraseña nueva.</p><p style={{ fontWeight: 800, letterSpacing: 1, overflowWrap: "anywhere" }}>{temp}</p><button className="mini" onClick={() => { navigator.clipboard?.writeText(temp); }}>Copiar</button><button className="mini" onClick={() => setTemp('')}>Ocultar</button></Card>}
     <Card title="Crear una cuenta"><form onSubmit={crear}>
       <select value={f.rol} onChange={e => setF({ ...f, rol: e.target.value })}><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select>
       <input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Nombre completo" required />
@@ -39,6 +42,10 @@ export function Cuentas() {
         <label>Área</label><select value={f.area} onChange={e => setF({ ...f, area: e.target.value })}>{AREAS.map(s => <option key={s}>{s}</option>)}</select>
         <label>Grupo</label><select value={f.grupo} onChange={e => setF({ ...f, grupo: e.target.value })}>{['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}</select></>}
       <button className="btn" type="submit">CREAR CUENTA</button></form></Card>
+    <Card title="Solicitudes de restablecimiento de contraseña"><p className="sub">Revisa la identidad del usuario antes de autorizar. La contraseña temporal se muestra una sola vez.</p><button className="mini" onClick={cargarSolicitudes}>Actualizar solicitudes</button>
+      {solicitudes.map(x => <div key={x.id} style={{ borderTop: '1px solid var(--borde, #ddd)', paddingTop: 10, marginTop: 10 }}><b>{x.nombre || 'Cuenta'}</b><p className="sub">{x.rol} · {x.curp} · {new Date(x.creado).toLocaleString()}</p><button className="mini" onClick={async () => { if (!confirm('Confirma que verificaste la identidad del usuario.')) return; try { const r = await post('/api/admin/recuperaciones/' + x.id + '/resolver', { accion: 'restablecer' }); setTemp(r.passwordTemporal); ban('ok', 'Contraseña restablecida', 'Entrega la contraseña temporal al usuario por un medio privado.'); cargarSolicitudes(); } catch (er) { ban('err', 'No se pudo restablecer', msgErr(er)); } }}>Verificar y restablecer</button><button className="mini rojo" onClick={async () => { try { await post('/api/admin/recuperaciones/' + x.id + '/resolver', { accion: 'rechazar' }); cargarSolicitudes(); } catch (er) { ban('err', 'No se pudo rechazar', msgErr(er)); } }}>Rechazar</button></div>)}
+      {!solicitudes.length && <p className="vacio">No hay solicitudes pendientes.</p>}
+    </Card>
     <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o CURP" style={{ marginBottom: 12 }} />
     {l.map(x => (
       <Card key={x.rol + x.id}><b>{x.nombre}</b><span className="tag">{x.rol}</span>
