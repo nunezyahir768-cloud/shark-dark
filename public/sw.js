@@ -1,4 +1,4 @@
-const CACHE = 'sharkdark-v20';
+const CACHE = 'sharkdark-v21';
 const ARCHIVOS = ['./', 'index.html', 'bundle.js', 'bundle.css', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'img/tiburon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(ARCHIVOS.map(f => c.add(f).catch(() => {})))));

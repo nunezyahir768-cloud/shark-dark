@@ -58,7 +58,7 @@ function Tutorial({ rol }) {
       </div>
       <div className="tutorial-controles">
         <button className="btn sec" type="button" onClick={() => cambiar(-1)} aria-label="Imagen anterior">← Anterior</button>
-        <div className="tutorial-puntos" aria-label={`Imagen ${indice + 1} de ${TUTORIAL.length}`}>
+        <div className="tutorial-puntos" aria-label={`Imagen ${indice + 1} de ${pasos.length}`}>
           {pasos.map((x, i) => <button key={x.titulo} type="button" className={i === indice ? 'activo' : ''} onClick={() => setIndice(i)} aria-label={`Ver tutorial: ${x.titulo}`} aria-current={i === indice ? 'step' : undefined} />)}
         </div>
         <button className="btn sec" type="button" onClick={() => cambiar(1)} aria-label="Imagen siguiente">Siguiente →</button>
