@@ -10,12 +10,12 @@ import { Cuentas, Grupos, Clases, Horarios, Escaner } from './servicios.jsx';
 const MENU = {
   alumno: [['inicio', 'Inicio'], ['perfil', 'Perfil'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['reportes', 'Reportes']],
   tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Avisos'], ['perfiles', 'Perfiles'], ['reportes', 'Reportes']],
-  docente: [['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Avisos'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos']],
-  admin: [['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Clases'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['escaner', 'Escáner']]
+  docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Avisos'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos']],
+  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Clases'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['escaner', 'Escáner']]
 };
-const INICIO = { alumno: 'inicio', tutor: 'inicio', docente: 'horario', admin: 'cuentas' };
+const INICIO = { alumno: 'inicio', tutor: 'inicio', docente: 'inicio', admin: 'inicio' };
 const PAGINAS = {
-  inicio: { alumno: Inicio, tutor: Inicio },
+  inicio: { alumno: Inicio, tutor: Inicio, docente: Inicio, admin: Inicio },
   perfil: { alumno: PerfilAlumno }, perfiles: { tutor: PerfilesTutor },
   asistencia: { alumno: AsistenciaVer, tutor: AsistenciaVer, docente: AsistenciaDocente },
   horario: { alumno: Horario, tutor: Horario, docente: Horario },

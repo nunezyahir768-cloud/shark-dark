@@ -4,6 +4,101 @@ import { conDescanso, Card, Hero, Banner, useBanner, QR, useDatos, useCached, us
 
 const Sin = () => <Card><p className="vacio">No tienes un alumno vinculado. Pide a Servicios Escolares que vinculen a tu alumno con tu cuenta.</p></Card>;
 
+const TUTORIALES = {
+  alumno: [
+  { titulo: 'Inicio', texto: 'Consulta tu clase actual, el resumen de asistencias del mes y tus faltas.', imagen: 'inicio' },
+  { titulo: 'Perfil', texto: 'Revisa tus datos escolares, muestra tu código QR y consulta tus tutores.', imagen: 'perfil' },
+  { titulo: 'Asistencia', texto: 'Consulta tus asistencias, faltas y justificantes, también por materia.', imagen: 'asistencia' },
+  { titulo: 'Horario', texto: 'Revisa tus clases por día, con sus horas y materias.', imagen: 'horario' },
+  { titulo: 'Calificaciones', texto: 'Consulta las calificaciones registradas para tus materias.', imagen: 'calificaciones' },
+  { titulo: 'Permisos', texto: 'Consulta los permisos registrados para ti. Tu tutor puede enviar solicitudes desde su cuenta.', imagen: 'permisos' },
+  { titulo: 'Avisos', texto: 'Mantente al tanto de los avisos importantes de la escuela.', imagen: 'avisos' },
+  { titulo: 'Reportes', texto: 'Consulta asistencia, faltas y promedio por materia; también puedes imprimir el reporte.', imagen: 'reportes' }
+  ],
+  tutor: [
+    { titulo: 'Inicio', texto: 'Consulta la asistencia y las faltas del alumno que estás viendo, además de sus avisos.', imagen: 'inicio' },
+    { titulo: 'Asistencia', texto: 'Revisa asistencias, faltas y justificantes del alumno vinculado.', imagen: 'asistencia' },
+    { titulo: 'Permisos', texto: 'Envía solicitudes de permiso para el alumno y consulta su estado.', imagen: 'permisos' },
+    { titulo: 'Horario', texto: 'Consulta las clases del alumno por día y horario.', imagen: 'horario' },
+    { titulo: 'Calificaciones', texto: 'Consulta las calificaciones registradas por materia.', imagen: 'calificaciones' },
+    { titulo: 'Avisos', texto: 'Lee los mensajes de Servicios Escolares.', imagen: 'avisos' },
+    { titulo: 'Perfiles', texto: 'Consulta tus datos y los perfiles de tus alumnos vinculados.', imagen: 'perfil' },
+    { titulo: 'Reportes', texto: 'Consulta un resumen de asistencia y calificaciones por materia.', imagen: 'reportes' }
+  ],
+  docente: [
+    { titulo: 'Horario', texto: 'Consulta el horario de clases por día.', imagen: 'horario' },
+    { titulo: 'Asistencia', texto: 'Registra y consulta la asistencia de tus grupos.', imagen: 'asistencia' },
+    { titulo: 'Reportes', texto: 'Revisa reportes de asistencia y desempeño de tus grupos.', imagen: 'reportes' },
+    { titulo: 'Avisos', texto: 'Consulta los mensajes de Servicios Escolares.', imagen: 'avisos' },
+    { titulo: 'Calificaciones', texto: 'Captura y consulta calificaciones de tus grupos.', imagen: 'calificaciones' },
+    { titulo: 'Permisos', texto: 'Consulta los permisos aprobados de tus alumnos.', imagen: 'permisos' }
+  ],
+  admin: [
+    { titulo: 'Cuentas', texto: 'Da de alta y administra cuentas de alumnos, tutores y docentes.', imagen: 'cuentas' },
+    { titulo: 'Grupos', texto: 'Consulta los grupos registrados y su información.', imagen: 'grupos' },
+    { titulo: 'Clases', texto: 'Administra materias, grupos y docentes asignados.', imagen: 'clases' },
+    { titulo: 'Horarios', texto: 'Captura y administra los horarios de clase.', imagen: 'horario' },
+    { titulo: 'Permisos', texto: 'Revisa y resuelve solicitudes de permiso.', imagen: 'permisos' },
+    { titulo: 'Avisos', texto: 'Envía avisos a alumnos, tutores y docentes.', imagen: 'avisos' },
+    { titulo: 'Escáner', texto: 'Escanea el código QR de un alumno para registrar asistencia.', imagen: 'escaner' }
+  ]
+};
+
+function Tutorial({ rol }) {
+  const pasos = TUTORIALES[rol] || TUTORIALES.alumno;
+  const [indice, setIndice] = useState(0), paso = pasos[indice];
+  const cambiar = delta => setIndice(i => (i + delta + pasos.length) % pasos.length);
+  return <Card title="Tutorial de la plataforma">
+    <p className="sub">Explora las secciones del menú y descubre qué puedes hacer en cada una.</p>
+    <div className="tutorial">
+      <img className="tutorial-imagen" src={`img/tutorial/${paso.imagen}.svg`} alt={`Ilustración de la sección ${paso.titulo}`} />
+      <div className="tutorial-pie">
+        <div><b>{paso.titulo}</b><p className="sub">{paso.texto}</p></div>
+        <span className="tutorial-contador">{indice + 1} / {pasos.length}</span>
+      </div>
+      <div className="tutorial-controles">
+        <button className="btn sec" type="button" onClick={() => cambiar(-1)} aria-label="Imagen anterior">← Anterior</button>
+        <div className="tutorial-puntos" aria-label={`Imagen ${indice + 1} de ${TUTORIAL.length}`}>
+          {pasos.map((x, i) => <button key={x.titulo} type="button" className={i === indice ? 'activo' : ''} onClick={() => setIndice(i)} aria-label={`Ver tutorial: ${x.titulo}`} aria-current={i === indice ? 'step' : undefined} />)}
+        </div>
+        <button className="btn sec" type="button" onClick={() => cambiar(1)} aria-label="Imagen siguiente">Siguiente →</button>
+      </div>
+    </div>
+  </Card>;
+}
+
+function BotonAvisos() {
+  const permisoActivo = () => typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  const [activo, setActivo] = useState(permisoActivo), [error, setError] = useState('');
+  useEffect(() => {
+    const revisar = () => setActivo(permisoActivo());
+    window.addEventListener('focus', revisar);
+    document.addEventListener('visibilitychange', revisar);
+    return () => {
+      window.removeEventListener('focus', revisar);
+      document.removeEventListener('visibilitychange', revisar);
+    };
+  }, []);
+  async function activar() {
+    setError('');
+    try {
+      const permiso = await SD.permisoAvisos();
+      setActivo(permiso === 'granted');
+      if (permiso !== 'granted') setError(permiso === 'denied'
+        ? 'Las notificaciones están bloqueadas. Puedes permitirlas desde los ajustes de este sitio en tu navegador.'
+        : 'No se activaron las notificaciones. Inténtalo de nuevo.');
+    } catch (e) {
+      setActivo(permisoActivo());
+      setError(e.message || 'No se pudieron activar las notificaciones.');
+    }
+  }
+  if (activo) return null;
+  return <>
+    <button className="btn sec" onClick={activar}>Activar avisos en este teléfono</button>
+    {error && <p className="msg" role="status">{error}</p>}
+  </>;
+}
+
 export function ClaseAhora({ bl }) {
   const [, t] = useState(0);
   useEffect(() => { const i = setInterval(() => t(x => x + 1), 30000); return () => clearInterval(i); }, []);
@@ -18,30 +113,26 @@ export function ClaseAhora({ bl }) {
 
 export function Inicio() {
   const al = useAlumno(), ses = SD.session() || {}, d = useDatos(), [bl] = useCached('horario', '/api/horarios');
-  if (!al || !ses.nombre) return <Sin />;
-  const rs = d.asistencias.filter(a => a.curp === al.curp), mes = rs.filter(a => a.fecha.startsWith(hoyISO().slice(0, 7))), r = resumenAsistencia(mes);
-  const av = d.avisos.filter(a => a.curp === al.curp).sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora)).slice(0, 5);
+  const conAlumno = ses.rol === 'alumno' || ses.rol === 'tutor';
+  if (!ses.nombre || (conAlumno && !al)) return <Sin />;
+  const rs = al ? d.asistencias.filter(a => a.curp === al.curp) : [];
+  const mes = rs.filter(a => a.fecha.startsWith(hoyISO().slice(0, 7))), r = resumenAsistencia(mes);
+  const av = al ? d.avisos.filter(a => a.curp === al.curp).sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora)).slice(0, 5) : [];
+  const nombre = ses.rol === 'alumno' && al ? al.nombre : ses.nombre;
   return (<>
-    <Hero titulo={`Hola, ${ses.nombre.split(' ')[0]}`} sub={ses.rol === 'tutor' ? `Alumno: ${al.nombre} · ${al.semestre} ${al.area} ${al.grupo}` : `${al.area} · ${al.semestre} · Grupo ${al.grupo}`} />
-    <Card title="Conoce tu plataforma escolar">
-      <p className="sub">Te mostraremos cómo utilizar las herramientas de SHARK DARK.</p>
-      <details className="tutorial-box">
-        <summary className="tutorial-play"><span>▶</span>Ver tutorial<br/><small style={{fontWeight:400}}>Presiona para abrir el video</small></summary>
-        <video className="tutorial-video" controls preload="none" playsInline>
-          <source src="tutorial.mp4" type="video/mp4" />
-          Tu navegador no puede reproducir este video.
-        </video>
-        <p className="tutorial-note">El video se agregará después como public/tutorial.mp4.</p>
-      </details>
-    </Card>
-    <ClaseAhora bl={conDescanso(delGrupo(bl, al))} />
-    <Card title="Este mes"><div className="stats">
-      <div><div className="num">{r.asist}</div><small className="vacio">Asistencias</small></div>
-      <div><div className="num rojo">{r.falt}</div><small className="vacio">Faltas</small></div>
-      <div><div className="num">{r.just}</div><small className="vacio">Justificadas</small></div></div></Card>
-    <Card title="Mis faltas (fecha, horario y materia)"><ListaFaltas rs={rs} /></Card>
-    {ses.rol === 'tutor' && <Card title="Avisos de asistencia"><ul className="l">{av.map(a => <li key={a.id}><span>{a.texto}</span><span>{fmtF(a.fecha)}</span></li>)}{!av.length && <li className="vacio">Sin avisos</li>}</ul></Card>}
-    {ses.rol === 'alumno' && <button className="btn sec" onClick={() => SD.permisoAvisos()}>Activar avisos en este teléfono</button>}
+    <Hero titulo={`Hola, ${nombre}`} sub="Bienvenido a SHARK DARK. Estamos a tus servicios." />
+    <img className="bienvenida-logo" src="img/tiburon.png" alt="Logo de SHARK DARK CBTIS 170" />
+    <Tutorial rol={ses.rol} />
+    {conAlumno && al && <>
+      <ClaseAhora bl={conDescanso(delGrupo(bl, al))} />
+      <Card title="Este mes"><div className="stats">
+        <div><div className="num">{r.asist}</div><small className="vacio">Asistencias</small></div>
+        <div><div className="num rojo">{r.falt}</div><small className="vacio">Faltas</small></div>
+        <div><div className="num">{r.just}</div><small className="vacio">Justificadas</small></div></div></Card>
+      <Card title="Mis faltas (fecha, horario y materia)"><ListaFaltas rs={rs} /></Card>
+      {ses.rol === 'tutor' && <Card title="Avisos de asistencia"><ul className="l">{av.map(a => <li key={a.id}><span>{a.texto}</span><span>{fmtF(a.fecha)}</span></li>)}{!av.length && <li className="vacio">Sin avisos</li>}</ul></Card>}
+    </>}
+    <BotonAvisos />
   </>);
 }
 

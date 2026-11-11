@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360">
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#292319"/><stop offset="1" stop-color="#090909"/></linearGradient></defs>
+  <rect width="720" height="360" rx="24" fill="url(#bg)"/><text x="36" y="46" fill="#E4C58A" font-family="Arial,sans-serif" font-size="16" letter-spacing="3">SHARK DARK · 01</text>
+  <text x="36" y="96" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="32" font-weight="700">Tu punto de partida</text>
+  <rect x="36" y="126" width="648" height="78" rx="16" fill="#171614" stroke="#6D5835"/><text x="58" y="160" fill="#E4C58A" font-family="Arial,sans-serif" font-size="19" font-weight="700">Hola, alumno</text><text x="58" y="186" fill="#B7AA96" font-family="Arial,sans-serif" font-size="15">Bienvenido a tu portal escolar</text>
+  <rect x="36" y="222" width="198" height="98" rx="14" fill="#211E19"/><rect x="250" y="222" width="198" height="98" rx="14" fill="#211E19"/><rect x="464" y="222" width="220" height="98" rx="14" fill="#211E19"/>
+  <text x="54" y="257" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">CLASE DE AHORA</text><text x="54" y="296" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="18">Materia · horario</text>
+  <text x="268" y="257" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">ESTE MES</text><text x="268" y="296" fill="#E4C58A" font-family="Arial,sans-serif" font-size="18">Asistencias</text>
+  <text x="482" y="257" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">TUS REGISTROS</text><text x="482" y="296" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="18">Faltas y justificantes</text>
+</svg>

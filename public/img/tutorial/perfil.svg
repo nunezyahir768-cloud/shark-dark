@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360">
+  <rect width="720" height="360" rx="24" fill="#100F0D"/><text x="36" y="46" fill="#E4C58A" font-family="Arial,sans-serif" font-size="16" letter-spacing="3">SHARK DARK · 02</text>
+  <text x="36" y="96" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="32" font-weight="700">Tus datos, siempre a la mano</text>
+  <rect x="36" y="122" width="410" height="202" rx="18" fill="#171614" stroke="#6D5835"/><circle cx="83" cy="174" r="25" fill="#3B3020"/><circle cx="83" cy="165" r="8" fill="#E4C58A"/><path d="M66 189q17-22 34 0" fill="#E4C58A"/>
+  <text x="124" y="162" fill="#E4C58A" font-family="Arial,sans-serif" font-size="18" font-weight="700">Mi perfil</text><text x="62" y="228" fill="#B7AA96" font-family="Arial,sans-serif" font-size="15">Nombre · CURP</text><text x="62" y="260" fill="#B7AA96" font-family="Arial,sans-serif" font-size="15">Carrera · semestre · grupo</text><text x="62" y="295" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="14">Consulta también tus tutores</text>
+  <rect x="478" y="122" width="206" height="202" rx="18" fill="#211E19" stroke="#6D5835"/><rect x="521" y="158" width="120" height="120" rx="8" fill="#F5F1E6"/>
+  <path d="M533 170h30v30h-30zm48 0h18v18h-18zm35 0h15v30h-15zM533 211h17v17h-17zm28 0h14v14h-14zm25 0h18v18h-18zm-53 34h30v22h-30zm42-8h14v30h-14zm28 5h20v25h-20z" fill="#171614"/>
+  <text x="542" y="302" fill="#E4C58A" font-family="Arial,sans-serif" font-size="14">Mi código QR</text>
+</svg>

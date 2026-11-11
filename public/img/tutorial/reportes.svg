@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360">
+  <rect width="720" height="360" rx="24" fill="#100F0D"/><text x="36" y="46" fill="#E4C58A" font-family="Arial,sans-serif" font-size="16" letter-spacing="3">SHARK DARK · 08</text>
+  <text x="36" y="96" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="32" font-weight="700">Tu progreso, resumido</text>
+  <rect x="36" y="122" width="648" height="202" rx="18" fill="#171614" stroke="#6D5835"/><text x="62" y="158" fill="#E4C58A" font-family="Arial,sans-serif" font-size="17" font-weight="700">Resumen por materia</text>
+  <text x="64" y="202" fill="#B7AA96" font-family="Arial,sans-serif" font-size="13">MATERIA</text><text x="332" y="202" fill="#B7AA96" font-family="Arial,sans-serif" font-size="13">ASISTENCIA</text><text x="474" y="202" fill="#B7AA96" font-family="Arial,sans-serif" font-size="13">FALTAS</text><text x="580" y="202" fill="#B7AA96" font-family="Arial,sans-serif" font-size="13">PROM.</text>
+  <path d="M62 214h596M62 254h596" stroke="#514633"/><text x="64" y="242" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="14">Materia 1</text><text x="350" y="242" fill="#E4C58A" font-family="Arial,sans-serif" font-size="14">95%</text><text x="486" y="242" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="14">1</text><text x="594" y="242" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="14">8.5</text>
+  <rect x="62" y="270" width="596" height="38" rx="10" fill="#292319"/><text x="84" y="295" fill="#E4C58A" font-family="Arial,sans-serif" font-size="14">Imprime tu reporte cuando lo necesites</text>
+</svg>

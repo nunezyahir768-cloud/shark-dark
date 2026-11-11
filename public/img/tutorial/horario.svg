@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360">
+  <rect width="720" height="360" rx="24" fill="#100F0D"/><text x="36" y="46" fill="#E4C58A" font-family="Arial,sans-serif" font-size="16" letter-spacing="3">SHARK DARK · 04</text>
+  <text x="36" y="96" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="32" font-weight="700">Organiza tu día</text>
+  <rect x="36" y="122" width="648" height="202" rx="18" fill="#171614" stroke="#6D5835"/>
+  <rect x="62" y="144" width="596" height="40" rx="12" fill="#211E19"/><text x="82" y="170" fill="#E4C58A" font-family="Arial,sans-serif" font-size="15" font-weight="700">LUN</text><text x="188" y="170" fill="#B7AA96" font-family="Arial,sans-serif" font-size="15">MAR</text><text x="294" y="170" fill="#B7AA96" font-family="Arial,sans-serif" font-size="15">MIÉ</text><text x="400" y="170" fill="#B7AA96" font-family="Arial,sans-serif" font-size="15">JUE</text><text x="506" y="170" fill="#B7AA96" font-family="Arial,sans-serif" font-size="15">VIE</text>
+  <rect x="62" y="202" width="596" height="48" rx="10" fill="#292319"/><text x="82" y="232" fill="#E4C58A" font-family="Arial,sans-serif" font-size="15">08:00 – 09:30</text><text x="256" y="232" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="16">Materia · Aula</text>
+  <rect x="62" y="260" width="596" height="42" rx="10" fill="#211E19"/><text x="82" y="287" fill="#B7AA96" font-family="Arial,sans-serif" font-size="15">09:30 – 10:00</text><text x="256" y="287" fill="#E4C58A" font-family="Arial,sans-serif" font-size="15">Descanso</text>
+</svg>

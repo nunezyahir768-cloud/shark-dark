@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360">
+  <rect width="720" height="360" rx="24" fill="#100F0D"/><text x="36" y="46" fill="#E4C58A" font-family="Arial,sans-serif" font-size="16" letter-spacing="3">SHARK DARK · ADMINISTRACIÓN</text>
+  <text x="36" y="96" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="32" font-weight="700">Registra asistencia con QR</text>
+  <rect x="36" y="122" width="648" height="202" rx="18" fill="#171614" stroke="#6D5835"/>
+  <rect x="70" y="150" width="162" height="142" rx="12" fill="#F5F1E6"/>
+  <path d="M84 164h38v38H84zm59 0h24v24h-24zm42 0h32v38h-32zM84 217h23v23H84zm40 0h22v22h-22zm41 0h23v23h-23zm-81 42h38v20H84zm53-9h22v29h-22zm43 0h29v29h-29z" fill="#171614"/>
+  <path d="M280 158v126m0-126h76m-76 126h76m52-126v126m0-126h76m-76 126h76" fill="none" stroke="#E4C58A" stroke-width="7" stroke-linecap="round"/>
+  <text x="470" y="196" fill="#E4C58A" font-family="Arial,sans-serif" font-size="18" font-weight="700">Escáner</text><text x="470" y="226" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">Usa la cámara para leer</text><text x="470" y="248" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">el QR del alumno.</text>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360">
+  <rect width="720" height="360" rx="24" fill="#100F0D"/><text x="36" y="46" fill="#E4C58A" font-family="Arial,sans-serif" font-size="16" letter-spacing="3">SHARK DARK · ADMINISTRACIÓN</text>
+  <text x="36" y="96" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="32" font-weight="700">Administra las cuentas</text>
+  <rect x="36" y="122" width="648" height="202" rx="18" fill="#171614" stroke="#6D5835"/><rect x="62" y="146" width="596" height="42" rx="10" fill="#292319"/>
+  <text x="84" y="173" fill="#E4C58A" font-family="Arial,sans-serif" font-size="15" font-weight="700">Crear cuenta</text><text x="250" y="173" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">Alumno · Tutor · Docente</text>
+  <circle cx="92" cy="228" r="15" fill="#3B3020"/><circle cx="92" cy="222" r="5" fill="#E4C58A"/><path d="M82 239q10-14 20 0" fill="#E4C58A"/>
+  <text x="124" y="226" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="15">Nombre y CURP</text><text x="124" y="250" fill="#B7AA96" font-family="Arial,sans-serif" font-size="13">Busca y administra cuentas existentes</text>
+  <rect x="62" y="272" width="596" height="30" rx="8" fill="#211E19"/><text x="84" y="292" fill="#E4C58A" font-family="Arial,sans-serif" font-size="13">Vincula alumnos con sus tutores</text>
+</svg>

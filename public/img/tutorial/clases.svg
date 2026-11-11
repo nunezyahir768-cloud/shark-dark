@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360">
+  <rect width="720" height="360" rx="24" fill="#100F0D"/><text x="36" y="46" fill="#E4C58A" font-family="Arial,sans-serif" font-size="16" letter-spacing="3">SHARK DARK · ADMINISTRACIÓN</text>
+  <text x="36" y="96" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="32" font-weight="700">Configura las materias</text>
+  <rect x="36" y="122" width="648" height="202" rx="18" fill="#171614" stroke="#6D5835"/>
+  <rect x="62" y="150" width="596" height="46" rx="10" fill="#292319"/><text x="84" y="179" fill="#E4C58A" font-family="Arial,sans-serif" font-size="14" font-weight="700">MATERIA</text><text x="292" y="179" fill="#E4C58A" font-family="Arial,sans-serif" font-size="14" font-weight="700">GRUPO</text><text x="474" y="179" fill="#E4C58A" font-family="Arial,sans-serif" font-size="14" font-weight="700">DOCENTE</text>
+  <path d="M62 214h596M62 258h596M62 302h596" stroke="#514633"/>
+  <text x="84" y="240" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="14">Matemáticas</text><text x="292" y="240" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">3.º A</text><text x="474" y="240" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">Docente asignado</text>
+  <text x="84" y="284" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="14">Programación</text><text x="292" y="284" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">5.º B</text><text x="474" y="284" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">Docente asignado</text>
+</svg>

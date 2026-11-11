@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360">
+  <rect width="720" height="360" rx="24" fill="#100F0D"/><text x="36" y="46" fill="#E4C58A" font-family="Arial,sans-serif" font-size="16" letter-spacing="3">SHARK DARK · ADMINISTRACIÓN</text>
+  <text x="36" y="96" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="32" font-weight="700">Organiza los grupos</text>
+  <rect x="36" y="122" width="648" height="202" rx="18" fill="#171614" stroke="#6D5835"/>
+  <rect x="62" y="152" width="178" height="138" rx="16" fill="#211E19"/><rect x="271" y="152" width="178" height="138" rx="16" fill="#211E19"/><rect x="480" y="152" width="178" height="138" rx="16" fill="#211E19"/>
+  <circle cx="151" cy="192" r="17" fill="#3B3020"/><circle cx="360" cy="192" r="17" fill="#3B3020"/><circle cx="569" cy="192" r="17" fill="#3B3020"/>
+  <path d="M119 240q32-43 64 0m145 0q32-43 64 0m145 0q32-43 64 0" fill="none" stroke="#E4C58A" stroke-width="5"/>
+  <text x="112" y="272" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="15">Grupo A</text><text x="321" y="272" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="15">Grupo B</text><text x="530" y="272" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="15">Grupo C</text>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360">
+  <rect width="720" height="360" rx="24" fill="#100F0D"/><text x="36" y="46" fill="#E4C58A" font-family="Arial,sans-serif" font-size="16" letter-spacing="3">SHARK DARK · 03</text>
+  <text x="36" y="96" fill="#F5F1E6" font-family="Arial,sans-serif" font-size="32" font-weight="700">Revisa tu asistencia</text>
+  <rect x="36" y="122" width="648" height="202" rx="18" fill="#171614" stroke="#6D5835"/><text x="62" y="160" fill="#E4C58A" font-family="Arial,sans-serif" font-size="18" font-weight="700">Resumen general</text>
+  <rect x="62" y="180" width="170" height="104" rx="14" fill="#211E19"/><rect x="274" y="180" width="170" height="104" rx="14" fill="#211E19"/><rect x="486" y="180" width="170" height="104" rx="14" fill="#211E19"/>
+  <text x="84" y="220" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">ASISTENCIAS</text><text x="84" y="263" fill="#E4C58A" font-family="Arial,sans-serif" font-size="30" font-weight="700">✓</text>
+  <text x="296" y="220" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">FALTAS</text><text x="296" y="263" fill="#E58A80" font-family="Arial,sans-serif" font-size="30" font-weight="700">×</text>
+  <text x="508" y="220" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">JUSTIFICADAS</text><text x="508" y="263" fill="#E4C58A" font-family="Arial,sans-serif" font-size="30" font-weight="700">J</text>
+  <text x="62" y="306" fill="#B7AA96" font-family="Arial,sans-serif" font-size="14">Puedes filtrar tus registros por materia.</text>
+</svg>
