@@ -54,7 +54,7 @@ function Tutorial({ rol }) {
   return <Card title="Tutorial de la plataforma">
     <div className="tutorial-cta">
       <div>
-        <p className="sub">Explora las secciones del menú y descubre qué puedes hacer en cada una.</p>
+        <p className="sub">Esta guía se adapta a tu tipo de cuenta. Pulsa “Ver tutorial” y usa Anterior o Siguiente para recorrer cada sección.</p>
       </div>
       <button className="btn tutorial-btn" type="button" onClick={() => { setIndice(0); setAbierto(true); }}>
         Ver tutorial
@@ -66,19 +66,19 @@ function Tutorial({ rol }) {
         <div className="tutorial-modal" role="dialog" aria-modal="true" aria-label="Tutorial de la plataforma" onClick={e => e.stopPropagation()}>
           <div className="tutorial-header">
             <div>
-              <p className="tutorial-kicker">Guía rápida</p>
+              <p className="tutorial-kicker">Guía para {rol === 'admin' ? 'administrador' : rol}</p>
               <h3>{paso.titulo}</h3>
             </div>
             <button className="tutorial-close" type="button" aria-label="Cerrar tutorial" onClick={() => setAbierto(false)}>×</button>
           </div>
 
           <div className="tutorial-visual">
-            <img className="tutorial-imagen" src={`img/tutorial/${paso.imagen}.svg`} alt={`Ilustración de la sección ${paso.titulo}`} />
+            <img className="tutorial-imagen" src={`img/tutorial/${paso.imagen}.svg`} alt={`Pantalla ilustrativa de la sección ${paso.titulo}`} />
             <span className="tutorial-callout">{paso.titulo}</span>
           </div>
 
           <div className="tutorial-body">
-            <p className="tutorial-counter">{indice + 1} / {pasos.length}</p>
+            <p className="tutorial-counter">Paso {indice + 1} de {pasos.length}</p>
             <p className="sub">{paso.texto}</p>
           </div>
 
