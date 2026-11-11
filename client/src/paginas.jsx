@@ -46,24 +46,57 @@ const TUTORIALES = {
 
 function Tutorial({ rol }) {
   const pasos = TUTORIALES[rol] || TUTORIALES.alumno;
-  const [indice, setIndice] = useState(0), paso = pasos[indice];
+  const [indice, setIndice] = useState(0);
+  const [abierto, setAbierto] = useState(false);
+  const paso = pasos[indice];
   const cambiar = delta => setIndice(i => (i + delta + pasos.length) % pasos.length);
+
   return <Card title="Tutorial de la plataforma">
-    <p className="sub">Explora las secciones del menú y descubre qué puedes hacer en cada una.</p>
-    <div className="tutorial">
-      <img className="tutorial-imagen" src={`img/tutorial/${paso.imagen}.svg`} alt={`Ilustración de la sección ${paso.titulo}`} />
-      <div className="tutorial-pie">
-        <div><b>{paso.titulo}</b><p className="sub">{paso.texto}</p></div>
-        <span className="tutorial-contador">{indice + 1} / {pasos.length}</span>
+    <div className="tutorial-cta">
+      <div>
+        <p className="sub">Explora las secciones del menú y descubre qué puedes hacer en cada una.</p>
       </div>
-      <div className="tutorial-controles">
-        <button className="btn sec" type="button" onClick={() => cambiar(-1)} aria-label="Imagen anterior">← Anterior</button>
-        <div className="tutorial-puntos" aria-label={`Imagen ${indice + 1} de ${pasos.length}`}>
-          {pasos.map((x, i) => <button key={x.titulo} type="button" className={i === indice ? 'activo' : ''} onClick={() => setIndice(i)} aria-label={`Ver tutorial: ${x.titulo}`} aria-current={i === indice ? 'step' : undefined} />)}
-        </div>
-        <button className="btn sec" type="button" onClick={() => cambiar(1)} aria-label="Imagen siguiente">Siguiente →</button>
-      </div>
+      <button className="btn tutorial-btn" type="button" onClick={() => { setIndice(0); setAbierto(true); }}>
+        Ver tutorial
+      </button>
     </div>
+
+    {abierto && (
+      <div className="tutorial-overlay" onClick={() => setAbierto(false)}>
+        <div className="tutorial-modal" role="dialog" aria-modal="true" aria-label="Tutorial de la plataforma" onClick={e => e.stopPropagation()}>
+          <div className="tutorial-header">
+            <div>
+              <p className="tutorial-kicker">Guía rápida</p>
+              <h3>{paso.titulo}</h3>
+            </div>
+            <button className="tutorial-close" type="button" aria-label="Cerrar tutorial" onClick={() => setAbierto(false)}>×</button>
+          </div>
+
+          <div className="tutorial-visual">
+            <img className="tutorial-imagen" src={`img/tutorial/${paso.imagen}.svg`} alt={`Ilustración de la sección ${paso.titulo}`} />
+            <span className="tutorial-callout">{paso.titulo}</span>
+          </div>
+
+          <div className="tutorial-body">
+            <p className="tutorial-counter">{indice + 1} / {pasos.length}</p>
+            <p className="sub">{paso.texto}</p>
+          </div>
+
+          <div className="tutorial-controles">
+            <button className="btn sec tutorial-nav" type="button" onClick={() => cambiar(-1)} aria-label="Tutorial anterior">Anterior</button>
+            <div className="tutorial-puntos" aria-label={`Imagen ${indice + 1} de ${pasos.length}`}>
+              {pasos.map((x, i) => <button key={x.titulo} type="button" className={i === indice ? 'activo' : ''} onClick={() => setIndice(i)} aria-label={`Ver tutorial: ${x.titulo}`} aria-current={i === indice ? 'step' : undefined} />)}
+            </div>
+            <button className="btn tutorial-nav" type="button" onClick={() => {
+              if (indice === pasos.length - 1) setAbierto(false);
+              else cambiar(1);
+            }} aria-label="Tutorial siguiente">
+              {indice === pasos.length - 1 ? 'Cerrar' : 'Siguiente'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   </Card>;
 }
 
