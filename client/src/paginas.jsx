@@ -6,7 +6,7 @@ const Sin = () => <Card><p className="vacio">No tienes un alumno vinculado. Pide
 
 const TUTORIALES = {
   alumno: [
-  { titulo: 'Inicio', texto: 'Consulta tu clase actual, el resumen de asistencias del mes y tus faltas.', imagen: 'inicio' },
+  { titulo: 'Inicio', texto: 'Consulta tu clase actual y la siguiente. Explora el menú para conocer las demás secciones.', imagen: 'inicio' },
   { titulo: 'Perfil', texto: 'Revisa tus datos escolares, muestra tu código QR y consulta tus tutores.', imagen: 'perfil' },
   { titulo: 'Asistencia', texto: 'Consulta tus asistencias, faltas y justificantes, también por materia.', imagen: 'asistencia' },
   { titulo: 'Horario', texto: 'Revisa tus clases por día, con sus horas y materias.', imagen: 'horario' },
@@ -123,7 +123,8 @@ export function Inicio() {
     <Hero titulo={`Hola, ${nombre}`} sub="Bienvenido a SHARK DARK. Estamos a tus servicios." />
     <img className="bienvenida-logo" src="img/tiburon.png" alt="Logo de SHARK DARK CBTIS 170" />
     <Tutorial rol={ses.rol} />
-    {conAlumno && al && <>
+    {ses.rol === 'alumno' && al && <ClaseAhora bl={conDescanso(delGrupo(bl, al))} />}
+    {ses.rol === 'tutor' && al && <>
       <ClaseAhora bl={conDescanso(delGrupo(bl, al))} />
       <Card title="Este mes"><div className="stats">
         <div><div className="num">{r.asist}</div><small className="vacio">Asistencias</small></div>
@@ -132,7 +133,7 @@ export function Inicio() {
       <Card title="Mis faltas (fecha, horario y materia)"><ListaFaltas rs={rs} /></Card>
       {ses.rol === 'tutor' && <Card title="Avisos de asistencia"><ul className="l">{av.map(a => <li key={a.id}><span>{a.texto}</span><span>{fmtF(a.fecha)}</span></li>)}{!av.length && <li className="vacio">Sin avisos</li>}</ul></Card>}
     </>}
-    <BotonAvisos />
+    {ses.rol !== 'alumno' && <BotonAvisos />}
   </>);
 }
 
@@ -269,16 +270,21 @@ export function Avisos() {
 export function ReporteVer() {
   const al = useAlumno(), d = useDatos(), [notas] = useCached('calif', '/api/calificaciones');
   if (!al) return <Sin />;
-  const rs = d.asistencias.filter(a => a.curp === al.curp), mats = [...new Set([...rs.map(a => a.materia), ...(notas || []).filter(n => n.curp === al.curp).map(n => n.materia)].filter(Boolean))].sort();
+  const rs = d.asistencias.filter(a => a.curp === al.curp), califs = (notas || []).filter(n => n.curp === al.curp);
+  const mats = [...new Set([...rs.map(a => a.materia), ...califs.map(n => n.materia)].filter(Boolean))].sort();
+  if (!mats.length) return <Card><p className="vacio reporte-vacio">Aún no tienes reportes, ¡sigue así!</p></Card>;
   const g = resumenAsistencia(rs);
   return (<>
-    <Hero titulo="Reportes" sub={`${al.nombre} · solo consulta`} />
-    <Card title="Resumen por materia"><div className="tabla"><table className="tb"><thead><tr><th className="izq">Materia</th><th>Asistencia</th><th>Faltas</th><th>Promedio</th></tr></thead>
-      <tbody>{mats.map(m => { const r = resumenAsistencia(rs.filter(a => a.materia === m)), n = (notas || []).filter(x => x.curp === al.curp && x.materia === m).map(x => x.nota), p = n.length ? (n.reduce((a, b) => a + b, 0) / n.length).toFixed(1) : '–';
-        return <tr key={m}><td className="izq">{m}</td><td>{r.pct}%</td><td>{r.falt}</td><td>{p}</td></tr>; })}
-        {!mats.length && <tr><td className="izq" colSpan="4">Aún no hay información</td></tr>}</tbody></table></div></Card>
-    <Card title="Asistencia general"><div className="num">{g.pct}<small>%</small></div></Card>
-    <button className="btn sec" onClick={() => window.print()}>Imprimir reporte</button>
+    <Card title="Reporte escolar">
+      <div className="tabla"><table className="tb"><thead><tr><th className="izq">Materia</th><th>Asistencia</th><th>Faltas</th><th>Promedio</th></tr></thead>
+        <tbody>{mats.map(m => {
+          const asistencias = rs.filter(a => a.materia === m), r = resumenAsistencia(asistencias);
+          const n = califs.filter(x => x.materia === m).map(x => x.nota), p = n.length ? (n.reduce((a, b) => a + b, 0) / n.length).toFixed(1) : '–';
+          return <tr key={m}><td className="izq">{m}</td><td>{asistencias.length ? `${r.pct}%` : '–'}</td><td>{asistencias.length ? r.falt : '–'}</td><td>{p}</td></tr>;
+        })}</tbody></table></div>
+      {rs.length > 0 && <p className="reporte-general">Asistencia general: <b>{g.pct}%</b></p>}
+      <button className="btn sec" onClick={() => window.print()}>Imprimir reporte</button>
+    </Card>
   </>);
 }
 
