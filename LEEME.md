@@ -68,20 +68,22 @@ Render detecta el cambio solo y publica la nueva versión en unos minutos.
   - `MONGODB_URI` → la dirección de tu Atlas (con tu clave). El servidor selecciona la base `SHARK-DARK`.
   - `TOKEN_SECRET` → una frase larga y secreta
   - `ADMIN_CURP` → la CURP de Servicios Escolares (18 caracteres)
-  - `ADMIN_INITIAL_PASSWORD` → contraseña inicial heredada de Servicios Escolares (10+ caracteres)
-  - `ADMIN_ACCESS_PASSWORD` → contraseña de acceso del rol Administrador (por defecto `admin170`; cámbiala en producción)
+  - `ADMIN_INITIAL_PASSWORD` → contraseña temporal de la cuenta de Control Escolar (10+ caracteres; solo se necesita para crearla la primera vez)
 - Ya NO se usan `ADMIN_PASSWORD`, `ADMIN_RFC`, `CODIGO_DOCENTE` ni `CODIGO_ADMIN`: puedes borrarlas.
 
 ## Inicio de sesión y contraseñas
 
 - Alumnos, tutores y docentes entran con **tipo de cuenta + CURP + contraseña**.
+- Control Escolar tiene una entrada independiente en **`/control-escolar`** y autentica la CURP y contraseña de la cuenta de administrador registrada en MongoDB. El rol no se concede por visitar la ruta; el servidor firma una sesión administrativa solo después de comprobar esa cuenta.
 - El administrador da de alta primero al alumno. El alumno activa su cuenta en el inicio con CURP, nombre registrado y una contraseña propia (mínimo 10 caracteres). Solo puede hacerlo una vez mientras la cuenta esté pendiente de activación.
 - La contraseña se guarda protegida con `scrypt`, nunca en texto plano. Alumnos pueden usar la misma CURP y contraseña en otros dispositivos conectados a internet.
-- **Servicios Escolares** selecciona el tipo de cuenta **Administrador** e ingresa la contraseña configurada en `ADMIN_ACCESS_PASSWORD` (por defecto `admin170`). Cambia ese valor en las variables de entorno de Render por una contraseña larga y privada antes de publicar.
-- `ADMIN_INITIAL_PASSWORD` sigue siendo útil para inicializar la cuenta administrativa heredada que entra como docente mediante su CURP; el nuevo acceso Administrador es independiente.
+- En el primer inicio, `ADMIN_INITIAL_PASSWORD` crea la cuenta asociada a `ADMIN_CURP` y obliga a cambiar la contraseña. Después, se inicia desde `/control-escolar` con esa CURP y la contraseña personal. Ya no se utiliza una contraseña administrativa compartida ni el acceso de administrador como docente.
+- Si la instalación anterior solo usaba `ADMIN_ACCESS_PASSWORD` y aún no tenía una cuenta administrativa guardada, configura `ADMIN_INITIAL_PASSWORD` (10+ caracteres) y `ADMIN_CURP` para inicializarla antes de usar la nueva entrada. La antigua variable `ADMIN_ACCESS_PASSWORD` ya no otorga acceso.
 - Si alguien olvida su contraseña, envía una solicitud desde el inicio de sesión. Administración la revisa en **Cuentas → Solicitudes de restablecimiento**, verifica la identidad y genera una contraseña temporal.
 - La contraseña temporal se muestra una sola vez al administrador. Debe entregarse al titular por un canal privado; al entrar tendrá que crear otra.
 - Las solicitudes no revelan si una CURP existe y tienen limitación de frecuencia.
+
+Control Escolar tiene su propio menú de cuentas, grupos, materias, horarios, permisos, avisos, reportes e historial. Los avisos pueden marcarse como revisados; los cambios administrativos relevantes quedan registrados con responsable y fecha. Los reportes permiten elegir grupo, materia y periodo, e imprimir o exportar a Excel.
 
 Orden recomendado para empezar:
 1. **Cuentas** → crea docentes, tutores y alumnos (el alumno lleva semestre, área y grupo A, B o C; el grupo se crea solo)
@@ -111,7 +113,11 @@ Orden recomendado para empezar:
 
 - El logo dorado/negro de `public/img/tiburon.png` se usa en la animación de entrada.
 - Los iconos instalables del teléfono están en `public/icon-192.png` y `public/icon-512.png`.
-- La interfaz usa negro, dorado champagne y crema.
+- SHARK DARK tiene una interfaz moderna, elegante y profesional, con una identidad visual de tonos oscuros y detalles dorados.
+- La paleta oficial combina negro profundo (`#090909`), negro carbón (`#171614`), dorado champagne (`#C9A86A`), dorado claro (`#E4C58A`), crema claro (`#F5F1E6`), beige grisáceo (`#B7AA96`), verde suave (`#8DBB91`) y rojo suave (`#E58A80`).
+- Las tarjetas oscuras tienen esquinas redondeadas y bordes dorados discretos; los botones usan un degradado dorado; y los menús se adaptan a computadoras, tabletas y celulares. Los formularios usan campos oscuros y bordes discretos.
+- La tipografía sans-serif mantiene una lectura limpia y consistente. El fondo incorpora sutiles formas inspiradas en hojas oscuras.
+- Esta identidad busca transmitir innovación, confianza, organización y modernidad en el entorno educativo.
 - En Inicio aparece el apartado **Conoce tu plataforma escolar**. Cuando tengas tu video, guárdalo con el nombre `tutorial.mp4` dentro de `public/`. La ruta debe quedar `public/tutorial.mp4`; después ejecuta `npm run build` y sube los cambios.
 - El horario permite elegir el día y muestra cada materia en una tarjeta con docente, salón y horas. Los datos reales siguen dependiendo de lo que capture Servicios Escolares.
 
@@ -121,4 +127,4 @@ Orden recomendado para empezar:
 - Servicios Escolares primero da de alta al alumno con su nombre y CURP.
 - En la pantalla de entrada, el alumno elige **¿Primera vez? Crea tu contraseña**, escribe CURP, nombre exactamente como quedó registrado y crea una contraseña de al menos 10 caracteres.
 - La contraseña se guarda en MongoDB como hash con salt; no se almacena en texto plano. Después puede entrar en cualquier dispositivo con CURP y contraseña.
-- El administrador elige **Administrador** y usa la contraseña `admin170`. En producción se recomienda cambiar `ADMIN_ACCESS_PASSWORD` en las variables de entorno de Render por una contraseña larga y privada.
+- Control Escolar entra en `/control-escolar` con la CURP definida en `ADMIN_CURP` y la contraseña personal de su cuenta. Al crear la cuenta por primera vez, usa `ADMIN_INITIAL_PASSWORD` como contraseña temporal y cámbiala al iniciar sesión.

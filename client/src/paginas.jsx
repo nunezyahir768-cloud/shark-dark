@@ -73,7 +73,7 @@ function Tutorial({ rol }) {
           </div>
 
           <div className="tutorial-visual">
-            <img className="tutorial-imagen" src={`img/tutorial/${paso.imagen}.svg`} alt={`Pantalla ilustrativa de la sección ${paso.titulo}`} />
+            <img className="tutorial-imagen" src={`/img/tutorial/${paso.imagen}.svg`} alt={`Pantalla ilustrativa de la sección ${paso.titulo}`} />
             <span className="tutorial-callout">{paso.titulo}</span>
           </div>
 
@@ -145,7 +145,7 @@ export function ClaseAhora({ bl }) {
 }
 
 export function Inicio() {
-  const al = useAlumno(), ses = SD.session() || {}, d = useDatos(), [bl] = useCached('horario', '/api/horarios');
+  const al = useAlumno(), ses = SD.session() || {}, d = useDatos(), [bl] = useCached('horario', '/api/horarios'), [clases] = useCached('clases', '/api/clases');
   const conAlumno = ses.rol === 'alumno' || ses.rol === 'tutor';
   if (!ses.nombre || (conAlumno && !al)) return <Sin />;
   const rs = al ? d.asistencias.filter(a => a.curp === al.curp) : [];
@@ -154,9 +154,14 @@ export function Inicio() {
   const nombre = ses.rol === 'alumno' && al ? al.nombre : ses.nombre;
   return (<>
     <Hero titulo={`Hola, ${nombre}`} sub="Bienvenido a SHARK DARK. Estamos a tus servicios." />
-    <img className="bienvenida-logo" src="img/tiburon.png" alt="Logo de SHARK DARK CBTIS 170" />
+    <img className="bienvenida-logo" src="/img/tiburon.png" alt="Logo de SHARK DARK CBTIS 170" />
     <Tutorial rol={ses.rol} />
     {ses.rol === 'alumno' && al && <ClaseAhora bl={conDescanso(delGrupo(bl, al))} />}
+    {ses.rol === 'alumno' && al && <Card title="Este mes"><div className="stats">
+      <div><div className="num">{r.asist}</div><small className="vacio">Asistencias</small></div>
+      <div><div className="num rojo">{r.falt}</div><small className="vacio">Faltas</small></div>
+      <div><div className="num">{r.just}</div><small className="vacio">Justificadas</small></div>
+    </div><div className="inicio-accesos"><a href="#/asistencia">Ver asistencia</a><a href="#/horario">Consultar horario</a><a href="#/avisos">Ver avisos</a></div></Card>}
     {ses.rol === 'tutor' && al && <>
       <ClaseAhora bl={conDescanso(delGrupo(bl, al))} />
       <Card title="Este mes"><div className="stats">
@@ -165,6 +170,11 @@ export function Inicio() {
         <div><div className="num">{r.just}</div><small className="vacio">Justificadas</small></div></div></Card>
       <Card title="Mis faltas (fecha, horario y materia)"><ListaFaltas rs={rs} /></Card>
       {ses.rol === 'tutor' && <Card title="Avisos de asistencia"><ul className="l">{av.map(a => <li key={a.id}><span>{a.texto}</span><span>{fmtF(a.fecha)}</span></li>)}{!av.length && <li className="vacio">Sin avisos</li>}</ul></Card>}
+    </>}
+    {ses.rol === 'docente' && <>
+      <Card title="Accesos rápidos"><div className="inicio-accesos"><a href="#/asistencia">Registrar asistencia</a><a href="#/calificaciones">Capturar calificaciones</a><a href="#/reportes">Consultar reportes</a></div></Card>
+      <Card title="Mis grupos"><ul className="l">{[...new Map((clases || []).map(c => [`${c.semestre}|${c.area}|${c.grupo}`, c])).values()].sort((a, b) => (a.semestre + a.area + a.grupo).localeCompare(b.semestre + b.area + b.grupo)).map(c => <li key={`${c.semestre}|${c.area}|${c.grupo}`}><span>{c.semestre} · {c.area} · Grupo {c.grupo}</span><span>{(clases || []).filter(x => x.semestre === c.semestre && x.area === c.area && x.grupo === c.grupo).length} materias</span></li>)}
+        {!(clases || []).length && <li className="vacio">No tienes grupos asignados.</li>}</ul></Card>
     </>}
     {ses.rol !== 'alumno' && <BotonAvisos />}
   </>);
@@ -261,7 +271,7 @@ export function Permisos() {
   const rol = SD.session().rol, al = useAlumno(), [lista, cargar] = useCached('permisos', '/api/permisos'), [b, ban] = useBanner();
   const [f, setF] = useState({ desde: hoyISO(), hasta: hoyISO(), motivo: '' });
   const enviar = async e => { e.preventDefault(); try { await post('/api/permisos', { curp: al.curp, ...f }); setF({ ...f, motivo: '' }); ban('ok', 'Solicitud enviada', 'Servicios Escolares la revisará.'); cargar(); } catch (er) { ban('err', 'No se pudo enviar', msgErr(er)); } };
-  const resolver = async (id, accion) => { try { await post(`/api/permisos/${id}/resolver`, { accion }); ban('ok', accion === 'aprobar' ? 'Permiso aprobado' : 'Permiso rechazado', 'Se avisó al tutor.'); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
+  const resolver = async (id, accion) => { if (!confirm(`¿${accion === 'aprobar' ? 'Aprobar' : 'Rechazar'} este permiso?`)) return; try { await post(`/api/permisos/${id}/resolver`, { accion }); ban('ok', accion === 'aprobar' ? 'Permiso aprobado' : 'Permiso rechazado', 'Se avisó al tutor.'); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
   const sub = { admin: 'Solicitudes de los tutores. Tú decides si se aprueban.', docente: 'Permisos aprobados para los alumnos de tus grupos.', tutor: 'Pide un permiso: Servicios Escolares lo revisará y se te avisará.', alumno: 'Tus permisos (solo consulta).' }[rol];
   return (<>
     <Hero titulo="Permisos" sub={sub} /><Banner b={b} />
@@ -285,6 +295,7 @@ export function Avisos() {
   const [f, setF] = useState({ destino: 'todos', titulo: '', mensaje: '' });
   const enviar = async e => { e.preventDefault(); try { await post('/api/anuncios', f); setF({ ...f, titulo: '', mensaje: '' }); ban('ok', 'Aviso enviado', 'Ya lo pueden ver en su sección Avisos.'); cargar(); } catch (er) { ban('err', 'No se pudo enviar', msgErr(er)); } };
   const borrar = async id => { if (!confirm('¿Borrar este aviso?')) return; try { await post(`/api/anuncios/${id}/borrar`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
+  const marcarLeido = async id => { try { await post(`/api/anuncios/${encodeURIComponent(id)}/leido`); await cargar(); } catch (er) { ban('err', 'No se pudo actualizar el aviso', msgErr(er)); } };
   return (<>
     <Hero titulo="Avisos" sub={adm ? 'Los avisos que envíes aparecerán en la sección Avisos de cada persona.' : 'Mensajes de Servicios Escolares.'} /><Banner b={b} />
     {adm && <Card title="Enviar un aviso"><form onSubmit={enviar}>
@@ -293,8 +304,9 @@ export function Avisos() {
       <label>Mensaje</label><textarea rows="4" value={f.mensaje} onChange={e => setF({ ...f, mensaje: e.target.value })} maxLength="1000" required />
       <button className="btn" type="submit">ENVIAR AVISO</button></form></Card>}
     {(lista || []).map(a => (
-      <Card key={a.id} className="anuncio"><b>{a.titulo}</b><p style={{ margin: '6px 0', whiteSpace: 'pre-wrap' }}>{a.mensaje}</p>
+      <Card key={a.id} className={'anuncio' + (!adm && !a.leido ? ' aviso-nuevo' : '')}><b>{a.titulo}</b>{!adm && <span className={'tag ' + (a.leido ? 'ok' : '')}>{a.leido ? 'Revisado' : 'Nuevo'}</span>}<p style={{ margin: '6px 0', whiteSpace: 'pre-wrap' }}>{a.mensaje}</p>
         <p className="sub" style={{ margin: 0 }}>{new Date(a.creado).toLocaleDateString('es-MX')}{adm ? ' · Para: ' + a.para.map(r => NOM[r]).join(', ') : ''}</p>
+        {!adm && !a.leido && <button className="mini" style={{ marginLeft: 0, marginTop: 8 }} onClick={() => marcarLeido(a.id)}>Marcar como revisado</button>}
         {adm && <button className="mini rojo" style={{ marginLeft: 0, marginTop: 8 }} onClick={() => borrar(a.id)}>Borrar</button>}</Card>))}
     {lista && !lista.length && <Card><p className="vacio">No hay avisos por ahora.</p></Card>}
   </>);

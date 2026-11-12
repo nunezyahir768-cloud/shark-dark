@@ -5,26 +5,26 @@ import Login, { CambiarPassword } from './Login.jsx';
 import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
 import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, ReporteVer, Cuenta } from './paginas.jsx';
 import { AsistenciaDocente, CalifDocente, ReporteDocente } from './docente.jsx';
-import { Cuentas, Grupos, Clases, Horarios, Escaner } from './servicios.jsx';
+import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, ReportesAdmin, Historial } from './servicios.jsx';
 
 const MENU = {
   alumno: [['inicio', 'Inicio'], ['perfil', 'Perfil'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['reportes', 'Reportes']],
   tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Avisos'], ['perfiles', 'Perfiles'], ['reportes', 'Reportes']],
   docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Avisos'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos']],
-  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Clases'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['escaner', 'Escáner']]
+  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['reportes', 'Reportes'], ['historial', 'Historial'], ['escaner', 'Escáner']]
 };
 const INICIO = { alumno: 'inicio', tutor: 'inicio', docente: 'inicio', admin: 'inicio' };
 const PAGINAS = {
-  inicio: { alumno: Inicio, tutor: Inicio, docente: Inicio, admin: Inicio },
+  inicio: { alumno: Inicio, tutor: Inicio, docente: Inicio, admin: InicioAdmin },
   perfil: { alumno: PerfilAlumno }, perfiles: { tutor: PerfilesTutor },
   asistencia: { alumno: AsistenciaVer, tutor: AsistenciaVer, docente: AsistenciaDocente },
   horario: { alumno: Horario, tutor: Horario, docente: Horario },
   calificaciones: { alumno: CalifVer, tutor: CalifVer, docente: CalifDocente },
   permisos: { alumno: Permisos, tutor: Permisos, docente: Permisos, admin: Permisos },
   avisos: { alumno: Avisos, tutor: Avisos, docente: Avisos, admin: Avisos },
-  reportes: { alumno: ReporteVer, tutor: ReporteVer, docente: ReporteDocente },
+  reportes: { alumno: ReporteVer, tutor: ReporteVer, docente: ReporteDocente, admin: ReportesAdmin },
   cuenta: { alumno: Cuenta, tutor: Cuenta, docente: Cuenta, admin: Cuenta },
-  cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }
+  cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, historial: { admin: Historial }
 };
 
 const useRuta = () => {
@@ -76,7 +76,8 @@ function Shell({ ses }) {
       <TutorCtx.Provider value={{ vinc, activo: alumno ? alumno.curp : '', setActivo: elegir }}>
         <div className="app">
           <aside className={'side' + (abre ? ' abre' : '')}>
-            <div className="marca"><img src="icon-192.png" alt="" /><span>SHARK DARK<small>CBTIS 170</small></span></div>
+            <div className="marca"><img src="/icon-192.png" alt="" /><span>SHARK DARK<small>CBTIS 170</small></span></div>
+            <button className="side-close" type="button" aria-label="Cerrar menú" onClick={() => setAbre(false)}>×</button>
             <nav>{MENU[rol].map(([k, t]) => <a key={k} href={'#/' + k} className={ruta === k ? 'on' : ''}>{t}</a>)}</nav>
             <div className="pie">
               <div className="quien"><b>{ses.nombre}</b><small>{ROL[rol]}</small></div>
@@ -86,7 +87,7 @@ function Shell({ ses }) {
           </aside>
           <div className={'velo' + (abre ? ' abre' : '')} onClick={() => setAbre(false)} />
           <div className="contenido">
-            <div className="top"><button aria-label="Menú" onClick={() => setAbre(true)}>☰</button><b>SHARK DARK</b></div>
+            <div className="top"><button aria-label="Abrir menú" aria-expanded={abre} onClick={() => setAbre(true)}>☰</button><b>{rol === 'admin' ? 'CONTROL ESCOLAR' : 'SHARK DARK'}</b></div>
             {toast && <div className="toast">{toast}</div>}
             <main>
               {rol === 'tutor' && ok.length > 1 && ruta !== 'perfiles' && (
@@ -105,9 +106,15 @@ function Shell({ ses }) {
 export default function App() {
   const [ses, setSes] = useState(SD.session());
   const [intro, setIntro] = useState(() => !sessionStorage.getItem('sd_intro') && !matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const controlRoute = location.pathname.replace(/\/+$/, '') === '/control-escolar';
   useEffect(() => { sessionStorage.setItem('sd_intro', '1'); }, []);
+  useEffect(() => {
+    if (ses && ses.rol === 'admin' && !controlRoute) location.replace('/control-escolar' + location.hash);
+  }, [ses, controlRoute]);
+  if (ses && ses.rol === 'admin' && !controlRoute) return null;
+  const sesVisible = controlRoute && ses && ses.rol !== 'admin' ? null : ses;
   return (<>
     {intro && <Intro onFin={() => setIntro(false)} />}
-    {ses ? (ses.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={ses} />) : <Login onOk={() => { location.hash = ''; setSes(SD.session()); }} />}
+    {sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} />) : <Login onOk={() => { location.hash = ''; setSes(SD.session()); }} />}
   </>);
 }

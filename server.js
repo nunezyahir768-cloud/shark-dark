@@ -58,10 +58,13 @@ const auth = (req, res, next) => {
 };
 const publico = ({ salt, hash, _id, ...r }) => r;
 
-let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion;
+let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion, auditoria, avisosLeidos;
 const intentosRecuperacion = new Map();
 const validaPassword = pw => typeof pw === 'string' && pw.length >= 10 && pw.length <= 128;
 const generaTemporal = () => crypto.randomBytes(9).toString('base64url');
+const registrarCambio = (req, accion, detalle) => auditoria.insertOne({
+    accion, detalle, actor: req.u.id, actorNombre: req.u.nombre || 'Servicios Escolares', creado: new Date()
+});
 
 /* CURPs que cada rol puede ver: docente = todas, alumno = la suya, tutor = la de su alumno */
 async function permitidas(u) {
@@ -100,27 +103,25 @@ async function avisar(alumno, tipo, hora, fecha, clave, materia, extra) {
 }
 
 /* ---------- Registro y login con CURP + contraseña ---------- */
-/* Servicios Escolares entra como Docente con ADMIN_CURP y contraseña propia almacenada en la cuenta admin. */
 const ADMIN_CURP = (process.env.ADMIN_CURP || '').toUpperCase();
-const ADMIN_ACCESS_PASSWORD = process.env.ADMIN_ACCESS_PASSWORD || 'admin170';
 app.post('/api/login', h(async (req, res) => {
     const id = s(req.body.id).toUpperCase(), rol = s(req.body.rol), password = String(req.body.password || '');
     const llave = 'ip:' + req.ip;
     if (bloqueado(llave, 40)) return bad(res, 'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo', 429);
     if (rol === 'admin') {
-        const a = Buffer.from(password), b = Buffer.from(ADMIN_ACCESS_PASSWORD);
-        if (!password || a.length !== b.length || !crypto.timingSafeEqual(a, b)) { fallo('ip:' + req.ip); return bad(res, 'Contraseña de administrador incorrecta', 401); }
-        fallos.delete('ip:' + req.ip);
-        const adminId = ADMIN_CURP || 'ADMIN';
-        return res.json({ token: firmar({ id: adminId, rol: 'admin', exp: Date.now() + 12 * 3600e3 }), usuario: { id: adminId, curp: adminId, rol: 'admin', nombre: 'Servicios Escolares', debeCambiarPassword: false } });
+        if (!RX.curp.test(ADMIN_CURP)) return bad(res, 'El acceso de Control Escolar no está configurado. Contacta al administrador del sistema.', 503);
+        const admin = id === ADMIN_CURP ? await usuarios.findOne({ _id: 'admin:' + ADMIN_CURP, rol: 'admin' }) : null;
+        if (!admin || !admin.salt || !admin.hash || !password || !okPw(password, admin)) {
+            fallo(llave);
+            return bad(res, 'CURP o contraseña incorrectas', 401);
+        }
+        fallos.delete(llave);
+        const datos = publico(admin);
+        return res.json({ token: firmar({ id: ADMIN_CURP, rol: 'admin', nombre: admin.nombre, exp: Date.now() + 12 * 3600e3 }), usuario: { ...datos, id: ADMIN_CURP, curp: ADMIN_CURP, rol: 'admin', debeCambiarPassword: !!admin.debeCambiarPassword } });
     }
     if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Elige cómo quieres entrar');
     if (!RX.curp.test(id) || !password) return bad(res, 'Escribe una CURP válida y tu contraseña');
-    let u = null;
-    if (rol === 'docente' && ADMIN_CURP && id === ADMIN_CURP) {
-        const admin = await usuarios.findOne({ _id: 'admin:' + id });
-        if (admin) u = admin;
-    } else u = await usuarios.findOne({ _id: `${rol}:${id}` });
+    const u = await usuarios.findOne({ _id: `${rol}:${id}`, rol });
     if (!u || !u.salt || !u.hash) { fallo(llave); return bad(res, 'Cuenta sin contraseña configurada. Solicita a Servicios Escolares que la habilite.', 401); }
     if (!okPw(password, u)) { fallo(llave); return bad(res, 'CURP o contraseña incorrectas', 401); }
     fallos.delete(llave);
@@ -183,7 +184,6 @@ app.post('/api/cambiar-password', auth, h(async (req, res) => {
 }));
 
 app.get('/api/yo', auth, h(async (req, res) => {
-    if (req.u.rol === 'admin') return res.json({ rol: 'admin', id: req.u.id, nombre: 'Servicios Escolares' });
     const u = await usuarios.findOne({ _id: `${req.u.rol}:${req.u.id}` });
     u ? res.json(publico(u)) : bad(res, 'No encontrado', 404);
 }));
@@ -271,6 +271,10 @@ app.get('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     const l = await usuarios.find({ rol: { $in: ['alumno', 'docente', 'tutor'] } }).limit(3000).toArray();
     res.json(l.map(publico));
 }));
+app.get('/api/admin/historial', auth, soloAdmin, h(async (req, res) => {
+    const l = await auditoria.find({}).sort({ creado: -1 }).limit(300).toArray();
+    res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
+}));
 app.get('/api/admin/recuperaciones', auth, soloAdmin, h(async (req, res) => {
     const l = await solicitudesRecuperacion.find({ estado: 'pendiente' }).sort({ creado: 1 }).limit(200).toArray();
     res.json(l.map(({ _id, ipHash, ...r }) => ({ id: _id, ...r })));
@@ -281,6 +285,7 @@ app.post('/api/admin/recuperaciones/:id/resolver', auth, soloAdmin, h(async (req
     const accion = s(req.body.accion);
     if (accion === 'rechazar') {
         await solicitudesRecuperacion.updateOne({ _id: solicitud._id }, { $set: { estado: 'rechazada', resuelta: new Date(), resueltaPor: req.u.id } });
+        await registrarCambio(req, 'Recuperación rechazada', `${solicitud.rol} · ${solicitud.curp}`);
         return res.json({ ok: true });
     }
     if (accion !== 'restablecer') return bad(res, 'Acción inválida');
@@ -289,6 +294,7 @@ app.post('/api/admin/recuperaciones/:id/resolver', auth, soloAdmin, h(async (req
     if (!cuenta) return bad(res, 'La cuenta ya no existe', 404);
     await usuarios.updateOne({ _id: cuenta._id }, { $set: { ...hp, debeCambiarPassword: true, passwordActualizada: new Date() } });
     await solicitudesRecuperacion.updateOne({ _id: solicitud._id }, { $set: { estado: 'restablecida', resuelta: new Date(), resueltaPor: req.u.id } });
+    await registrarCambio(req, 'Restablecimiento de contraseña', `${solicitud.rol} · ${solicitud.curp}`);
     res.json({ ok: true, passwordTemporal: temporal });
 }));
 app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
@@ -308,6 +314,7 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     if (rol === 'tutor') doc.hijos = [];
     try { await usuarios.insertOne(doc); } catch (e) { if (e.code === 11000) return bad(res, 'Ya existe esa cuenta', 409); throw e; }
     if (rol === 'alumno') await grupos.updateOne({ _id: `${doc.semestre}|${doc.area}|${doc.grupo}` }, { $set: { semestre: doc.semestre, area: doc.area, grupo: doc.grupo, nombre: `${doc.semestre} ${doc.area} ${doc.grupo}` } }, { upsert: true });
+    await registrarCambio(req, 'Cuenta creada', `${rol} · ${id}`);
     res.status(201).json({ ok: true, passwordTemporal: temporal });
 }));
 app.post('/api/admin/editar', auth, soloAdmin, h(async (req, res) => {
@@ -315,12 +322,14 @@ app.post('/api/admin/editar', auth, soloAdmin, h(async (req, res) => {
     for (const k of ['area', 'semestre', 'grupo']) if (s(req.body[k])) c[k] = s(req.body[k]).slice(0, 40);
     if (!await usuarios.findOne({ _id: id })) return bad(res, 'Alumno no encontrado', 404);
     await usuarios.updateOne({ _id: id }, { $set: c });
+    await registrarCambio(req, 'Cambio de grupo', `${id.slice(7)} · ${c.semestre || ''} ${c.area || ''} ${c.grupo || ''}`.trim());
     res.json({ ok: true });
 }));
 app.post('/api/admin/borrar', auth, soloAdmin, h(async (req, res) => {
     const u = await usuarios.findOne({ _id: `${s(req.body.rol)}:${s(req.body.id).toUpperCase()}` });
     if (!u || u.rol === 'admin') return bad(res, 'Usuario no encontrado', 404);
     await usuarios.deleteOne({ _id: u._id });
+    await registrarCambio(req, 'Cuenta eliminada', `${u.rol} · ${u.id}`);
     res.json({ ok: true });
 }));
 
@@ -340,6 +349,7 @@ app.post('/api/admin/grupos/borrar', auth, soloAdmin, h(async (req, res) => {
     for (const tu of await usuarios.find({ rol: 'tutor' }).toArray())
         for (const c of (tu.hijos || []).filter(x => curps.includes(x))) await usuarios.updateOne({ _id: tu._id }, { $pull: { hijos: c } });
     await clases.deleteMany(filtro); await horarios.deleteMany(filtro); await grupos.deleteOne({ _id: g._id });
+    await registrarCambio(req, 'Grupo eliminado', `${g.semestre} ${g.area} ${g.grupo} · ${curps.length} alumnos`);
     res.json({ ok: true, alumnos: curps.length });
 }));
 app.get('/api/clases', auth, h(async (req, res) => {
@@ -360,10 +370,13 @@ app.post('/api/admin/clases', auth, soloAdmin, h(async (req, res) => {
     const id = crypto.randomBytes(4).toString('hex').toUpperCase();
     const HH = v => /^\d{2}:\d{2}$/.test(s(v)) ? s(v) : '';
     await clases.insertOne({ _id: id, materia, area, semestre, grupo, docente: doc, docenteNombre: d.nombre, horaInicio: HH(req.body.horaInicio), horaFin: HH(req.body.horaFin) });
+    await registrarCambio(req, 'Materia creada', `${materia} · ${semestre} ${area} ${grupo} · ${d.nombre}`);
     res.status(201).json({ ok: true, id });
 }));
 app.post('/api/admin/clases/borrar', auth, soloAdmin, h(async (req, res) => {
-    await clases.deleteOne({ _id: s(req.body.id).toUpperCase() });
+    const id = s(req.body.id).toUpperCase(), clase = await clases.findOne({ _id: id });
+    await clases.deleteOne({ _id: id });
+    if (clase) await registrarCambio(req, 'Materia eliminada', `${clase.materia} · ${clase.semestre} ${clase.area} ${clase.grupo}`);
     res.json({ ok: true });
 }));
 
@@ -390,15 +403,23 @@ app.post('/api/admin/horarios', auth, soloAdmin, h(async (req, res) => {
         Object.assign(doc, { materia: cl.materia, claseId: cl._id, docente: cl.docente, docenteNombre: cl.docenteNombre });
     }
     await horarios.insertOne(doc);
+    const diaNombre = ['', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][dia];
+    await registrarCambio(req, 'Horario añadido', `${diaNombre} · ${doc.materia} · ${semestre} ${area} ${grupo} · ${doc.inicio}-${doc.fin}`);
     res.status(201).json({ ok: true });
 }));
-app.post('/api/admin/horarios/borrar', auth, soloAdmin, h(async (req, res) => { await horarios.deleteOne({ _id: s(req.body.id) }); res.json({ ok: true }); }));
+app.post('/api/admin/horarios/borrar', auth, soloAdmin, h(async (req, res) => {
+    const id = s(req.body.id), bloque = await horarios.findOne({ _id: id });
+    await horarios.deleteOne({ _id: id });
+    if (bloque) await registrarCambio(req, 'Horario eliminado', `${bloque.materia} · ${bloque.semestre} ${bloque.area} ${bloque.grupo} · ${bloque.inicio}-${bloque.fin}`);
+    res.json({ ok: true });
+}));
 app.post('/api/admin/vincular', auth, soloAdmin, h(async (req, res) => {
     const t = s(req.body.tutor).toUpperCase(), a = s(req.body.alumno).toUpperCase();
     const tu = await usuarios.findOne({ _id: 'tutor:' + t }), al = await usuarios.findOne({ _id: 'alumno:' + a });
     if (!tu || !al) return bad(res, 'No se encontró el tutor o el alumno', 404);
     await usuarios.updateOne({ _id: tu._id }, { $addToSet: { hijos: a } });
     await usuarios.updateOne({ _id: al._id }, { $addToSet: { tutores: t } });
+    await registrarCambio(req, 'Vínculo tutor-alumno', `${tu.nombre} · ${al.nombre}`);
     res.json({ ok: true });
 }));
 
@@ -409,13 +430,37 @@ app.post('/api/anuncios', auth, soloAdmin, h(async (req, res) => {
     if (!titulo || !mensaje || !para) return bad(res, 'Escribe el título, el mensaje y elige a quién va');
     const id = crypto.randomBytes(5).toString('hex');
     await anuncios.insertOne({ _id: id, titulo, mensaje, para, creado: new Date(), por: req.u.id });
+    await registrarCambio(req, 'Aviso publicado', `${titulo} · ${para.join(', ')}`);
     res.status(201).json({ ok: true, id });
 }));
 app.get('/api/anuncios', auth, h(async (req, res) => {
     const l = await anuncios.find({}).limit(500).toArray();
-    res.json(l.filter(a => req.u.rol === 'admin' || a.para.includes(req.u.rol)).sort((a, b) => new Date(b.creado) - new Date(a.creado)).slice(0, 50).map(({ _id, ...r }) => ({ id: _id, ...r })));
+    const visibles = l.filter(a => req.u.rol === 'admin' || a.para.includes(req.u.rol)).sort((a, b) => new Date(b.creado) - new Date(a.creado)).slice(0, 50);
+    const leidos = req.u.rol === 'admin' || !visibles.length ? new Set() : new Set((await avisosLeidos.find({
+        rol: req.u.rol, para: req.u.id, anuncioId: { $in: visibles.map(a => a._id) }
+    }).toArray()).map(x => x.anuncioId));
+    res.json(visibles.map(({ _id, ...r }) => ({ id: _id, ...r, leido: leidos.has(_id) })));
 }));
-app.post('/api/anuncios/:id/borrar', auth, soloAdmin, h(async (req, res) => { await anuncios.deleteOne({ _id: s(req.params.id) }); res.json({ ok: true }); }));
+app.post('/api/anuncios/:id/leido', auth, h(async (req, res) => {
+    if (!['alumno', 'tutor', 'docente'].includes(req.u.rol)) return bad(res, 'Acción no disponible', 403);
+    const anuncioId = s(req.params.id), anuncio = await anuncios.findOne({ _id: anuncioId });
+    if (!anuncio || !anuncio.para.includes(req.u.rol)) return bad(res, 'Aviso no encontrado', 404);
+    try {
+        await avisosLeidos.updateOne(
+            { anuncioId, rol: req.u.rol, para: req.u.id },
+            { $setOnInsert: { anuncioId, rol: req.u.rol, para: req.u.id, leidoEn: new Date() } },
+            { upsert: true }
+        );
+    } catch (e) { if (e.code !== 11000) throw e; }
+    res.json({ ok: true });
+}));
+app.post('/api/anuncios/:id/borrar', auth, soloAdmin, h(async (req, res) => {
+    const id = s(req.params.id), anuncio = await anuncios.findOne({ _id: id });
+    await anuncios.deleteOne({ _id: id });
+    await avisosLeidos.deleteMany({ anuncioId: id });
+    if (anuncio) await registrarCambio(req, 'Aviso eliminado', anuncio.titulo);
+    res.json({ ok: true });
+}));
 
 /* ---------- Vínculos tutor ↔ alumno ---------- */
 app.get('/api/vinculos', auth, h(async (req, res) => {
@@ -507,6 +552,7 @@ app.post('/api/permisos/:id/resolver', auth, soloAdmin, h(async (req, res) => {
     if (p.estado !== 'pendiente') return bad(res, 'Ese permiso ya fue resuelto', 409);
     const aprobar = req.body.accion === 'aprobar', estado = aprobar ? 'aprobado' : 'rechazado';
     await permisos.updateOne({ _id: p._id }, { $set: { estado, resueltoPor: req.u.id } });
+    await registrarCambio(req, `Permiso ${estado}`, `${p.alumno} · ${p.desde} a ${p.hasta}`);
     if (aprobar) for (const f of (await asistencias.find({ curp: p.curp, estado: 'falta' }).toArray()).filter(f => f.fecha >= p.desde && f.fecha <= p.hasta))
         await asistencias.updateOne({ _id: f._id }, { $set: { estado: 'justificada', motivo: 'Permiso: ' + p.motivo } });
     const al = await usuarios.findOne({ _id: 'alumno:' + p.curp });
@@ -526,10 +572,12 @@ app.get('/api/asistencias', auth, h(async (req, res) => {
     res.json(lista.map(({ _id, ...r }) => ({ uid: _id, ...r })));
 }));
 
+app.get('/control-escolar', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
 /* ---------- Arranque ---------- */
 async function iniciarServidor() {
     if (!MONGODB_URI) { console.error('Error: No se encontró MONGODB_URI en el archivo .env'); process.exit(1); }
-    if (!ADMIN_CURP) console.warn('Aviso: define ADMIN_CURP en Render (la CURP de Servicios Escolares) para que pueda entrar.');
+    if (!RX.curp.test(ADMIN_CURP)) console.warn('Aviso: define ADMIN_CURP con una CURP válida de 18 caracteres para habilitar Control Escolar.');
     if (!SECRET || SECRET.length < 16) { console.error('Error: define TOKEN_SECRET (mínimo 16 caracteres) en .env'); process.exit(1); }
 
     const limpia = MONGODB_URI.trim().replace(/^["']|["']$/g, '');
@@ -560,8 +608,12 @@ async function iniciarServidor() {
         horarios = db.collection('horarios');
         avisos = db.collection('avisos');
         solicitudesRecuperacion = db.collection('solicitudesRecuperacion');
+        auditoria = db.collection('auditoria');
+        avisosLeidos = db.collection('avisosLeidos');
         await solicitudesRecuperacion.createIndex({ curp: 1, rol: 1, estado: 1 });
         await asistencias.createIndex({ curp: 1, fecha: -1 });
+        await avisosLeidos.createIndex({ anuncioId: 1, rol: 1, para: 1 }, { unique: true });
+        await auditoria.createIndex({ creado: -1 });
 
         console.log('✅ Conexión exitosa a MongoDB Atlas');
         console.log('🦈 Base de datos: SHARK-DARK');

@@ -3,13 +3,18 @@ import SD from './sd.js';
 import { Card } from './ui.jsx';
 
 export default function Login({ onOk }) {
-  const [rol, setRol] = useState(localStorage.getItem('sd_rol') || 'alumno');
+  const controlEscolar = location.pathname.replace(/\/+$/, '') === '/control-escolar';
+  const [rol, setRol] = useState(() => {
+    const guardado = localStorage.getItem('sd_rol');
+    return ['alumno', 'tutor', 'docente'].includes(guardado) ? guardado : 'alumno';
+  });
   const [u, setU] = useState(''), [password, setPassword] = useState(''), [msg, setMsg] = useState('');
   const [modo, setModo] = useState('login'), [enviado, setEnviado] = useState(false), [cargando, setCargando] = useState(false);
   const [nombre, setNombre] = useState(''), [confirmar, setConfirmar] = useState('');
   async function entrar(e) {
     e.preventDefault(); setMsg(''); setCargando(true);
-    try { await SD.login(rol, rol === 'admin' ? '' : u, password); localStorage.setItem('sd_rol', rol); onOk(); }
+    const tipo = controlEscolar ? 'admin' : rol;
+    try { await SD.login(tipo, u, password); localStorage.setItem('sd_rol', tipo); onOk(); }
     catch (err) { setMsg(err.message); }
     finally { setCargando(false); }
   }
@@ -26,8 +31,9 @@ export default function Login({ onOk }) {
   }
   return (
     <main className="centro">
-      <img className="logo" src="icon-192.png" alt="" />
-      <h1>SHARK DARK</h1><p className="sub" style={{ textAlign: 'center' }}>CBTIS 170 · Portal escolar</p>
+      <img className="logo" src="/icon-192.png" alt="" />
+      <h1>{controlEscolar ? 'CONTROL ESCOLAR' : 'SHARK DARK'}</h1>
+      <p className="sub" style={{ textAlign: 'center' }}>{controlEscolar ? 'CBTIS 170 · Acceso administrativo' : 'CBTIS 170 · Portal escolar'}</p>
       <Card>
         {modo === 'activar' ? <form onSubmit={activar}>
         <h2>Crea tu contraseña</h2><p className="sub">Activa tu cuenta de {rol}. Usa exactamente tu nombre registrado por Servicios Escolares.</p>
@@ -38,14 +44,14 @@ export default function Login({ onOk }) {
         <button className="btn" disabled={cargando}>{cargando ? 'GUARDANDO…' : 'CREAR MI CONTRASEÑA'}</button><p className="msg" role="alert">{msg}</p>
         <button type="button" className="mini" onClick={() => { setModo('login'); setMsg(''); }}>Volver al inicio</button>
       </form> : modo === 'login' ? <form onSubmit={entrar}>
-          <label htmlFor="rol">Entrar como</label>
-          <select id="rol" value={rol} onChange={e => setRol(e.target.value)}><option value="alumno">Alumno</option><option value="tutor">Tutor</option><option value="docente">Docente</option><option value="admin">Administrador</option></select>
-          {rol !== 'admin' && <><label htmlFor="u">CURP</label><input id="u" value={u} onChange={e => setU(e.target.value.toUpperCase())} placeholder="Tu CURP (18 caracteres)" maxLength="18" autoComplete="username" required /></>}
+          {!controlEscolar && <><label htmlFor="rol">Entrar como</label>
+            <select id="rol" value={rol} onChange={e => setRol(e.target.value)}><option value="alumno">Alumno</option><option value="tutor">Tutor</option><option value="docente">Docente</option></select></>}
+          <label htmlFor="u">CURP</label><input id="u" value={u} onChange={e => setU(e.target.value.toUpperCase())} placeholder="Tu CURP (18 caracteres)" maxLength="18" autoComplete="username" required />
           <label htmlFor="pw">Contraseña</label>
           <input id="pw" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Escribe tu contraseña" autoComplete="current-password" required />
-          <button className="btn" type="submit" disabled={cargando}>{cargando ? 'VERIFICANDO…' : 'INICIAR SESIÓN'}</button>
-          {rol !== 'admin' && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('activar'); setMsg(''); }}>¿Primera vez? Crea tu contraseña</button>}
-          {rol !== 'admin' && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('recuperar'); setMsg(''); }}>¿Olvidaste tu contraseña?</button>}
+          <button className="btn" type="submit" disabled={cargando}>{cargando ? 'VERIFICANDO…' : controlEscolar ? 'ENTRAR A CONTROL ESCOLAR' : 'INICIAR SESIÓN'}</button>
+          {!controlEscolar && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('activar'); setMsg(''); }}>¿Primera vez? Crea tu contraseña</button>}
+          {!controlEscolar && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('recuperar'); setMsg(''); }}>¿Olvidaste tu contraseña?</button>}
           <p className="msg" role="alert">{msg}</p>
         </form> : <form onSubmit={pedir}>
           <h2>Recuperar contraseña</h2>
@@ -57,7 +63,10 @@ export default function Login({ onOk }) {
           {!enviado && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('login'); setMsg(''); }}>Cancelar</button>}
         </form>}
       </Card>
-      <p className="sub" style={{ textAlign: 'center' }}>El alumno debe estar dado de alta por Servicios Escolares antes de crear su contraseña.</p>
+      {controlEscolar
+        ? <p className="sub" style={{ textAlign: 'center' }}><a href="/">Volver al acceso escolar</a></p>
+        : <><p className="sub" style={{ textAlign: 'center' }}>El alumno debe estar dado de alta por Servicios Escolares antes de crear su contraseña.</p>
+          <p className="sub" style={{ textAlign: 'center' }}><a href="/control-escolar">Acceso de Control Escolar</a></p></>}
     </main>
   );
 }

@@ -132,6 +132,6 @@ export function ReporteDocente() {
     {m && <Card title="Asistencia del mes"><div className="tabla"><table className="tb"><thead><tr><th>No.</th><th>Nombre</th>{m.fechas.map(f => <th key={f}>{f.slice(8)}/{f.slice(5, 7)}</th>)}</tr></thead>
       <tbody>{m.filas.map((f, i) => <tr key={i}><td>{i + 1}</td><td>{f[0]}</td>{f[1].map((v, j) => <td key={j} style={{ color: col[v] || 'var(--muted)', fontWeight: 700 }}>{v === '·' ? '–' : v}</td>)}</tr>)}</tbody></table></div>
       <p className="sub" style={{ margin: '8px 0 0' }}>✓ asistió · ✗ faltó · J justificada · – sin registro</p>
-      <button className="btn" onClick={excel}>Descargar en Excel</button></Card>}
+      <button className="btn" onClick={excel}>Descargar en Excel</button><button className="btn sec" onClick={() => window.print()}>Imprimir reporte</button></Card>}
   </>);
 }

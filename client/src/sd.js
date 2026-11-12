@@ -203,7 +203,7 @@
 
   function notificar(texto) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    navigator.serviceWorker.ready.then(r => r.showNotification('SHARK DARK', { body: texto, icon: 'icon-192.png', badge: 'icon-192.png' })).catch(() => {});
+    navigator.serviceWorker.ready.then(r => r.showNotification('SHARK DARK', { body: texto, icon: '/icon-192.png', badge: '/icon-192.png' })).catch(() => {});
   }
   const permisoAvisos = () => 'Notification' in window ? Notification.requestPermission() : Promise.resolve('denied');
 
@@ -225,7 +225,7 @@
   });
   addEventListener('online', sync);
   addEventListener('offline', refrescarBadge);
-  if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 
   /* ---------- Lector de QR ---------- */
   async function scan(video, onText, onError) {
