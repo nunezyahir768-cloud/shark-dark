@@ -28,7 +28,7 @@ const ICONOS_MENU = {
 const IconoMenu = ({ nombre }) => <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONOS_MENU[nombre]}</svg>;
 
 const MENU = {
-  alumno: [['inicio', 'Inicio'], ['perfil', 'Perfil'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Actividad'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
+  alumno: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Actividad'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
   tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Actividad'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
   docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Actividad'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['opciones', 'Opciones']],
   admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Actividad'], ['reportes', 'Reportes'], ['historial', 'Historial'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
@@ -101,7 +101,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
             <div className="marca"><img src="/icon-192.png" alt="" /><span>SHARK DARK<small>CBTIS 170</small></span></div>
             <button className="side-close" type="button" aria-label="Cerrar menú" onClick={() => setAbre(false)}>×</button>
             <nav>{MENU[rol].map(([k, t]) => {
-              const activa = ruta === k || (k === 'opciones' && ruta === 'perfiles');
+              const activa = ruta === k || (k === 'opciones' && (ruta === 'perfiles' || ruta === 'perfil'));
               return <a key={k} href={'#/' + k} className={activa ? 'on' : ''} aria-current={activa ? 'page' : undefined}><IconoMenu nombre={k} /><span>{t}</span></a>;
             })}</nav>
             <div className="pie">
