@@ -12,7 +12,7 @@ const TUTORIALES = {
   { titulo: 'Horario', texto: 'Revisa tus clases por día, con sus horas y materias.', imagen: 'horario' },
   { titulo: 'Calificaciones', texto: 'Consulta las calificaciones registradas para tus materias.', imagen: 'calificaciones' },
   { titulo: 'Permisos', texto: 'Consulta los permisos registrados para ti. Tu tutor puede enviar solicitudes desde su cuenta.', imagen: 'permisos' },
-  { titulo: 'Avisos', texto: 'Mantente al tanto de los avisos importantes de la escuela.', imagen: 'avisos' },
+  { titulo: 'Actividad', texto: 'Mantente al tanto de los avisos importantes de la escuela.', imagen: 'avisos' },
   { titulo: 'Reportes', texto: 'Consulta los reportes de conducta registrados sobre ti.', imagen: 'reportes' }
   ],
   tutor: [
@@ -21,7 +21,7 @@ const TUTORIALES = {
     { titulo: 'Permisos', texto: 'Envía solicitudes de permiso para el alumno y consulta su estado.', imagen: 'permisos' },
     { titulo: 'Horario', texto: 'Consulta las clases del alumno por día y horario.', imagen: 'horario' },
     { titulo: 'Calificaciones', texto: 'Consulta las calificaciones registradas por materia.', imagen: 'calificaciones' },
-    { titulo: 'Avisos', texto: 'Lee los mensajes de Servicios Escolares.', imagen: 'avisos' },
+    { titulo: 'Actividad', texto: 'Lee los mensajes de Servicios Escolares.', imagen: 'avisos' },
     { titulo: 'Perfiles', texto: 'Consulta tus datos y los perfiles de tus alumnos vinculados.', imagen: 'perfil' },
     { titulo: 'Reportes', texto: 'Consulta los reportes de conducta de tus alumnos vinculados.', imagen: 'reportes' }
   ],
@@ -30,7 +30,7 @@ const TUTORIALES = {
     { titulo: 'Horario', texto: 'Consulta el horario de clases por día.', imagen: 'horario' },
     { titulo: 'Asistencia', texto: 'Registra y consulta la asistencia de tus grupos.', imagen: 'asistencia' },
     { titulo: 'Reportes', texto: 'Registra reportes de conducta de tus alumnos y consulta su estado.', imagen: 'reportes' },
-    { titulo: 'Avisos', texto: 'Consulta los mensajes de Servicios Escolares.', imagen: 'avisos' },
+    { titulo: 'Actividad', texto: 'Consulta los mensajes de Servicios Escolares.', imagen: 'avisos' },
     { titulo: 'Calificaciones', texto: 'Captura y consulta calificaciones de tus grupos.', imagen: 'calificaciones' },
     { titulo: 'Permisos', texto: 'Consulta los permisos aprobados de tus alumnos.', imagen: 'permisos' }
   ],
@@ -41,7 +41,7 @@ const TUTORIALES = {
     { titulo: 'Clases', texto: 'Administra materias, grupos y docentes asignados.', imagen: 'clases' },
     { titulo: 'Horarios', texto: 'Captura y administra los horarios de clase.', imagen: 'horario' },
     { titulo: 'Permisos', texto: 'Revisa y resuelve solicitudes de permiso.', imagen: 'permisos' },
-    { titulo: 'Avisos', texto: 'Envía avisos a alumnos, tutores y docentes.', imagen: 'avisos' },
+    { titulo: 'Actividad', texto: 'Envía avisos a alumnos, tutores y docentes.', imagen: 'avisos' },
     { titulo: 'Reportes', texto: 'Revisa las solicitudes de conducta y confirma que recibiste los reportes.', imagen: 'reportes' },
     { titulo: 'Historial', texto: 'Revisa los cambios administrativos recientes y quién los realizó.', imagen: 'reportes' },
     { titulo: 'Escáner', texto: 'Escanea el código QR de un alumno para registrar asistencia.', imagen: 'escaner' }
@@ -271,11 +271,11 @@ const NOM = { tutor: 'Tutores', docente: 'Docentes', alumno: 'Alumnos' };
 export function Avisos() {
   const adm = SD.session().rol === 'admin', [lista, cargar] = useCached('anuncios', '/api/anuncios'), [b, ban] = useBanner();
   const [f, setF] = useState({ destino: 'todos', titulo: '', mensaje: '' });
-  const enviar = async e => { e.preventDefault(); try { await post('/api/anuncios', f); setF({ ...f, titulo: '', mensaje: '' }); ban('ok', 'Aviso enviado', 'Ya lo pueden ver en su sección Avisos.'); cargar(); } catch (er) { ban('err', 'No se pudo enviar', msgErr(er)); } };
+  const enviar = async e => { e.preventDefault(); try { await post('/api/anuncios', f); setF({ ...f, titulo: '', mensaje: '' }); ban('ok', 'Aviso enviado', 'Ya lo pueden ver en la sección Actividad.'); cargar(); } catch (er) { ban('err', 'No se pudo enviar', msgErr(er)); } };
   const borrar = async id => { if (!confirm('¿Borrar este aviso?')) return; try { await post(`/api/anuncios/${id}/borrar`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
   const marcarLeido = async id => { try { await post(`/api/anuncios/${encodeURIComponent(id)}/leido`); await cargar(); } catch (er) { ban('err', 'No se pudo actualizar el aviso', msgErr(er)); } };
   return (<>
-    <Hero titulo="Avisos" sub={adm ? 'Los avisos que envíes aparecerán en la sección Avisos de cada persona.' : 'Mensajes de Servicios Escolares.'} /><Banner b={b} />
+    <Hero titulo="Actividad" sub={adm ? 'Los avisos que envíes aparecerán en la sección Actividad de cada persona.' : 'Mensajes y avisos de Servicios Escolares.'} /><Banner b={b} />
     {adm && <Card title="Enviar un aviso"><form onSubmit={enviar}>
       <label>¿A quién se lo mandas?</label><select value={f.destino} onChange={e => setF({ ...f, destino: e.target.value })}>{DESTINOS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
       <label>Título</label><input value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} maxLength="80" required />
@@ -286,7 +286,7 @@ export function Avisos() {
         <p className="sub" style={{ margin: 0 }}>{new Date(a.creado).toLocaleDateString('es-MX')}{adm ? ' · Para: ' + a.para.map(r => NOM[r]).join(', ') : ''}</p>
         {!adm && !a.leido && <button className="mini" style={{ marginLeft: 0, marginTop: 8 }} onClick={() => marcarLeido(a.id)}>Marcar como revisado</button>}
         {adm && <button className="mini rojo" style={{ marginLeft: 0, marginTop: 8 }} onClick={() => borrar(a.id)}>Borrar</button>}</Card>))}
-    {lista && !lista.length && <Card><p className="vacio">No hay avisos por ahora.</p></Card>}
+    {lista && !lista.length && <Card><p className="vacio">No hay actividad por ahora.</p></Card>}
   </>);
 }
 
@@ -321,25 +321,41 @@ export function Cuenta() {
   </>);
 }
 
-export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente }) {
+function OpcionAcordeon({ id, titulo, resumen, abierta, onToggle, children }) {
+  const expandida = abierta === id;
+  return <Card className="opciones-item">
+    <button className="opciones-campo" type="button" aria-expanded={expandida} aria-controls={'opciones-detalle-' + id} onClick={() => onToggle(id)}>
+      <span className="opciones-campo-texto"><b>{titulo}</b><small>{resumen}</small></span>
+      <svg className={expandida ? 'opciones-chevron abierto' : 'opciones-chevron'} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+    </button>
+    {expandida && <div className="opciones-detalle" id={'opciones-detalle-' + id}>{children}</div>}
+  </Card>;
+}
+
+export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol }) {
+  const [abierta, setAbierta] = useState(null);
+  const nombreTema = { claro: 'Claro', oscuro: 'Oscuro', predeterminado: 'Predeterminado' }[tema];
+  const nombreFuente = { pequena: 'Pequeña', normal: 'Normal', grande: 'Grande' }[tamanoFuente];
+  const temas = [['predeterminado', 'Predeterminado'], ['claro', 'Claro'], ['oscuro', 'Oscuro']];
+  const tamanos = [['pequena', 'Pequeña'], ['normal', 'Normal'], ['grande', 'Grande']];
+  const alternar = id => setAbierta(actual => actual === id ? null : id);
   return <>
     <Hero titulo="Opciones" sub="Personaliza la apariencia de SHARK DARK en este dispositivo." />
-    <Card title="Tema">
-      <label htmlFor="opciones-tema">Tema de la aplicación</label>
-      <select id="opciones-tema" value={tema} onChange={e => setTema(e.target.value)}>
-        <option value="claro">Claro</option>
-        <option value="oscuro">Oscuro</option>
-      </select>
-      <p className="sub">El cambio se aplica de inmediato y se guarda en este dispositivo.</p>
-    </Card>
-    <Card title="Tamaño de fuente">
-      <label htmlFor="opciones-fuente">Tamaño de las letras</label>
-      <select id="opciones-fuente" value={tamanoFuente} onChange={e => setTamanoFuente(e.target.value)}>
-        <option value="pequena">Pequeña</option>
-        <option value="normal">Normal</option>
-        <option value="grande">Grande</option>
-      </select>
-      <p className="sub">El tamaño elegido se aplica a todas las secciones.</p>
-    </Card>
+    <OpcionAcordeon id="tema" titulo="Tema" resumen={'Actual: ' + nombreTema} abierta={abierta} onToggle={alternar}>
+      <p className="sub">Elige el aspecto de la aplicación. Predeterminado sigue el tema de tu dispositivo.</p>
+      <div className="opciones-elecciones" role="group" aria-label="Tema de la aplicación">
+        {temas.map(([valor, texto]) => <button key={valor} type="button" className="opciones-eleccion" aria-pressed={tema === valor} onClick={() => setTema(valor)}>{texto}</button>)}
+      </div>
+    </OpcionAcordeon>
+    <OpcionAcordeon id="fuente" titulo="Tamaño de fuente" resumen={'Actual: ' + nombreFuente} abierta={abierta} onToggle={alternar}>
+      <p className="sub">Ajusta el tamaño de las letras en todas las secciones.</p>
+      <div className="opciones-elecciones" role="group" aria-label="Tamaño de fuente">
+        {tamanos.map(([valor, texto]) => <button key={valor} type="button" className="opciones-eleccion" aria-pressed={tamanoFuente === valor} onClick={() => setTamanoFuente(valor)}>{texto}</button>)}
+      </div>
+    </OpcionAcordeon>
+    {rol === 'tutor' && <OpcionAcordeon id="perfiles" titulo="Perfiles" resumen="Consulta tu perfil y el de tus alumnos vinculados." abierta={abierta} onToggle={alternar}>
+      <p className="sub">Revisa la información de tus alumnos vinculados y cambia cuál estás consultando.</p>
+      <a className="btn sec opciones-accion" href="#/perfiles">Abrir perfiles</a>
+    </OpcionAcordeon>}
   </>;
 }

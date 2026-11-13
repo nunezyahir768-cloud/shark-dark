@@ -2,21 +2,23 @@ import { useEffect } from 'react';
 
 export default function Intro({ onFin }) {
   useEffect(() => {
-    const timer = setTimeout(onFin, 8500);
+    const timer = setTimeout(onFin, 7600);
     return () => clearTimeout(timer);
   }, [onFin]);
 
   return (
     <section className="intro" aria-label="Presentación de SHARK DARK">
       <div className="intro-atmosfera" />
-      <div className="intro-destello" />
+      <div className="intro-particulas" aria-hidden="true">
+        {Array.from({ length: 12 }, (_, i) => <i key={i} />)}
+      </div>
+      <div className="intro-centro-luz" aria-hidden="true" />
+      <div className="intro-linea" aria-hidden="true" />
       <div className="intro-marca">
-        <div className="intro-tiburon">
-          <img src="/icon-512.png" alt="" />
-          <span className="intro-brillo" />
+        <div className="intro-logo">
+          <img className="intro-logo-imagen" src="/img/tiburon.png" alt="Logotipo oficial SHARK DARK CBTIS 170" />
+          <span className="intro-brillo" aria-hidden="true" />
         </div>
-        <img className="intro-cbtis" src="/img/texto.png" alt="CBTIS 170" />
-        <img className="intro-wordmark" src="/img/barra.png" alt="SHARK DARK" />
       </div>
       <button className="intro-saltar" type="button" onClick={onFin}>Saltar introducción</button>
     </section>
