@@ -282,3 +282,11 @@ select option{background:#171614;color:#F5F1E6}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* Transiciones sobrias para el flujo de reportes */
+@keyframes reporte-entrada{from{opacity:0;transform:translateY(10px) scale(.99);filter:blur(3px)}to{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
+.reporte-form{transform-origin:top;animation:reporte-entrada .42s cubic-bezier(.16,1,.3,1) both}
+.reporte-item{animation:reporte-entrada .42s cubic-bezier(.16,1,.3,1) both}
+.reporte-accion{transition:transform .24s cubic-bezier(.2,.7,.25,1),box-shadow .24s ease,filter .24s ease}
+@media(hover:hover){.reporte-accion:not(:disabled):hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgba(228,197,138,.42),0 10px 26px rgba(201,168,106,.24);filter:brightness(1.06)}}
+.reporte-accion:focus-visible{outline:2px solid #E4C58A;outline-offset:3px}

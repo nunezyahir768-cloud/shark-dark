@@ -64,9 +64,9 @@ export default function ReportesConducta() {
     <Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
 
-    {puedeCrear && <Card title={rol === 'admin' ? 'Nuevo reporte' : 'Registrar reporte de conducta'}>
-      {rol === 'admin' && !formAbierto && <button className="btn" type="button" onClick={() => setFormAbierto(true)}>HACER UN REPORTE</button>}
-      {formAbierto && <form onSubmit={crear}>
+    {puedeCrear && <Card className="reporte-panel" title={rol === 'admin' ? 'Nuevo reporte' : 'Registrar reporte de conducta'}>
+      {rol === 'admin' && !formAbierto && <button className="btn reporte-accion" type="button" onClick={() => setFormAbierto(true)}>HACER UN REPORTE</button>}
+      {formAbierto && <form className="reporte-form" onSubmit={crear}>
         <label htmlFor="reporte-alumno">Alumno</label>
         <select id="reporte-alumno" value={form.curp} onChange={e => setForm({ ...form, curp: e.target.value })} required>
           <option value="">Selecciona un alumno</option>
@@ -79,8 +79,8 @@ export default function ReportesConducta() {
         <label htmlFor="reporte-seguimiento">Acción o seguimiento (opcional)</label>
         <textarea id="reporte-seguimiento" rows="3" value={form.seguimiento} onChange={e => setForm({ ...form, seguimiento: e.target.value })} maxLength="500" />
         <p className="sub">La fecha, hora y nombre de quien registra se guardan automáticamente.</p>
-        <button className="btn" type="submit" disabled={guardando || (rol === 'admin' && !formularioCompleto)}>{guardando ? 'GUARDANDO…' : rol === 'admin' ? 'CONFIRMAR REPORTE' : 'GUARDAR REPORTE'}</button>
-        {rol === 'admin' && <button className="btn sec" type="button" disabled={guardando} onClick={() => { setForm({ curp: '', lugar: '', descripcion: '', seguimiento: '' }); setFormAbierto(false); }}>CANCELAR</button>}
+        <button className="btn reporte-accion" type="submit" disabled={guardando || (rol === 'admin' && !formularioCompleto)}>{guardando ? 'GUARDANDO…' : rol === 'admin' ? 'CONFIRMAR REPORTE' : 'GUARDAR REPORTE'}</button>
+        {rol === 'admin' && <button className="btn sec reporte-accion" type="button" disabled={guardando} onClick={() => { setForm({ curp: '', lugar: '', descripcion: '', seguimiento: '' }); setFormAbierto(false); }}>CANCELAR</button>}
       </form>}
     </Card>}
 
@@ -93,7 +93,7 @@ export default function ReportesConducta() {
 
     {reportes && reportes.map(r => {
       const pendiente = r.estado === 'pendiente';
-      return <Card key={r.id} title={rol === 'admin' && pendiente ? 'Solicitud de reporte' : `Reporte de conducta · ${r.alumno}`}>
+      return <Card className="reporte-item" key={r.id} title={rol === 'admin' && pendiente ? 'Solicitud de reporte' : `Reporte de conducta · ${r.alumno}`}>
         <p><b>Alumno:</b> {r.alumno} · {grupoAlumno(r)}</p>
         <p><b>Lugar:</b> {r.lugar}</p>
         <p><b>Descripción:</b> {r.descripcion}</p>
@@ -101,7 +101,7 @@ export default function ReportesConducta() {
         <p className="sub">Registrado por {r.reportante} · {new Date(r.creado).toLocaleString('es-MX')}</p>
         <p><span className={'tag ' + (pendiente ? '' : 'ok')}>{pendiente ? 'Pendiente de confirmación' : 'Recepción confirmada'}</span></p>
         {r.confirmadoEn && <p className="sub">Recibido por {r.confirmadoNombre} · {new Date(r.confirmadoEn).toLocaleString('es-MX')}</p>}
-        {rol === 'admin' && pendiente && <button className="btn" type="button" onClick={() => aceptar(r.id)}>ACEPTAR REPORTE</button>}
+        {rol === 'admin' && pendiente && <button className="btn reporte-accion" type="button" onClick={() => aceptar(r.id)}>ACEPTAR REPORTE</button>}
       </Card>;
     })}
     {reportes && !reportes.length && <Card><p className="vacio">{vacio}</p></Card>}
