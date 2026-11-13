@@ -31,33 +31,35 @@ main{width:min(100%,1000px);margin:0 auto;padding:24px 18px 90px}
 .hero{background:var(--card);border:1px solid var(--linea);border-radius:30px;padding:24px;margin-bottom:18px;color:var(--text);box-shadow:var(--shadow)}
 .hero h1{color:var(--text)}
 .hero .sub{color:var(--muted);margin:6px 0 0}
-.bienvenida-logo{display:block;width:min(100%,320px);height:auto;margin:0 auto 16px;border-radius:18px;filter:drop-shadow(0 7px 14px rgba(0,0,0,.05))}
+.bienvenida{text-align:center}
+.bienvenida .hero{text-align:center}
+.bienvenida-logo{display:block;width:min(100%,440px);height:auto;margin:0 auto 20px;border-radius:18px;filter:drop-shadow(0 7px 14px rgba(0,0,0,.05))}
 
 /* Tutorial */
 .tutorial-cta{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:6px 2px 10px}
-.tutorial-btn{margin:0;width:auto;padding:13px 22px;border-radius:999px;background:var(--oro);color:#17120b;box-shadow:0 8px 20px rgba(140,106,43,.24)}
+.tutorial-btn{display:block;margin:12px auto 0;width:min(100%,520px);padding:18px 26px;border-radius:999px;background:var(--oro);color:#17120b;font-size:18px;box-shadow:0 8px 20px rgba(140,106,43,.24)}
 .tutorial-btn:hover{filter:brightness(1.08)}
-.tutorial-overlay{position:fixed;inset:0;background:rgba(4,3,2,.82);backdrop-filter:blur(8px);display:grid;place-items:center;padding:18px;z-index:150;overflow-y:auto}
-.tutorial-modal{width:min(100%,980px);max-height:calc(100dvh - 36px);overflow-y:auto;background:var(--card);color:var(--text);border:1px solid #C9A24E;border-radius:30px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
-.tutorial-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:24px 26px 0}
-.tutorial-kicker{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cafe);font-weight:700;margin-bottom:6px}
-.tutorial-header h3{font-size:28px;color:var(--text);font-weight:700}
-.tutorial-close{width:42px;height:42px;flex:none;border:1px solid var(--linea);border-radius:14px;background:transparent;color:var(--text);font-size:28px;line-height:1;cursor:pointer}
+.tutorial-overlay{position:fixed;inset:0;background:rgba(4,3,2,.82);backdrop-filter:blur(8px);display:grid;place-items:center;padding:12px;z-index:150;overflow-y:auto}
+.tutorial-modal{width:min(100%,1200px);max-height:calc(100dvh - 24px);overflow-y:auto;background:var(--card);color:var(--text);border:1px solid #C9A24E;border-radius:30px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+.tutorial-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:24px 30px 0}
+.tutorial-kicker{font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:var(--cafe);font-weight:700;margin-bottom:6px}
+.tutorial-header h3{font-size:34px;color:var(--text);font-weight:700}
+.tutorial-close{width:52px;height:52px;flex:none;border:1px solid var(--linea);border-radius:14px;background:transparent;color:var(--text);font-size:34px;line-height:1;cursor:pointer}
 .tutorial-visual{position:relative;padding:20px 26px 0}
-.tutorial-visual .tutorial-imagen{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;border-radius:22px;border:1px solid var(--linea);background:#0B0907}
-.tutorial-callout{position:absolute;left:42px;bottom:28px;padding:9px 15px;border-radius:999px;background:var(--oro);color:#17120b;border:1px solid rgba(255,255,255,.16);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-.tutorial-body{padding:20px 26px 4px}
-.tutorial-counter{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:#8C6A2B;margin-bottom:9px}
-.tutorial-body .sub{margin:0;color:#4a3b25;font-size:17px;line-height:1.65}
-.tutorial-controles{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 26px 24px}
-.tutorial-controles .btn{width:auto;margin:0;padding:10px 15px;font-size:12.5px;background:transparent;color:var(--text);border:1px solid var(--linea);border-radius:12px;box-shadow:none}
+.tutorial-visual .tutorial-imagen{display:block;width:100%;height:min(60vh,680px);aspect-ratio:16/9;object-fit:contain;border-radius:22px;border:1px solid var(--linea);background:#0B0907}
+.tutorial-callout{position:absolute;left:42px;bottom:28px;padding:11px 18px;border-radius:999px;background:var(--oro);color:#17120b;border:1px solid rgba(255,255,255,.16);font-size:17px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.tutorial-body{padding:20px 30px 4px}
+.tutorial-counter{font-size:16px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:#8C6A2B;margin-bottom:9px}
+.tutorial-body .sub{margin:0;color:var(--muted);font-size:21px;line-height:1.65}
+.tutorial-controles{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 30px 24px}
+.tutorial-controles .btn{width:auto;min-height:54px;margin:0;padding:12px 20px;font-size:16px;background:transparent;color:var(--text);border:1px solid var(--linea);border-radius:12px;box-shadow:none}
 .tutorial-controles .btn:hover{background:#E8D8B5;border-color:#8C6A2B}
 .tutorial-nav{min-width:110px}
 .tutorial-puntos{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap}
-.tutorial-puntos button{width:11px;height:11px;padding:0;border:1px solid rgba(24,27,31,.4);border-radius:50%;background:transparent;cursor:pointer;transition:transform .2s ease,background .2s ease,border-color .2s ease}
+.tutorial-puntos button{width:16px;height:16px;padding:0;border:1px solid rgba(24,27,31,.4);border-radius:50%;background:transparent;cursor:pointer;transition:transform .2s ease,background .2s ease,border-color .2s ease}
 .tutorial-puntos button:hover{transform:scale(1.1)}
 .tutorial-puntos button.activo{background:var(--oro);border-color:#8C6A2B;box-shadow:0 0 0 4px rgba(140,106,43,.16)}
-@media(max-width:600px){.tutorial-cta{flex-direction:column;align-items:stretch}.tutorial-btn{width:100%}.tutorial-overlay{padding:8px;place-items:start center}.tutorial-modal{max-height:calc(100dvh - 16px);border-radius:22px}.tutorial-header{padding:18px 16px 0}.tutorial-header h3{font-size:23px}.tutorial-visual{padding:14px 14px 0}.tutorial-visual .tutorial-imagen{border-radius:16px}.tutorial-callout{left:24px;bottom:12px;font-size:11px;padding:7px 11px}.tutorial-body{padding:16px 16px 2px}.tutorial-body .sub{font-size:16px;line-height:1.55}.tutorial-controles{flex-wrap:wrap;padding:16px}.tutorial-nav{flex:1;min-width:0}.tutorial-puntos{order:1;flex-basis:100%;width:100%}}
+@media(max-width:600px){.tutorial-cta{flex-direction:column;align-items:stretch}.tutorial-btn{width:100%}.tutorial-overlay{padding:8px;place-items:start center}.tutorial-modal{max-height:calc(100dvh - 16px);border-radius:22px}.tutorial-header{padding:18px 16px 0}.tutorial-header h3{font-size:27px}.tutorial-visual{padding:14px 14px 0}.tutorial-visual .tutorial-imagen{height:min(52vh,400px);border-radius:16px}.tutorial-callout{left:24px;bottom:12px;font-size:14px;padding:8px 12px}.tutorial-body{padding:16px 16px 2px}.tutorial-body .sub{font-size:19px;line-height:1.55}.tutorial-controles{flex-wrap:wrap;padding:16px}.tutorial-nav{flex:1;min-width:0}.tutorial-puntos{order:1;flex-basis:100%;width:100%}}
 
 /* Botones */
 .btn{display:block;width:100%;padding:14px 18px;border:0;border-radius:999px;background:var(--oro);color:#17120b;font:700 14px inherit;font-family:inherit;text-align:center;text-decoration:none;cursor:pointer;margin-top:12px;letter-spacing:.4px;transition:transform .2s ease,filter .2s ease,box-shadow .2s ease;box-shadow:0 12px 20px rgba(140,106,43,.22)}

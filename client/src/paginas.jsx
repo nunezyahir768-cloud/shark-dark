@@ -26,6 +26,7 @@ const TUTORIALES = {
     { titulo: 'Reportes', texto: 'Consulta un resumen de asistencia y calificaciones por materia.', imagen: 'reportes' }
   ],
   docente: [
+    { titulo: 'Inicio', texto: 'Desde aquí puedes abrir la guía y entrar a las secciones de tu cuenta.', imagen: 'inicio' },
     { titulo: 'Horario', texto: 'Consulta el horario de clases por día.', imagen: 'horario' },
     { titulo: 'Asistencia', texto: 'Registra y consulta la asistencia de tus grupos.', imagen: 'asistencia' },
     { titulo: 'Reportes', texto: 'Revisa reportes de asistencia y desempeño de tus grupos.', imagen: 'reportes' },
@@ -34,12 +35,15 @@ const TUTORIALES = {
     { titulo: 'Permisos', texto: 'Consulta los permisos aprobados de tus alumnos.', imagen: 'permisos' }
   ],
   admin: [
+    { titulo: 'Inicio', texto: 'Usa el menú para entrar a las herramientas de Control Escolar.', imagen: 'inicio' },
     { titulo: 'Cuentas', texto: 'Da de alta y administra cuentas de alumnos, tutores y docentes.', imagen: 'cuentas' },
     { titulo: 'Grupos', texto: 'Consulta los grupos registrados y su información.', imagen: 'grupos' },
     { titulo: 'Clases', texto: 'Administra materias, grupos y docentes asignados.', imagen: 'clases' },
     { titulo: 'Horarios', texto: 'Captura y administra los horarios de clase.', imagen: 'horario' },
     { titulo: 'Permisos', texto: 'Revisa y resuelve solicitudes de permiso.', imagen: 'permisos' },
     { titulo: 'Avisos', texto: 'Envía avisos a alumnos, tutores y docentes.', imagen: 'avisos' },
+    { titulo: 'Reportes', texto: 'Consulta y exporta reportes escolares.', imagen: 'reportes' },
+    { titulo: 'Historial', texto: 'Revisa los cambios administrativos recientes y quién los realizó.', imagen: 'reportes' },
     { titulo: 'Escáner', texto: 'Escanea el código QR de un alumno para registrar asistencia.', imagen: 'escaner' }
   ]
 };
@@ -51,15 +55,10 @@ function Tutorial({ rol }) {
   const paso = pasos[indice];
   const cambiar = delta => setIndice(i => (i + delta + pasos.length) % pasos.length);
 
-  return <Card title="Tutorial de la plataforma">
-    <div className="tutorial-cta">
-      <div>
-        <p className="sub">Esta guía se adapta a tu tipo de cuenta. Pulsa “Ver tutorial” y usa Anterior o Siguiente para recorrer cada sección.</p>
-      </div>
-      <button className="btn tutorial-btn" type="button" onClick={() => { setIndice(0); setAbierto(true); }}>
-        Ver tutorial
-      </button>
-    </div>
+  return <>
+    <button className="btn tutorial-btn" type="button" onClick={() => { setIndice(0); setAbierto(true); }}>
+      Ver tutorial
+    </button>
 
     {abierto && (
       <div className="tutorial-overlay" onClick={() => setAbierto(false)}>
@@ -97,7 +96,7 @@ function Tutorial({ rol }) {
         </div>
       </div>
     )}
-  </Card>;
+  </>;
 }
 
 function BotonAvisos() {
@@ -144,40 +143,19 @@ export function ClaseAhora({ bl }) {
   );
 }
 
-export function Inicio() {
-  const al = useAlumno(), ses = SD.session() || {}, d = useDatos(), [bl] = useCached('horario', '/api/horarios'), [clases] = useCached('clases', '/api/clases');
-  const conAlumno = ses.rol === 'alumno' || ses.rol === 'tutor';
-  if (!ses.nombre || (conAlumno && !al)) return <Sin />;
-  const rs = al ? d.asistencias.filter(a => a.curp === al.curp) : [];
-  const mes = rs.filter(a => a.fecha.startsWith(hoyISO().slice(0, 7))), r = resumenAsistencia(mes);
-  const av = al ? d.avisos.filter(a => a.curp === al.curp).sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora)).slice(0, 5) : [];
-  const nombre = ses.rol === 'alumno' && al ? al.nombre : ses.nombre;
+export function InicioBienvenida({ rol }) {
   return (<>
-    <Hero titulo={`Hola, ${nombre}`} sub="Bienvenido a SHARK DARK. Estamos a tus servicios." />
+    <div className="bienvenida">
+      <Hero titulo="¡Bienvenido a SHARK DARK!" />
     <img className="bienvenida-logo" src="/img/tiburon.png" alt="Logo de SHARK DARK CBTIS 170" />
-    <Tutorial rol={ses.rol} />
-    {ses.rol === 'alumno' && al && <ClaseAhora bl={conDescanso(delGrupo(bl, al))} />}
-    {ses.rol === 'alumno' && al && <Card title="Este mes"><div className="stats">
-      <div><div className="num">{r.asist}</div><small className="vacio">Asistencias</small></div>
-      <div><div className="num rojo">{r.falt}</div><small className="vacio">Faltas</small></div>
-      <div><div className="num">{r.just}</div><small className="vacio">Justificadas</small></div>
-    </div><div className="inicio-accesos"><a href="#/asistencia">Ver asistencia</a><a href="#/horario">Consultar horario</a><a href="#/avisos">Ver avisos</a></div></Card>}
-    {ses.rol === 'tutor' && al && <>
-      <ClaseAhora bl={conDescanso(delGrupo(bl, al))} />
-      <Card title="Este mes"><div className="stats">
-        <div><div className="num">{r.asist}</div><small className="vacio">Asistencias</small></div>
-        <div><div className="num rojo">{r.falt}</div><small className="vacio">Faltas</small></div>
-        <div><div className="num">{r.just}</div><small className="vacio">Justificadas</small></div></div></Card>
-      <Card title="Mis faltas (fecha, horario y materia)"><ListaFaltas rs={rs} /></Card>
-      {ses.rol === 'tutor' && <Card title="Avisos de asistencia"><ul className="l">{av.map(a => <li key={a.id}><span>{a.texto}</span><span>{fmtF(a.fecha)}</span></li>)}{!av.length && <li className="vacio">Sin avisos</li>}</ul></Card>}
-    </>}
-    {ses.rol === 'docente' && <>
-      <Card title="Accesos rápidos"><div className="inicio-accesos"><a href="#/asistencia">Registrar asistencia</a><a href="#/calificaciones">Capturar calificaciones</a><a href="#/reportes">Consultar reportes</a></div></Card>
-      <Card title="Mis grupos"><ul className="l">{[...new Map((clases || []).map(c => [`${c.semestre}|${c.area}|${c.grupo}`, c])).values()].sort((a, b) => (a.semestre + a.area + a.grupo).localeCompare(b.semestre + b.area + b.grupo)).map(c => <li key={`${c.semestre}|${c.area}|${c.grupo}`}><span>{c.semestre} · {c.area} · Grupo {c.grupo}</span><span>{(clases || []).filter(x => x.semestre === c.semestre && x.area === c.area && x.grupo === c.grupo).length} materias</span></li>)}
-        {!(clases || []).length && <li className="vacio">No tienes grupos asignados.</li>}</ul></Card>
-    </>}
-    {ses.rol !== 'alumno' && <BotonAvisos />}
+      <Tutorial rol={rol} />
+    </div>
   </>);
+}
+
+export function Inicio() {
+  const ses = SD.session() || {};
+  return <InicioBienvenida rol={ses.rol} />;
 }
 
 export function PerfilAlumno() {

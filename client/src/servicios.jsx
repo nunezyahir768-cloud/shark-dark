@@ -3,6 +3,7 @@ import SD from './sd.js';
 import * as XL from './excel.js';
 import { Card, Hero, Banner, useBanner, QR, DIAS, SEMESTRES, AREAS, hh, hoyISO, post, msgErr, nombreGrupo, conDescanso, descargar } from './ui.jsx';
 import { Camara } from './docente.jsx';
+import { InicioBienvenida } from './paginas.jsx';
 
 function useServicios() {
   const [u, setU] = useState([]), [g, setG] = useState([]), [c, setC] = useState([]), [h, setH] = useState([]);
@@ -16,37 +17,7 @@ function useServicios() {
 }
 
 export function InicioAdmin() {
-  const [datos, setDatos] = useState(null), [error, setError] = useState('');
-  useEffect(() => {
-    Promise.all([
-      SD.api('/api/admin/usuarios'), SD.api('/api/grupos'), SD.api('/api/clases'),
-      SD.api('/api/permisos'), SD.api('/api/admin/historial')
-    ]).then(([usuarios, grupos, clases, permisos, historial]) => {
-      setDatos({ usuarios, grupos, clases, pendientes: permisos.filter(x => x.estado === 'pendiente').length, historial });
-    }).catch(e => setError(e.message || 'No se pudo cargar el resumen de Control Escolar.'));
-  }, []);
-  const accesos = [['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['reportes', 'Reportes'], ['historial', 'Historial']];
-  const recientes = datos ? datos.historial.slice(0, 5) : [];
-  return <>
-    <Hero titulo="Control Escolar" sub="Resumen de la actividad y accesos administrativos." />
-    {error && <p className="msg" role="alert">{error}</p>}
-    <div className="admin-accesos">{accesos.map(([ruta, texto]) => <a className="admin-acceso" href={'#/' + ruta} key={ruta}>{texto}<span aria-hidden="true">→</span></a>)}</div>
-    {datos && <>
-      <Card title="Resumen"><div className="stats">
-        <div><div className="num">{datos.usuarios.filter(x => x.rol === 'alumno').length}</div><small className="vacio">Alumnos</small></div>
-        <div><div className="num">{datos.usuarios.filter(x => x.rol === 'docente').length}</div><small className="vacio">Docentes</small></div>
-        <div><div className="num">{datos.usuarios.filter(x => x.rol === 'tutor').length}</div><small className="vacio">Tutores</small></div>
-        <div><div className="num">{datos.grupos.length}</div><small className="vacio">Grupos</small></div>
-        <div><div className="num">{datos.clases.length}</div><small className="vacio">Materias</small></div>
-        <div><div className="num rojo">{datos.pendientes}</div><small className="vacio">Permisos pendientes</small></div>
-      </div></Card>
-      <Card title="Cambios recientes">
-        <ul className="l">{recientes.map(x => <li key={x.id}><span>{x.accion} · {x.detalle}</span><small>{new Date(x.creado).toLocaleDateString('es-MX')}</small></li>)}
-          {!recientes.length && <li className="vacio">Aún no hay cambios registrados.</li>}</ul>
-        {recientes.length > 0 && <a className="admin-ver-mas" href="#/historial">Ver historial</a>}
-      </Card>
-    </>}
-  </>;
+  return <InicioBienvenida rol="admin" />;
 }
 
 export function Cuentas() {
