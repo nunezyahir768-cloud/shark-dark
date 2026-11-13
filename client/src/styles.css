@@ -252,3 +252,31 @@ select option{background:#171614;color:#F5F1E6}
 .tag{margin-bottom:4px}
 @media(max-width:860px){.side-close{display:block;align-self:flex-end;margin:0 5px 8px;padding:2px 10px;border:1px solid var(--linea);border-radius:10px;background:transparent;color:var(--text);font-size:24px;line-height:1.2;cursor:pointer}}
 @media print{body{background:#fff!important;color:#111!important}.side,.top,.velo,.admin-accesos,.btn,.mini{display:none!important}.app,.contenido,main{display:block!important;width:100%!important;max-width:none!important;padding:0!important;margin:0!important}.card,.hero{break-inside:avoid;background:#fff!important;color:#111!important;border:1px solid #ccc!important;box-shadow:none!important}.card h1,.card h2,.card h3,.hero h1,.card .sub,.hero .sub,label,dd,.vacio{color:#111!important}.tb th,.tb td{background:#fff!important;color:#111!important}}
+
+/* Transiciones de interfaz */
+@keyframes sd-entrada{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sd-aparecer{from{opacity:0}to{opacity:1}}
+@keyframes sd-toast{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+
+.app .contenido main>*{animation:sd-entrada .42s cubic-bezier(.2,.7,.25,1) both}
+.app .contenido main>*:nth-child(2){animation-delay:.06s}
+.app .contenido main>*:nth-child(3){animation-delay:.12s}
+.app .contenido main>*:nth-child(n+4){animation-delay:.18s}
+.centro>*{animation:sd-entrada .42s cubic-bezier(.2,.7,.25,1) both}
+.centro>*:nth-child(2){animation-delay:.06s}
+.centro>*:nth-child(3){animation-delay:.12s}
+.centro>*:nth-child(n+4){animation-delay:.18s}
+.card{transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+@media(hover:hover){.app .contenido .card:hover{transform:translateY(-2px);border-color:rgba(201,168,106,.55);box-shadow:0 18px 38px rgba(0,0,0,.36)}}
+.side nav a{transition:background .2s ease,color .2s ease,border-color .2s ease,transform .2s ease}
+.side nav a:hover{transform:translateX(3px)}
+.velo.abre{animation:sd-aparecer .2s ease both}
+.toast{animation:sd-toast .28s cubic-bezier(.2,.7,.25,1) both}
+.tutorial-overlay{animation:sd-aparecer .2s ease both}
+.tutorial-modal{animation:sd-entrada .28s cubic-bezier(.2,.7,.25,1) both}
+.admin-acceso,.inicio-accesos a{transition:border-color .2s ease,background .2s ease,transform .2s ease}
+.admin-acceso:hover,.inicio-accesos a:hover{transform:translateY(-2px)}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
