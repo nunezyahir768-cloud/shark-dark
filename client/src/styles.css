@@ -156,6 +156,11 @@ details summary{cursor:pointer;font-weight:700;color:var(--cafe)}
 .intro-brillo{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(108deg,transparent 35%,rgba(240,210,138,.14) 46%,rgba(255,245,205,.72) 50%,rgba(240,210,138,.12) 54%,transparent 66%);mix-blend-mode:screen;opacity:0;transform:translateX(-120%);animation:intro-barrido 1.15s 4.12s ease-in-out both}
 .intro-saltar{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:4;border:1px solid rgba(216,181,106,.48);border-radius:8px;padding:8px 13px;background:rgba(15,15,15,.78);color:#F5F1E8;font:500 .6875rem inherit;font-family:inherit;letter-spacing:.06em;cursor:pointer;opacity:0;animation:intro-saltar .45s 3.2s ease forwards}
 .intro-saltar:hover{background:#191715;border-color:#F0D28A;color:#F0D28A}
+.intro-video{display:block;background:#000;animation:none}
+.intro-video-fondo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.intro-video-velo{position:absolute;inset:0;background:rgba(0,0,0,.18);pointer-events:none}
+.intro-video-logo{position:absolute;left:50%;top:50%;width:min(82vw,900px);height:auto;transform:translate(-50%,-50%);mix-blend-mode:screen;filter:drop-shadow(0 0 24px rgba(240,210,138,.22));pointer-events:none}
+.intro-video .intro-saltar{opacity:1;animation:none}
 @keyframes intro-atmosfera{from{opacity:0}to{opacity:1}}
 @keyframes intro-particula{0%{opacity:0;transform:translate(0,0) scale(.45)}22%{opacity:1}78%{opacity:.85}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1.25)}}
 @keyframes intro-explosion{0%{opacity:0;transform:translate(-50%,-50%) scale(.02)}24%{opacity:.92;transform:translate(-50%,-50%) scale(.32)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.05)}}

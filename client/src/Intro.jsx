@@ -2,24 +2,29 @@ import { useEffect } from 'react';
 
 export default function Intro({ onFin }) {
   useEffect(() => {
-    const timer = setTimeout(onFin, 7600);
+    const timer = setTimeout(onFin, 30000);
     return () => clearTimeout(timer);
   }, [onFin]);
 
   return (
-    <section className="intro" aria-label="Presentación de SHARK DARK">
-      <div className="intro-atmosfera" />
-      <div className="intro-particulas" aria-hidden="true">
-        {Array.from({ length: 12 }, (_, i) => <i key={i} />)}
-      </div>
-      <div className="intro-centro-luz" aria-hidden="true" />
-      <div className="intro-linea" aria-hidden="true" />
-      <div className="intro-marca">
-        <div className="intro-logo">
-          <img className="intro-logo-imagen" src="/img/tiburon.png" alt="Logotipo oficial SHARK DARK CBTIS 170" />
-          <span className="intro-brillo" aria-hidden="true" />
-        </div>
-      </div>
+    <section className="intro intro-video" aria-label="Presentación de SHARK DARK">
+      <video
+        className="intro-video-fondo"
+        src="/media-intro.mp4"
+        autoPlay
+        muted
+        playsInline
+        preload="auto"
+        onEnded={onFin}
+        onError={onFin}
+        aria-hidden="true"
+      />
+      <div className="intro-video-velo" aria-hidden="true" />
+      <img
+        className="intro-video-logo"
+        src="/img/logo-intro.jpeg"
+        alt="SHARK DARK CBTIS 170"
+      />
       <button className="intro-saltar" type="button" onClick={onFin}>Saltar introducción</button>
     </section>
   );
