@@ -56,9 +56,10 @@ const auth = (req, res, next) => {
     if (!p) return bad(res, 'Sesión expirada', 401);
     req.u = p; next();
 };
+const soloAdmin = (req, res, next) => req.u.rol === 'admin' ? next() : bad(res, 'Solo administración', 403);
 const publico = ({ salt, hash, _id, ...r }) => r;
 
-let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion, auditoria, avisosLeidos;
+let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion, auditoria, avisosLeidos, reportesConducta;
 const intentosRecuperacion = new Map();
 const validaPassword = pw => typeof pw === 'string' && pw.length >= 10 && pw.length <= 128;
 const generaTemporal = () => crypto.randomBytes(9).toString('base64url');
@@ -204,6 +205,68 @@ app.get('/api/alumno/:curp', auth, h(async (req, res) => {
     res.json(publico(a));
 }));
 
+/* ---------- Reportes de conducta ---------- */
+app.get('/api/reportes-conducta/alumnos', auth, h(async (req, res) => {
+    let lista;
+    if (req.u.rol === 'admin') {
+        lista = await usuarios.find({ rol: 'alumno' }).project({ curp: 1, nombre: 1, area: 1, semestre: 1, grupo: 1 }).limit(5000).toArray();
+    } else if (req.u.rol === 'docente') {
+        const clasesDocente = await clases.find({ docente: req.u.id }).project({ area: 1, semestre: 1, grupo: 1 }).toArray();
+        const filtros = clasesDocente.map(c => ({ area: c.area, semestre: c.semestre, grupo: c.grupo }));
+        lista = filtros.length
+            ? await usuarios.find({ rol: 'alumno', $or: filtros }).project({ curp: 1, nombre: 1, area: 1, semestre: 1, grupo: 1 }).limit(5000).toArray()
+            : [];
+    } else return bad(res, 'Solo docentes y administración pueden crear reportes', 403);
+    res.json(lista.map(({ _id, ...a }) => a));
+}));
+app.post('/api/reportes-conducta', auth, h(async (req, res) => {
+    if (!['docente', 'admin'].includes(req.u.rol)) return bad(res, 'Solo docentes y administración pueden crear reportes', 403);
+    const curp = s(req.body.curp).toUpperCase();
+    const lugar = s(req.body.lugar).replace(/\s+/g, ' ').slice(0, 120);
+    const descripcion = s(req.body.descripcion).slice(0, 1500);
+    const seguimiento = s(req.body.seguimiento).slice(0, 500);
+    if (!RX.curp.test(curp) || !lugar || !descripcion) return bad(res, 'Elige al alumno e indica el lugar y lo ocurrido');
+    const alumno = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
+    if (!alumno) return bad(res, 'Alumno no encontrado', 404);
+    if (req.u.rol === 'docente' && !await clases.findOne({ docente: req.u.id, area: alumno.area, semestre: alumno.semestre, grupo: alumno.grupo }))
+        return bad(res, 'Solo puedes reportar alumnos de tus grupos', 403);
+    const reportante = await usuarios.findOne({ _id: `${req.u.rol}:${req.u.id}` }, { projection: { nombre: 1 } });
+    const id = crypto.randomBytes(12).toString('hex');
+    const confirmado = req.u.rol === 'admin';
+    const reporte = {
+        _id: id, curp, alumno: alumno.nombre, area: alumno.area, semestre: alumno.semestre, grupo: alumno.grupo,
+        lugar, descripcion, seguimiento, reportante: reportante?.nombre || req.u.nombre || 'Usuario', reportanteId: req.u.id,
+        estado: confirmado ? 'confirmado' : 'pendiente', creado: new Date(),
+        ...(confirmado ? { confirmadoPor: req.u.id, confirmadoNombre: req.u.nombre || 'Servicios Escolares', confirmadoEn: new Date() } : {})
+    };
+    await reportesConducta.insertOne(reporte);
+    if (confirmado) await registrarCambio(req, 'Reporte de conducta confirmado', `${alumno.nombre} · ${lugar}`);
+    res.status(201).json({ ok: true, id, estado: reporte.estado });
+}));
+app.get('/api/reportes-conducta', auth, h(async (req, res) => {
+    let filtro;
+    if (req.u.rol === 'admin') filtro = {};
+    else if (req.u.rol === 'docente') filtro = { reportanteId: req.u.id };
+    else if (req.u.rol === 'alumno') filtro = { curp: req.u.id };
+    else if (req.u.rol === 'tutor') filtro = { curp: { $in: await permitidas(req.u) } };
+    else return bad(res, 'No tienes permiso para ver reportes', 403);
+    const lista = await reportesConducta.find(filtro).sort({ creado: -1 }).limit(500).toArray();
+    res.json(lista.map(({ _id, ...r }) => ({ id: _id, ...r })));
+}));
+app.post('/api/reportes-conducta/:id/aceptar', auth, soloAdmin, h(async (req, res) => {
+    const id = s(req.params.id);
+    const reporte = await reportesConducta.findOne({ _id: id, estado: 'pendiente' });
+    if (!reporte) return bad(res, 'La solicitud ya fue atendida o no existe', 404);
+    const confirmadoEn = new Date();
+    const actualizacion = await reportesConducta.updateOne(
+        { _id: id, estado: 'pendiente' },
+        { $set: { estado: 'confirmado', confirmadoPor: req.u.id, confirmadoNombre: req.u.nombre || 'Servicios Escolares', confirmadoEn } }
+    );
+    if (!actualizacion.modifiedCount) return bad(res, 'La solicitud ya fue atendida', 409);
+    await registrarCambio(req, 'Reporte de conducta confirmado', `${reporte.alumno} · ${reporte.lugar}`);
+    res.json({ ok: true });
+}));
+
 /* ---------- Asistencias (idempotentes por uid) ---------- */
 app.post('/api/asistencias', auth, h(async (req, res) => {
     if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
@@ -266,7 +329,6 @@ app.post('/api/asistencias/:uid/:accion', auth, h(async (req, res) => {
 }));
 
 /* ---------- Administración ---------- */
-const soloAdmin = (req, res, next) => req.u.rol === 'admin' ? next() : bad(res, 'Solo administración', 403);
 app.get('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     const l = await usuarios.find({ rol: { $in: ['alumno', 'docente', 'tutor'] } }).limit(3000).toArray();
     res.json(l.map(publico));
@@ -610,8 +672,11 @@ async function iniciarServidor() {
         solicitudesRecuperacion = db.collection('solicitudesRecuperacion');
         auditoria = db.collection('auditoria');
         avisosLeidos = db.collection('avisosLeidos');
+        reportesConducta = db.collection('reportesConducta');
         await solicitudesRecuperacion.createIndex({ curp: 1, rol: 1, estado: 1 });
         await asistencias.createIndex({ curp: 1, fecha: -1 });
+        await reportesConducta.createIndex({ curp: 1, creado: -1 });
+        await reportesConducta.createIndex({ reportanteId: 1, creado: -1 });
         await avisosLeidos.createIndex({ anuncioId: 1, rol: 1, para: 1 }, { unique: true });
         await auditoria.createIndex({ creado: -1 });
 

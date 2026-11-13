@@ -3,9 +3,10 @@ import SD from './sd.js';
 import Intro from './Intro.jsx';
 import Login, { CambiarPassword } from './Login.jsx';
 import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
-import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, ReporteVer, Cuenta } from './paginas.jsx';
-import { AsistenciaDocente, CalifDocente, ReporteDocente } from './docente.jsx';
-import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, ReportesAdmin, Historial } from './servicios.jsx';
+import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, Cuenta } from './paginas.jsx';
+import { AsistenciaDocente, CalifDocente } from './docente.jsx';
+import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, Historial } from './servicios.jsx';
+import ReportesConducta from './ReportesConducta.jsx';
 
 const MENU = {
   alumno: [['inicio', 'Inicio'], ['perfil', 'Perfil'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['reportes', 'Reportes']],
@@ -22,7 +23,7 @@ const PAGINAS = {
   calificaciones: { alumno: CalifVer, tutor: CalifVer, docente: CalifDocente },
   permisos: { alumno: Permisos, tutor: Permisos, docente: Permisos, admin: Permisos },
   avisos: { alumno: Avisos, tutor: Avisos, docente: Avisos, admin: Avisos },
-  reportes: { alumno: ReporteVer, tutor: ReporteVer, docente: ReporteDocente, admin: ReportesAdmin },
+  reportes: { alumno: ReportesConducta, tutor: ReportesConducta, docente: ReportesConducta, admin: ReportesConducta },
   cuenta: { alumno: Cuenta, tutor: Cuenta, docente: Cuenta, admin: Cuenta },
   cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, historial: { admin: Historial }
 };

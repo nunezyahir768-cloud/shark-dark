@@ -13,7 +13,7 @@ const TUTORIALES = {
   { titulo: 'Calificaciones', texto: 'Consulta las calificaciones registradas para tus materias.', imagen: 'calificaciones' },
   { titulo: 'Permisos', texto: 'Consulta los permisos registrados para ti. Tu tutor puede enviar solicitudes desde su cuenta.', imagen: 'permisos' },
   { titulo: 'Avisos', texto: 'Mantente al tanto de los avisos importantes de la escuela.', imagen: 'avisos' },
-  { titulo: 'Reportes', texto: 'Consulta asistencia, faltas y promedio por materia; también puedes imprimir el reporte.', imagen: 'reportes' }
+  { titulo: 'Reportes', texto: 'Consulta los reportes de conducta registrados sobre ti.', imagen: 'reportes' }
   ],
   tutor: [
     { titulo: 'Inicio', texto: 'Consulta la asistencia y las faltas del alumno que estás viendo, además de sus avisos.', imagen: 'inicio' },
@@ -23,13 +23,13 @@ const TUTORIALES = {
     { titulo: 'Calificaciones', texto: 'Consulta las calificaciones registradas por materia.', imagen: 'calificaciones' },
     { titulo: 'Avisos', texto: 'Lee los mensajes de Servicios Escolares.', imagen: 'avisos' },
     { titulo: 'Perfiles', texto: 'Consulta tus datos y los perfiles de tus alumnos vinculados.', imagen: 'perfil' },
-    { titulo: 'Reportes', texto: 'Consulta un resumen de asistencia y calificaciones por materia.', imagen: 'reportes' }
+    { titulo: 'Reportes', texto: 'Consulta los reportes de conducta de tus alumnos vinculados.', imagen: 'reportes' }
   ],
   docente: [
     { titulo: 'Inicio', texto: 'Desde aquí puedes abrir la guía y entrar a las secciones de tu cuenta.', imagen: 'inicio' },
     { titulo: 'Horario', texto: 'Consulta el horario de clases por día.', imagen: 'horario' },
     { titulo: 'Asistencia', texto: 'Registra y consulta la asistencia de tus grupos.', imagen: 'asistencia' },
-    { titulo: 'Reportes', texto: 'Revisa reportes de asistencia y desempeño de tus grupos.', imagen: 'reportes' },
+    { titulo: 'Reportes', texto: 'Registra reportes de conducta de tus alumnos y consulta su estado.', imagen: 'reportes' },
     { titulo: 'Avisos', texto: 'Consulta los mensajes de Servicios Escolares.', imagen: 'avisos' },
     { titulo: 'Calificaciones', texto: 'Captura y consulta calificaciones de tus grupos.', imagen: 'calificaciones' },
     { titulo: 'Permisos', texto: 'Consulta los permisos aprobados de tus alumnos.', imagen: 'permisos' }
@@ -42,7 +42,7 @@ const TUTORIALES = {
     { titulo: 'Horarios', texto: 'Captura y administra los horarios de clase.', imagen: 'horario' },
     { titulo: 'Permisos', texto: 'Revisa y resuelve solicitudes de permiso.', imagen: 'permisos' },
     { titulo: 'Avisos', texto: 'Envía avisos a alumnos, tutores y docentes.', imagen: 'avisos' },
-    { titulo: 'Reportes', texto: 'Consulta y exporta reportes escolares.', imagen: 'reportes' },
+    { titulo: 'Reportes', texto: 'Revisa las solicitudes de conducta y confirma que recibiste los reportes.', imagen: 'reportes' },
     { titulo: 'Historial', texto: 'Revisa los cambios administrativos recientes y quién los realizó.', imagen: 'reportes' },
     { titulo: 'Escáner', texto: 'Escanea el código QR de un alumno para registrar asistencia.', imagen: 'escaner' }
   ]
