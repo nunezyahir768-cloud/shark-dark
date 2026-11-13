@@ -1,18 +1,18 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import SD from './sd.js';
 import Intro from './Intro.jsx';
 import Login, { CambiarPassword } from './Login.jsx';
 import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
-import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, Cuenta } from './paginas.jsx';
+import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, Cuenta, Opciones } from './paginas.jsx';
 import { AsistenciaDocente, CalifDocente } from './docente.jsx';
 import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, Historial } from './servicios.jsx';
 import ReportesConducta from './ReportesConducta.jsx';
 
 const MENU = {
-  alumno: [['inicio', 'Inicio'], ['perfil', 'Perfil'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['reportes', 'Reportes']],
-  tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Avisos'], ['perfiles', 'Perfiles'], ['reportes', 'Reportes']],
-  docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Avisos'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos']],
-  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['reportes', 'Reportes'], ['historial', 'Historial'], ['escaner', 'Escáner']]
+  alumno: [['inicio', 'Inicio'], ['perfil', 'Perfil'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
+  tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Avisos'], ['perfiles', 'Perfiles'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
+  docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Avisos'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['opciones', 'Opciones']],
+  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Avisos'], ['reportes', 'Reportes'], ['historial', 'Historial'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
 };
 const INICIO = { alumno: 'inicio', tutor: 'inicio', docente: 'inicio', admin: 'inicio' };
 const PAGINAS = {
@@ -24,6 +24,7 @@ const PAGINAS = {
   permisos: { alumno: Permisos, tutor: Permisos, docente: Permisos, admin: Permisos },
   avisos: { alumno: Avisos, tutor: Avisos, docente: Avisos, admin: Avisos },
   reportes: { alumno: ReportesConducta, tutor: ReportesConducta, docente: ReportesConducta, admin: ReportesConducta },
+  opciones: { alumno: Opciones, tutor: Opciones, docente: Opciones, admin: Opciones },
   cuenta: { alumno: Cuenta, tutor: Cuenta, docente: Cuenta, admin: Cuenta },
   cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, historial: { admin: Historial }
 };
@@ -54,7 +55,7 @@ function useAvisoSiguiente(alumno, activo) {
   return toast;
 }
 
-function Shell({ ses }) {
+function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
   const rol = ses.rol, [abre, setAbre] = useState(false);
   const ruta = useRuta() || INICIO[rol];
   const [yo, setYo] = useState(null), [vinc, setVinc] = useState([]), [activo, setActivo] = useState(localStorage.getItem('sd_alumno') || '');
@@ -71,6 +72,7 @@ function Shell({ ses }) {
   const toast = useAvisoSiguiente(alumno, rol === 'alumno');
   useEffect(() => { setAbre(false); window.scrollTo(0, 0); }, [ruta]);
   const Pag = (PAGINAS[ruta] || {})[rol];
+  const paginaProps = ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente } : {};
   const ok = vinc.filter(v => v.estado === 'vinculado');
   return (
     <AlumnoCtx.Provider value={alumno}>
@@ -95,7 +97,7 @@ function Shell({ ses }) {
                 <div style={{ marginBottom: 14 }}><label style={{ marginTop: 0 }}>Alumno que estás viendo</label>
                   <select value={alumno ? alumno.curp : ''} onChange={e => elegir(e.target.value)}>{ok.map(v => <option key={v.curp} value={v.curp}>{v.nombre}</option>)}</select></div>
               )}
-              {Pag ? <Pag key={ruta + (alumno ? alumno.curp : '')} /> : <div className="card"><p className="vacio">Esta sección no existe.</p></div>}
+              {Pag ? <Pag key={ruta + (alumno ? alumno.curp : '')} {...paginaProps} /> : <div className="card"><p className="vacio">Esta sección no existe.</p></div>}
             </main>
           </div>
         </div>
@@ -106,8 +108,20 @@ function Shell({ ses }) {
 
 export default function App() {
   const [ses, setSes] = useState(SD.session());
+  const [tema, setTema] = useState(() => localStorage.getItem('sd_tema') === 'oscuro' ? 'oscuro' : 'claro');
+  const [tamanoFuente, setTamanoFuente] = useState(() => {
+    const guardado = localStorage.getItem('sd_tamano_fuente');
+    return ['pequena', 'normal', 'grande'].includes(guardado) ? guardado : 'normal';
+  });
   const [intro, setIntro] = useState(() => !sessionStorage.getItem('sd_intro') && !matchMedia('(prefers-reduced-motion: reduce)').matches);
   const controlRoute = location.pathname.replace(/\/+$/, '') === '/control-escolar';
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.dataset.tema = tema;
+    root.dataset.tamanoFuente = tamanoFuente;
+    localStorage.setItem('sd_tema', tema);
+    localStorage.setItem('sd_tamano_fuente', tamanoFuente);
+  }, [tema, tamanoFuente]);
   useEffect(() => { sessionStorage.setItem('sd_intro', '1'); }, []);
   useEffect(() => {
     if (ses && ses.rol === 'admin' && !controlRoute) location.replace('/control-escolar' + location.hash);
@@ -116,6 +130,6 @@ export default function App() {
   const sesVisible = controlRoute && ses && ses.rol !== 'admin' ? null : ses;
   return (<>
     {intro && <Intro onFin={() => setIntro(false)} />}
-    {sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} />) : <Login onOk={() => { location.hash = ''; setSes(SD.session()); }} />}
+    {sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} />) : <Login onOk={() => { location.hash = ''; setSes(SD.session()); }} />}
   </>);
 }

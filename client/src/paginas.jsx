@@ -320,3 +320,26 @@ export function Cuenta() {
     <Card><p className="vacio">Esta cuenta entra solo con la CURP. Si algún dato está mal, acude con Servicios Escolares.</p></Card>
   </>);
 }
+
+export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente }) {
+  return <>
+    <Hero titulo="Opciones" sub="Personaliza la apariencia de SHARK DARK en este dispositivo." />
+    <Card title="Tema">
+      <label htmlFor="opciones-tema">Tema de la aplicación</label>
+      <select id="opciones-tema" value={tema} onChange={e => setTema(e.target.value)}>
+        <option value="claro">Claro</option>
+        <option value="oscuro">Oscuro</option>
+      </select>
+      <p className="sub">El cambio se aplica de inmediato y se guarda en este dispositivo.</p>
+    </Card>
+    <Card title="Tamaño de fuente">
+      <label htmlFor="opciones-fuente">Tamaño de las letras</label>
+      <select id="opciones-fuente" value={tamanoFuente} onChange={e => setTamanoFuente(e.target.value)}>
+        <option value="pequena">Pequeña</option>
+        <option value="normal">Normal</option>
+        <option value="grande">Grande</option>
+      </select>
+      <p className="sub">El tamaño elegido se aplica a todas las secciones.</p>
+    </Card>
+  </>;
+}
