@@ -213,11 +213,11 @@
     if (!badge) return;
     const n = (await all('cola')).length, on = navigator.onLine;
     badge.textContent = (on ? '● En línea' : '○ Sin conexión') + (n ? ` · ${n} por sincronizar` : '');
-    badge.style.borderColor = on ? '#fa2e49' : '#ffb454';
+    badge.style.borderColor = on ? '#D10F24' : '#D8B56A';
   }
   document.addEventListener('DOMContentLoaded', () => {
     badge = document.createElement('div');
-    badge.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99;padding:7px 12px;border-radius:999px;font:12px Arial;color:#f9f4eb;background:#1e1012e6;border:1px solid #fa2e49;cursor:pointer';
+    badge.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99;padding:7px 12px;border-radius:999px;font:12px Arial;color:#F5F1E8;background:#191715e6;border:1px solid #D10F24;cursor:pointer';
     badge.onclick = sync;
     document.body.appendChild(badge);
     refrescarBadge();
