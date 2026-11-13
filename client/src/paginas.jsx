@@ -339,6 +339,11 @@ export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol }) 
   const temas = [['predeterminado', 'Predeterminado'], ['claro', 'Claro'], ['oscuro', 'Oscuro']];
   const tamanos = [['pequena', 'Pequeña'], ['normal', 'Normal'], ['grande', 'Grande']];
   const alternar = id => setAbierta(actual => actual === id ? null : id);
+  const perfil = rol === 'tutor'
+    ? { resumen: 'Consulta tu perfil y el de tus alumnos vinculados.', descripcion: 'Revisa la información de tus alumnos vinculados y cambia cuál estás consultando.', ruta: '#/perfiles', accion: 'Abrir perfiles' }
+    : rol === 'alumno'
+      ? { resumen: 'Consulta tus datos escolares y código QR.', descripcion: 'Revisa tu información académica y muestra tu código QR para registrar asistencia.', ruta: '#/perfil', accion: 'Abrir mi perfil' }
+      : { resumen: 'Consulta los datos de tu cuenta.', descripcion: rol === 'admin' ? 'Revisa la información de tu cuenta de Control Escolar.' : 'Revisa la información de tu cuenta docente.', ruta: '#/cuenta', accion: 'Abrir mi cuenta' };
   return <>
     <Hero titulo="Opciones" sub="Personaliza la apariencia de SHARK DARK en este dispositivo." />
     <OpcionAcordeon id="tema" titulo="Tema" resumen={'Actual: ' + nombreTema} abierta={abierta} onToggle={alternar}>
@@ -353,9 +358,9 @@ export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol }) 
         {tamanos.map(([valor, texto]) => <button key={valor} type="button" className="opciones-eleccion" aria-pressed={tamanoFuente === valor} onClick={() => setTamanoFuente(valor)}>{texto}</button>)}
       </div>
     </OpcionAcordeon>
-    {rol === 'tutor' && <OpcionAcordeon id="perfiles" titulo="Perfiles" resumen="Consulta tu perfil y el de tus alumnos vinculados." abierta={abierta} onToggle={alternar}>
-      <p className="sub">Revisa la información de tus alumnos vinculados y cambia cuál estás consultando.</p>
-      <a className="btn sec opciones-accion" href="#/perfiles">Abrir perfiles</a>
-    </OpcionAcordeon>}
+    <OpcionAcordeon id="perfiles" titulo="Perfiles" resumen={perfil.resumen} abierta={abierta} onToggle={alternar}>
+      <p className="sub">{perfil.descripcion}</p>
+      <a className="btn sec opciones-accion" href={perfil.ruta}>{perfil.accion}</a>
+    </OpcionAcordeon>
   </>;
 }
