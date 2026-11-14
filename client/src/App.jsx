@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import SD from './sd.js';
 import Intro from './Intro.jsx';
+import Logo from './Logo.jsx';
 import Login, { CambiarPassword } from './Login.jsx';
 import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
 import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, Cuenta, Opciones } from './paginas.jsx';
@@ -98,7 +99,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
       <TutorCtx.Provider value={{ vinc, activo: alumno ? alumno.curp : '', setActivo: elegir }}>
         <div className="app">
           <aside className={'side' + (abre ? ' abre' : '')}>
-            <div className="marca"><img src="/icon-192.png" alt="" /><span>SHARK DARK<small>CBTIS 170</small></span></div>
+            <div className="marca"><Logo darkIcon alt="SHARK DARK CBTIS 170" /><span>SHARK DARK<small>CBTIS 170</small></span></div>
             <button className="side-close" type="button" aria-label="Cerrar menú" onClick={() => setAbre(false)}>×</button>
             <nav>{MENU[rol].map(([k, t]) => {
               const activa = ruta === k || (k === 'opciones' && (ruta === 'perfiles' || ruta === 'perfil'));
@@ -149,6 +150,8 @@ export default function App() {
       root.dataset.tema = temaAplicado;
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.content = temaAplicado === 'oscuro' ? '#080808' : '#F5F2EC';
+      const icono = temaAplicado === 'oscuro' ? '/icon-192.png' : '/icon-192-claro.png';
+      document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach(link => { link.href = icono; });
     };
     aplicarTema();
     root.dataset.tamanoFuente = tamanoFuente;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import SD from './sd.js';
 import { Card } from './ui.jsx';
+import Logo from './Logo.jsx';
 
 export default function Login({ onOk }) {
   const controlEscolar = location.pathname.replace(/\/+$/, '') === '/control-escolar';
@@ -37,7 +38,7 @@ export default function Login({ onOk }) {
   }
   return (
     <main className="centro">
-      <img className="logo" src="/icon-192.png" alt="" />
+      <Logo className="logo" darkIcon alt="SHARK DARK CBTIS 170" />
       <h1>{controlEscolar ? 'CONTROL ESCOLAR' : 'SHARK DARK'}</h1>
       <p className="sub" style={{ textAlign: 'center' }}>{controlEscolar ? 'CBTIS 170 · Acceso administrativo' : 'CBTIS 170 · Portal escolar'}</p>
       <Card>

@@ -111,8 +111,8 @@ Orden recomendado para empezar:
 
 ## Identidad visual, tutorial y horario
 
-- El logo rojo/crema con fondo transparente de `public/img/tiburon.png` es la marca compartida de la app y se usa en la animación de entrada.
-- Los iconos instalables del teléfono están en `public/icon-192.png` y `public/icon-512.png`.
+- La marca compartida de la app usa `public/img/tiburon.png` en modo oscuro y `public/img/tiburon-claro.png` en modo claro; ambas versiones tienen el fondo transparente.
+- Los iconos de `public/icon-192.png`/`public/icon-512.png` y sus variantes `*-claro.png` se usan en las pestañas, notificaciones y accesos de la app según corresponda al tema.
 - SHARK DARK tiene una interfaz moderna, elegante y profesional, con una identidad visual de tonos oscuros y detalles dorados.
 - La paleta oficial combina negro profundo (`#090909`), negro carbón (`#171614`), dorado champagne (`#C9A86A`), dorado claro (`#E4C58A`), crema claro (`#F5F1E6`), beige grisáceo (`#B7AA96`), verde suave (`#8DBB91`) y rojo suave (`#E58A80`).
 - Las tarjetas oscuras tienen esquinas redondeadas y bordes dorados discretos; los botones usan un degradado dorado; y los menús se adaptan a computadoras, tabletas y celulares. Los formularios usan campos oscuros y bordes discretos.

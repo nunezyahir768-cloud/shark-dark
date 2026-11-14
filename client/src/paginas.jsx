@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import SD from './sd.js';
+import Logo from './Logo.jsx';
 import { conDescanso, Card, Hero, Banner, useBanner, QR, useDatos, useCached, useAlumno, TutorCtx, DIAS, hh, fmtF, hoyISO, post, msgErr, delGrupo, estadoHorario, resumenAsistencia, ListaFaltas, nombreGrupo } from './ui.jsx';
 
 const Sin = () => <Card><p className="vacio">No tienes un alumno vinculado. Pide a Servicios Escolares que vinculen a tu alumno con tu cuenta.</p></Card>;
@@ -147,7 +148,7 @@ export function InicioBienvenida({ rol }) {
   return (<>
     <div className="bienvenida">
       <Hero titulo="¡Bienvenido a SHARK DARK!" />
-    <img className="bienvenida-logo" src="/img/tiburon.png" alt="Logo de SHARK DARK CBTIS 170" />
+    <Logo className="bienvenida-logo" />
       <Tutorial rol={rol} />
     </div>
   </>);

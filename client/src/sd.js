@@ -455,7 +455,8 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
 
   function notificar(texto) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    navigator.serviceWorker.ready.then(r => r.showNotification('SHARK DARK', { body: texto, icon: '/icon-192.png', badge: '/icon-192.png' })).catch(() => {});
+    const icono = document.documentElement.dataset.tema === 'oscuro' ? '/icon-192.png' : '/icon-192-claro.png';
+    navigator.serviceWorker.ready.then(r => r.showNotification('SHARK DARK', { body: texto, icon: icono, badge: icono })).catch(() => {});
   }
   const permisoAvisos = () => 'Notification' in window ? Notification.requestPermission() : Promise.resolve('denied');
 
