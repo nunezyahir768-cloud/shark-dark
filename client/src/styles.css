@@ -48,6 +48,20 @@ main{width:min(100%,1000px);margin:0 auto;padding:24px 18px 90px}
 .bienvenida .hero{text-align:center}
 .logo-tema{display:block;position:relative}.logo-tema-imagen{display:none;width:100%;height:auto}.logo-tema-claro{display:block}html[data-tema="oscuro"] .logo-tema-claro{display:none}html[data-tema="oscuro"] .logo-tema-oscuro{display:block}
 .bienvenida-logo{display:block;width:min(100%,440px);height:auto;margin:0 auto 20px;filter:drop-shadow(0 7px 14px rgba(0,0,0,.05))}
+.bienvenida-acciones{display:flex;justify-content:center;align-items:center;gap:10px;margin:12px auto 0}
+.bienvenida-accion{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;min-height:42px;margin:0;padding:9px 16px;border-radius:10px;font-size:.9rem}
+.bienvenida-accion svg{width:15px;height:15px;fill:currentColor}
+.bienvenida-accion.qr-acceso{background:var(--card);color:var(--rojo);border:1px solid var(--linea)}
+.bienvenida-accion.qr-acceso:hover{background:var(--rojo-suave);color:var(--rojo)}
+.qr-alumno-fondo{position:fixed;inset:0;z-index:600;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.72);backdrop-filter:blur(4px)}
+.qr-alumno-modal{width:min(100%,420px);max-height:calc(100dvh - 32px);overflow:auto;padding:22px 20px 18px;border:1px solid var(--linea);border-top:4px solid var(--rojo);border-radius:20px;background:var(--card);color:var(--text);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4);animation:sd-entrada .24s cubic-bezier(.22,1,.36,1) both}
+.qr-alumno-modal h2{margin:0 0 6px;color:var(--text)}
+.qr-alumno-modal .sub{margin:0;color:var(--muted);overflow-wrap:anywhere}
+.qr-alumno-modal .qr{width:min(220px,70vw);margin:14px auto 10px}
+.qr-alumno-ayuda{font-size:.88rem}
+.qr-alumno-acciones{display:flex;gap:10px;margin-top:16px}
+.qr-alumno-acciones .btn{margin:0;flex:1}
+@media(max-width:480px){.bienvenida-acciones{gap:8px}.bienvenida-accion{min-height:40px;padding:8px 13px}.qr-alumno-modal{padding:18px 16px 14px}.qr-alumno-acciones{gap:8px}}
 
 /* Tutorial */
 .tutorial-cta{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:6px 2px 10px}
@@ -190,6 +204,7 @@ details summary{cursor:pointer;font-weight:700;color:var(--cafe)}
 @keyframes intro-finalizar{to{opacity:0;visibility:hidden}}
 @media(max-width:600px){.intro-marca{width:min(92vw,108vh)}.intro-logo::before{filter:blur(20px)}.intro-tunel i{left:calc(50% - 64vw);width:64vw}.intro-tunel i:nth-child(n + 17){display:none}}
 @media(prefers-reduced-motion:reduce){.intro,.intro-atmosfera,.intro-particulas i,.intro-tunel i,.intro-centro-luz,.intro-linea,.intro-logo-imagen,.intro-logo::before,.intro-brillo,.intro-marca,.intro-reflejo{animation-duration:.01ms!important;animation-delay:0ms!important}}
+.intro .intro-logo{display:block;width:min(86vw,760px,108vh);height:auto;aspect-ratio:auto;object-fit:contain;filter:none;animation:none;clip-path:none}
 @media(prefers-reduced-motion:reduce){.apartado-vista,.apartado-vista .apartado-icon,.side nav a .menu-icon{animation:none!important;transition:none!important}}
 
 /* Tutorial y calendario */
@@ -409,6 +424,20 @@ html[data-tema="oscuro"] .tutorial-modal,html[data-tema="oscuro"] .tutorial-box{
 @media print{
   #root{width:100%;max-width:none;min-height:0;margin:0;border:0;box-shadow:none}
 }
+.tutorial-guiado{position:fixed;inset:0;pointer-events:none}
+.tutorial-sombra{position:absolute;inset:0;z-index:145;background:rgba(5,5,5,.58);backdrop-filter:blur(1px)}
+.app.tutorial-activo .side{z-index:152}
+.tutorial-enfoque{position:relative!important;z-index:151!important;outline:3px solid var(--caramelo)!important;outline-offset:3px;box-shadow:0 0 0 7px rgba(209,15,36,.42),0 0 28px rgba(216,181,106,.5)!important;border-radius:12px}
+.tutorial-tarjeta{position:fixed;z-index:160;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(560px,calc(100vw - 28px));max-height:min(48vh,360px);overflow:auto;padding:22px 24px 18px;border:1px solid var(--linea);border-top:4px solid var(--rojo);border-radius:20px;background:var(--card);color:var(--text);box-shadow:0 18px 60px rgba(0,0,0,.42);pointer-events:auto;animation:sd-entrada .25s cubic-bezier(.22,1,.36,1) both}
+.tutorial-tarjeta h2{font-size:1.35rem;margin:0 0 8px;color:var(--text)}
+.tutorial-tarjeta>p:not(.tutorial-counter){margin:0 0 10px;color:var(--muted);line-height:1.55}
+.tutorial-tarjeta small{display:block;color:var(--cafe);margin:0 0 8px}
+.tutorial-acciones{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:14px}
+.tutorial-acciones .btn{width:auto;min-width:88px;margin:0;padding:10px 14px}
+.tutorial-acciones .mini{margin:0;padding:8px 4px}
+.tutorial-comenzar{width:100%;margin:8px 0 0}
+.tutorial-repetir{margin:0 0 14px}
+@media(max-width:600px){.tutorial-tarjeta{bottom:max(12px,env(safe-area-inset-bottom));padding:18px 16px 14px;border-radius:17px;max-height:44vh}.tutorial-tarjeta h2{font-size:1.2rem}.tutorial-tarjeta>p:not(.tutorial-counter){font-size:.95rem;line-height:1.45}.tutorial-acciones{gap:5px}.tutorial-acciones .btn{min-width:74px;padding:9px}.tutorial-acciones .mini{font-size:.8rem}}
 html[data-tema="oscuro"] .tutorial-header h3,html[data-tema="oscuro"] .tutorial-close{color:var(--text)}
 html[data-tema="oscuro"] .tutorial-visual .tutorial-imagen{background:var(--fondo);border-color:var(--linea)}
 html[data-tema="oscuro"] .tutorial-play{background:var(--card);color:var(--text);border-color:var(--linea)}

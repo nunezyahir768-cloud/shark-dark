@@ -8,6 +8,7 @@ import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, 
 import { AsistenciaDocente, CalifDocente } from './docente.jsx';
 import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, Historial } from './servicios.jsx';
 import ReportesConducta from './ReportesConducta.jsx';
+import TutorialInteractivo from './TutorialInteractivo.jsx';
 
 const ICONOS_MENU = {
   inicio: <><path d="m3 10 9-7 9 7" /><path d="M5 9v12h14V9M9 21v-7h6v7" /></>,
@@ -76,7 +77,7 @@ function useAvisoSiguiente(alumno, activo) {
 }
 
 function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
-  const rol = ses.rol, [abre, setAbre] = useState(false);
+  const rol = ses.rol, [abre, setAbre] = useState(false), [tutorial, setTutorial] = useState(false);
   const ruta = useRuta() || INICIO[rol];
   const [yo, setYo] = useState(null), [vinc, setVinc] = useState([]), [activo, setActivo] = useState(sessionStorage.getItem('sd_alumno') || '');
   useEffect(() => {
@@ -92,12 +93,13 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
   const toast = useAvisoSiguiente(alumno, rol === 'alumno');
   useEffect(() => { setAbre(false); window.scrollTo(0, 0); }, [ruta]);
   const Pag = (PAGINAS[ruta] || {})[rol];
-  const paginaProps = ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente, rol } : {};
+  const iniciarTutorial = () => { setTutorial(true); location.hash = '#/inicio'; };
+  const paginaProps = ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente, rol, onTutorial: iniciarTutorial } : ruta === 'inicio' ? { onTutorial: iniciarTutorial } : {};
   const ok = vinc.filter(v => v.estado === 'vinculado');
   return (
     <AlumnoCtx.Provider value={alumno}>
       <TutorCtx.Provider value={{ vinc, activo: alumno ? alumno.curp : '', setActivo: elegir }}>
-        <div className="app">
+        <div className={'app' + (tutorial ? ' tutorial-activo' : '')}>
           <aside className={'side' + (abre ? ' abre' : '')}>
             <div className="marca"><Logo darkIcon alt="SHARK DARK CBTIS 170" /><span>SHARK DARK<small>CBTIS 170</small></span></div>
             <button className="side-close" type="button" aria-label="Cerrar menú" onClick={() => setAbre(false)}>×</button>
@@ -124,6 +126,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
             </main>
           </div>
         </div>
+        {tutorial && <TutorialInteractivo rol={rol} menu={MENU[rol]} onMenu={setAbre} onClose={() => { setTutorial(false); setAbre(false); }} />}
       </TutorCtx.Provider>
     </AlumnoCtx.Provider>
   );

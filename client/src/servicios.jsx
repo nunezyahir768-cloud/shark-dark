@@ -16,8 +16,8 @@ function useServicios() {
   return { u, g, c, h, cargar, error };
 }
 
-export function InicioAdmin() {
-  return <InicioBienvenida rol="admin" />;
+export function InicioAdmin({ onTutorial }) {
+  return <InicioBienvenida rol="admin" onTutorial={onTutorial} />;
 }
 
 export function Cuentas() {

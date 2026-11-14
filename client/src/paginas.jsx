@@ -1,104 +1,10 @@
 import { useState, useEffect, useContext } from 'react';
 import SD from './sd.js';
 import Logo from './Logo.jsx';
+import QRAlumno from './QRAlumno.jsx';
 import { conDescanso, Card, Hero, Banner, useBanner, QR, useDatos, useCached, useAlumno, TutorCtx, DIAS, hh, fmtF, hoyISO, post, msgErr, delGrupo, estadoHorario, resumenAsistencia, ListaFaltas, nombreGrupo } from './ui.jsx';
 
 const Sin = () => <Card><p className="vacio">No tienes un alumno vinculado. Pide a Servicios Escolares que vinculen a tu alumno con tu cuenta.</p></Card>;
-
-const TUTORIALES = {
-  alumno: [
-  { titulo: 'Inicio', texto: 'Consulta tu clase actual y la siguiente. Explora el menú para conocer las demás secciones.', imagen: 'inicio' },
-  { titulo: 'Perfil', texto: 'Revisa tus datos escolares, muestra tu código QR y consulta tus tutores.', imagen: 'perfil' },
-  { titulo: 'Asistencia', texto: 'Consulta tus asistencias, faltas y justificantes, también por materia.', imagen: 'asistencia' },
-  { titulo: 'Horario', texto: 'Revisa tus clases por día, con sus horas y materias.', imagen: 'horario' },
-  { titulo: 'Calificaciones', texto: 'Consulta las calificaciones registradas para tus materias.', imagen: 'calificaciones' },
-  { titulo: 'Permisos', texto: 'Consulta los permisos registrados para ti. Tu tutor puede enviar solicitudes desde su cuenta.', imagen: 'permisos' },
-  { titulo: 'Actividad', texto: 'Mantente al tanto de los avisos importantes de la escuela.', imagen: 'avisos' },
-  { titulo: 'Reportes', texto: 'Consulta los reportes de conducta registrados sobre ti.', imagen: 'reportes' }
-  ],
-  tutor: [
-    { titulo: 'Inicio', texto: 'Consulta la asistencia y las faltas del alumno que estás viendo, además de sus avisos.', imagen: 'inicio' },
-    { titulo: 'Asistencia', texto: 'Revisa asistencias, faltas y justificantes del alumno vinculado.', imagen: 'asistencia' },
-    { titulo: 'Permisos', texto: 'Envía solicitudes de permiso para el alumno y consulta su estado.', imagen: 'permisos' },
-    { titulo: 'Horario', texto: 'Consulta las clases del alumno por día y horario.', imagen: 'horario' },
-    { titulo: 'Calificaciones', texto: 'Consulta las calificaciones registradas por materia.', imagen: 'calificaciones' },
-    { titulo: 'Actividad', texto: 'Lee los mensajes de Servicios Escolares.', imagen: 'avisos' },
-    { titulo: 'Perfiles', texto: 'Consulta tus datos y los perfiles de tus alumnos vinculados.', imagen: 'perfil' },
-    { titulo: 'Reportes', texto: 'Consulta los reportes de conducta de tus alumnos vinculados.', imagen: 'reportes' }
-  ],
-  docente: [
-    { titulo: 'Inicio', texto: 'Desde aquí puedes abrir la guía y entrar a las secciones de tu cuenta.', imagen: 'inicio' },
-    { titulo: 'Horario', texto: 'Consulta el horario de clases por día.', imagen: 'horario' },
-    { titulo: 'Asistencia', texto: 'Registra y consulta la asistencia de tus grupos.', imagen: 'asistencia' },
-    { titulo: 'Reportes', texto: 'Registra reportes de conducta de tus alumnos y consulta su estado.', imagen: 'reportes' },
-    { titulo: 'Actividad', texto: 'Consulta los mensajes de Servicios Escolares.', imagen: 'avisos' },
-    { titulo: 'Calificaciones', texto: 'Captura y consulta calificaciones de tus grupos.', imagen: 'calificaciones' },
-    { titulo: 'Permisos', texto: 'Consulta los permisos aprobados de tus alumnos.', imagen: 'permisos' }
-  ],
-  admin: [
-    { titulo: 'Inicio', texto: 'Usa el menú para entrar a las herramientas de Control Escolar.', imagen: 'inicio' },
-    { titulo: 'Cuentas', texto: 'Da de alta y administra cuentas de alumnos, tutores y docentes.', imagen: 'cuentas' },
-    { titulo: 'Grupos', texto: 'Consulta los grupos registrados y su información.', imagen: 'grupos' },
-    { titulo: 'Clases', texto: 'Administra materias, grupos y docentes asignados.', imagen: 'clases' },
-    { titulo: 'Horarios', texto: 'Captura y administra los horarios de clase.', imagen: 'horario' },
-    { titulo: 'Permisos', texto: 'Revisa y resuelve solicitudes de permiso.', imagen: 'permisos' },
-    { titulo: 'Actividad', texto: 'Envía avisos a alumnos, tutores y docentes.', imagen: 'avisos' },
-    { titulo: 'Reportes', texto: 'Revisa las solicitudes de conducta y confirma que recibiste los reportes.', imagen: 'reportes' },
-    { titulo: 'Historial', texto: 'Revisa los cambios administrativos recientes y quién los realizó.', imagen: 'reportes' },
-    { titulo: 'Escáner', texto: 'Escanea el código QR de un alumno para registrar asistencia.', imagen: 'escaner' }
-  ]
-};
-
-function Tutorial({ rol }) {
-  const pasos = TUTORIALES[rol] || TUTORIALES.alumno;
-  const [indice, setIndice] = useState(0);
-  const [abierto, setAbierto] = useState(false);
-  const paso = pasos[indice];
-  const cambiar = delta => setIndice(i => (i + delta + pasos.length) % pasos.length);
-
-  return <>
-    <button className="btn tutorial-btn" type="button" onClick={() => { setIndice(0); setAbierto(true); }}>
-      Ver tutorial
-    </button>
-
-    {abierto && (
-      <div className="tutorial-overlay" onClick={() => setAbierto(false)}>
-        <div className="tutorial-modal" role="dialog" aria-modal="true" aria-label="Tutorial de la plataforma" onClick={e => e.stopPropagation()}>
-          <div className="tutorial-header">
-            <div>
-              <p className="tutorial-kicker">Guía para {rol === 'admin' ? 'administrador' : rol}</p>
-              <h3>{paso.titulo}</h3>
-            </div>
-            <button className="tutorial-close" type="button" aria-label="Cerrar tutorial" onClick={() => setAbierto(false)}>×</button>
-          </div>
-
-          <div className="tutorial-visual">
-            <img className="tutorial-imagen" src={`/img/tutorial/${paso.imagen}.svg`} alt={`Pantalla ilustrativa de la sección ${paso.titulo}`} />
-            <span className="tutorial-callout">{paso.titulo}</span>
-          </div>
-
-          <div className="tutorial-body">
-            <p className="tutorial-counter">Paso {indice + 1} de {pasos.length}</p>
-            <p className="sub">{paso.texto}</p>
-          </div>
-
-          <div className="tutorial-controles">
-            <button className="btn sec tutorial-nav" type="button" onClick={() => cambiar(-1)} aria-label="Tutorial anterior">Anterior</button>
-            <div className="tutorial-puntos" aria-label={`Imagen ${indice + 1} de ${pasos.length}`}>
-              {pasos.map((x, i) => <button key={x.titulo} type="button" className={i === indice ? 'activo' : ''} onClick={() => setIndice(i)} aria-label={`Ver tutorial: ${x.titulo}`} aria-current={i === indice ? 'step' : undefined} />)}
-            </div>
-            <button className="btn tutorial-nav" type="button" onClick={() => {
-              if (indice === pasos.length - 1) setAbierto(false);
-              else cambiar(1);
-            }} aria-label="Tutorial siguiente">
-              {indice === pasos.length - 1 ? 'Cerrar' : 'Siguiente'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-  </>;
-}
 
 function BotonAvisos() {
   const permisoActivo = () => typeof Notification !== 'undefined' && Notification.permission === 'granted';
@@ -144,21 +50,25 @@ export function ClaseAhora({ bl }) {
   );
 }
 
-export function InicioBienvenida({ rol }) {
+export function InicioBienvenida({ rol, onTutorial, alumno, qrAbierto, onAbrirQr, onSalirQr }) {
   return (<>
     <div className="bienvenida">
       <Hero titulo="¡Bienvenido a SHARK DARK!" />
-    <Logo className="bienvenida-logo" />
-      <Tutorial rol={rol} />
+      <Logo className="bienvenida-logo" />
+      <div className="bienvenida-acciones">
+        <button className="btn bienvenida-accion" type="button" onClick={onTutorial}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11L13 8z" /></svg>Ver tutorial</button>
+        {rol === 'alumno' && alumno && <button className="btn bienvenida-accion qr-acceso" type="button" onClick={onAbrirQr}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1h5v5H1zM10 1h5v5h-5zM1 10h5v5H1zM9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" /></svg>QR</button>}
+      </div>
     </div>
+    {qrAbierto && alumno && <QRAlumno alumno={alumno} onSalir={onSalirQr} />}
   </>);
 }
 
-export function Inicio() {
+export function Inicio({ onTutorial }) {
   const ses = SD.session() || {};
-  return <InicioBienvenida rol={ses.rol} />;
+  const alumno = useAlumno(), [qrAbierto, setQrAbierto] = useState(false);
+  return <InicioBienvenida rol={ses.rol} onTutorial={onTutorial} alumno={alumno} qrAbierto={qrAbierto} onAbrirQr={() => setQrAbierto(true)} onSalirQr={() => setQrAbierto(false)} />;
 }
-
 export function PerfilAlumno() {
   const al = useAlumno(), [tut, setTut] = useState([]);
   useEffect(() => { SD.vinculos().then(setTut); }, []);
@@ -333,7 +243,7 @@ function OpcionAcordeon({ id, titulo, resumen, abierta, onToggle, children }) {
   </Card>;
 }
 
-export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol }) {
+export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol, onTutorial }) {
   const [abierta, setAbierta] = useState(null);
   const nombreTema = { claro: 'Claro', oscuro: 'Oscuro', predeterminado: 'Predeterminado' }[tema];
   const nombreFuente = { pequena: 'Pequeña', normal: 'Normal', grande: 'Grande' }[tamanoFuente];
@@ -347,6 +257,7 @@ export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol }) 
       : { resumen: 'Consulta los datos de tu cuenta.', descripcion: rol === 'admin' ? 'Revisa la información de tu cuenta de Control Escolar.' : 'Revisa la información de tu cuenta docente.', ruta: '#/cuenta', accion: 'Abrir mi cuenta' };
   return <>
     <Hero titulo="Opciones" sub="Personaliza la apariencia de SHARK DARK en este dispositivo." />
+    <button className="btn sec tutorial-repetir" type="button" onClick={onTutorial}>Ver tutorial interactivo</button>
     <OpcionAcordeon id="tema" titulo="Tema" resumen={'Actual: ' + nombreTema} abierta={abierta} onToggle={alternar}>
       <p className="sub">Elige el aspecto de la aplicación. Predeterminado sigue el tema de tu dispositivo.</p>
       <div className="opciones-elecciones" role="group" aria-label="Tema de la aplicación">
