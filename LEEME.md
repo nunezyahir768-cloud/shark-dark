@@ -83,7 +83,7 @@ Render detecta el cambio solo y publica la nueva versión en unos minutos.
 - La contraseña temporal se muestra una sola vez al administrador. Debe entregarse al titular por un canal privado; al entrar tendrá que crear otra.
 - Las solicitudes no revelan si una CURP existe y tienen limitación de frecuencia.
 
-Control Escolar tiene su propio menú de cuentas, grupos, materias, horarios, permisos, avisos, reportes e historial. Los avisos pueden marcarse como revisados; los cambios administrativos relevantes quedan registrados con responsable y fecha. Los reportes permiten elegir grupo, materia y periodo, e imprimir o exportar a Excel.
+Control Escolar tiene su propio menú de cuentas, grupos, materias, horarios, permisos, avisos, reportes e historial. Los avisos pueden marcarse como revisados; los cambios administrativos relevantes quedan registrados con responsable y fecha. En **Reportes**, docentes y administración pueden registrar reportes de conducta con alumno, lugar, descripción y seguimiento opcional. Los reportes de docentes quedan pendientes hasta que administración confirme su recepción; los creados por administración quedan confirmados directamente. Cada alumno puede consultar sus propios reportes y cada tutor los de sus alumnos vinculados.
 
 Orden recomendado para empezar:
 1. **Cuentas** → crea docentes, tutores y alumnos (el alumno lleva semestre, área y grupo A, B o C; el grupo se crea solo)
@@ -128,3 +128,12 @@ Orden recomendado para empezar:
 - En la pantalla de entrada, el alumno elige **¿Primera vez? Crea tu contraseña**, escribe CURP, nombre exactamente como quedó registrado y crea una contraseña de al menos 10 caracteres.
 - La contraseña se guarda en MongoDB como hash con salt; no se almacena en texto plano. Después puede entrar en cualquier dispositivo con CURP y contraseña.
 - Control Escolar entra en `/control-escolar` con la CURP definida en `ADMIN_CURP` y la contraseña personal de su cuenta. Al crear la cuenta por primera vez, usa `ADMIN_INITIAL_PASSWORD` como contraseña temporal y cámbiala al iniciar sesión.
+
+## Inicio offline y datos locales
+
+- Para habilitar credenciales offline, `TOKEN_SECRET` debe estar configurado tanto al ejecutar `npm run build` como al iniciar el servidor. El build incluye solo una clave pública derivada; la clave privada nunca se envía al navegador. Render debe tener `TOKEN_SECRET` entre sus variables de entorno durante el build y la ejecución.
+- Cada usuario (alumno, tutor, docente o Control Escolar) debe iniciar sesión online una vez en ese dispositivo. La app guarda un ticket firmado con vigencia de 24 horas y cifrado con AES-GCM; la clave se deriva de la contraseña mediante PBKDF2. No guarda la contraseña ni el token de acceso en `localStorage`.
+- Los datos escolares y cachés locales de la app se cifran en IndexedDB o `localStorage`. Al abrir o recargar, se pide la contraseña para desbloquearlos. Cerrar sesión borra la sesión de memoria y conserva la credencial offline hasta su vencimiento.
+- La sesión offline permite consultar datos ya sincronizados. Docentes pueden dejar asistencias pendientes; el indicador muestra cuántas faltan. Al recuperar internet, la app vuelve al login y exige validación online antes de sincronizar. Las acciones administrativas no se autorizan offline.
+- Una cuenta revocada o una contraseña cambiada no se pueden conocer mientras el dispositivo está desconectado. Al volver internet se requiere un login online y el servidor aplica el estado actual; sin conexión, el ticket puede permitir consulta hasta que venza (máximo 24 horas).
+- El cifrado protege los datos guardados frente a lectura casual del almacenamiento del navegador, pero un dispositivo controlado por el usuario no es una bóveda confiable: malware, extensiones o código malicioso ejecutado en el sitio pueden acceder a datos mientras la sesión está abierta. Protege el dispositivo y mantén el sitio libre de XSS.

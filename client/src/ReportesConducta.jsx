@@ -19,9 +19,9 @@ export default function ReportesConducta() {
   const cargar = useCallback(async () => {
     setError('');
     try {
-      const lista = await SD.api('/api/reportes-conducta');
+      const lista = await SD.cached('reportes_conducta', '/api/reportes-conducta');
       setReportes(lista);
-      if (puedeCrear) setAlumnos(await SD.api('/api/reportes-conducta/alumnos'));
+      if (puedeCrear) setAlumnos(await SD.cached('reportes_alumnos', '/api/reportes-conducta/alumnos'));
     } catch (e) {
       setError(e.message || 'No se pudieron cargar los reportes.');
     }

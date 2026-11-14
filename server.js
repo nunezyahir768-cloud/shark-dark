@@ -8,6 +8,7 @@ const crypto = require('node:crypto');
 const path = require('node:path');
 const express = require('express');
 const { MongoClient } = require('mongodb');
+const { crearTicketOffline } = require('./offline-auth');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -41,6 +42,11 @@ const okPw = (pw, u) => {
 const firmar = p => {
     const d = Buffer.from(JSON.stringify(p)).toString('base64url');
     return d + '.' + crypto.createHmac('sha256', SECRET).update(d).digest('base64url');
+};
+const firmarOffline = async usuario => {
+    const cuenta = await usuarios.findOne({ _id: `${usuario.rol}:${usuario.id}` });
+    const pwdAt = cuenta?.passwordActualizada ? new Date(cuenta.passwordActualizada).getTime() : 0;
+    return crearTicketOffline(SECRET, usuario, pwdAt);
 };
 const leer = t => {
     try {
@@ -118,7 +124,8 @@ app.post('/api/login', h(async (req, res) => {
         }
         fallos.delete(llave);
         const datos = publico(admin);
-        return res.json({ token: firmar({ id: ADMIN_CURP, rol: 'admin', nombre: admin.nombre, exp: Date.now() + 12 * 3600e3 }), usuario: { ...datos, id: ADMIN_CURP, curp: ADMIN_CURP, rol: 'admin', debeCambiarPassword: !!admin.debeCambiarPassword } });
+        const usuario = { ...datos, id: ADMIN_CURP, curp: ADMIN_CURP, rol: 'admin', debeCambiarPassword: !!admin.debeCambiarPassword };
+        return res.json({ token: firmar({ id: ADMIN_CURP, rol: 'admin', nombre: admin.nombre, exp: Date.now() + 12 * 3600e3 }), usuario, offlineTicket: await firmarOffline(usuario) });
     }
     if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Elige cómo quieres entrar');
     if (!RX.curp.test(id) || !password) return bad(res, 'Escribe una CURP válida y tu contraseña');
@@ -128,7 +135,8 @@ app.post('/api/login', h(async (req, res) => {
     fallos.delete(llave);
     const rolReal = u.rol === 'admin' ? 'admin' : rol;
     const datos = publico(u);
-    res.json({ token: firmar({ id: u.id, rol: rolReal, exp: Date.now() + 12 * 3600e3 }), usuario: { ...datos, rol: rolReal, debeCambiarPassword: !!u.debeCambiarPassword } });
+    const usuario = { ...datos, rol: rolReal, debeCambiarPassword: !!u.debeCambiarPassword };
+    res.json({ token: firmar({ id: u.id, rol: rolReal, exp: Date.now() + 12 * 3600e3 }), usuario, offlineTicket: await firmarOffline(usuario) });
 }));
 
 /* Alumnos, tutores y docentes activan cuentas previamente dadas de alta. */
@@ -181,7 +189,8 @@ app.post('/api/cambiar-password', auth, h(async (req, res) => {
     if (!u || !u.salt || !okPw(actual, u)) return bad(res, 'La contraseña actual no es correcta', 401);
     const hp = hashPw(nueva);
     await usuarios.updateOne({ _id: u._id }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date() } });
-    res.json({ ok: true });
+    const usuario = { ...publico(u), id: req.u.id, rol, debeCambiarPassword: false };
+    res.json({ ok: true, offlineTicket: await firmarOffline(usuario) });
 }));
 
 app.get('/api/yo', auth, h(async (req, res) => {

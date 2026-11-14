@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import SD from './sd.js';
 import { Card } from './ui.jsx';
 
@@ -8,9 +8,15 @@ export default function Login({ onOk }) {
     const guardado = localStorage.getItem('sd_rol');
     return ['alumno', 'tutor', 'docente'].includes(guardado) ? guardado : 'alumno';
   });
+  const [enLinea, setEnLinea] = useState(navigator.onLine);
   const [u, setU] = useState(''), [password, setPassword] = useState(''), [msg, setMsg] = useState('');
   const [modo, setModo] = useState('login'), [enviado, setEnviado] = useState(false), [cargando, setCargando] = useState(false);
   const [nombre, setNombre] = useState(''), [confirmar, setConfirmar] = useState('');
+  useEffect(() => {
+    const actualizar = () => setEnLinea(navigator.onLine);
+    addEventListener('online', actualizar); addEventListener('offline', actualizar);
+    return () => { removeEventListener('online', actualizar); removeEventListener('offline', actualizar); };
+  }, []);
   async function entrar(e) {
     e.preventDefault(); setMsg(''); setCargando(true);
     const tipo = controlEscolar ? 'admin' : rol;
@@ -49,6 +55,9 @@ export default function Login({ onOk }) {
           <label htmlFor="u">CURP</label><input id="u" value={u} onChange={e => setU(e.target.value.toUpperCase())} placeholder="Tu CURP (18 caracteres)" maxLength="18" autoComplete="username" required />
           <label htmlFor="pw">Contraseña</label>
           <input id="pw" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Escribe tu contraseña" autoComplete="current-password" required />
+          <p className="sub" role="status" style={{ margin: '10px 0 4px' }}>{enLinea
+            ? (SD.offlineHabilitado ? 'Conectado. El inicio de sesión valida tu cuenta y actualiza los datos guardados.' : 'Conectado. El acceso offline se habilita en builds realizados con TOKEN_SECRET configurado.')
+            : 'Sin conexión. Usa tu CURP y contraseña si ya iniciaste sesión en línea en este dispositivo. Los datos pueden estar desactualizados.'}</p>
           <button className="btn" type="submit" disabled={cargando}>{cargando ? 'VERIFICANDO…' : controlEscolar ? 'ENTRAR A CONTROL ESCOLAR' : 'INICIAR SESIÓN'}</button>
           {!controlEscolar && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('activar'); setMsg(''); }}>¿Primera vez? Crea tu contraseña</button>}
           {!controlEscolar && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('recuperar'); setMsg(''); }}>¿Olvidaste tu contraseña?</button>}

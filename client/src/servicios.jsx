@@ -9,7 +9,7 @@ function useServicios() {
   const [u, setU] = useState([]), [g, setG] = useState([]), [c, setC] = useState([]), [h, setH] = useState([]);
   const [error, setError] = useState('');
   const cargar = useCallback(async () => {
-    try { const [a, b, d, e] = await Promise.all([SD.api('/api/admin/usuarios'), SD.api('/api/grupos'), SD.api('/api/clases'), SD.api('/api/horarios')]); setU(a); setG(b.sort((x, y) => nombreGrupo(x).localeCompare(nombreGrupo(y)))); setC(d); setH(e); setError(''); }
+    try { const [a, b, d, e] = await Promise.all([SD.cached('admin_usuarios', '/api/admin/usuarios'), SD.cached('admin_grupos', '/api/grupos'), SD.cached('admin_clases', '/api/clases'), SD.cached('admin_horarios', '/api/horarios')]); setU(a); setG(b.sort((x, y) => nombreGrupo(x).localeCompare(nombreGrupo(y)))); setC(d); setH(e); setError(''); }
     catch (e) { setError(e.message || 'No se pudieron cargar los datos de administración.'); }
   }, []);
   useEffect(() => { cargar(); }, [cargar]);
@@ -24,7 +24,7 @@ export function Cuentas() {
   const { u, g, cargar, error } = useServicios(), [b, ban] = useBanner(), [q, setQ] = useState(''), [temp, setTemp] = useState(''), [solicitudes, setSolicitudes] = useState([]), [errorSolicitudes, setErrorSolicitudes] = useState('');
   const [filtroRol, setFiltroRol] = useState('todos'), [filtroGrupo, setFiltroGrupo] = useState('todos'), [filtroEstado, setFiltroEstado] = useState('todos');
   const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A' });
-  const cargarSolicitudes = async () => { try { setSolicitudes(await SD.api('/api/admin/recuperaciones')); setErrorSolicitudes(''); } catch (e) { setErrorSolicitudes(e.message || 'No se pudieron cargar las solicitudes.'); } };
+  const cargarSolicitudes = async () => { try { setSolicitudes(await SD.cached('admin_recuperaciones', '/api/admin/recuperaciones')); setErrorSolicitudes(''); } catch (e) { setErrorSolicitudes(e.message || 'No se pudieron cargar las solicitudes.'); } };
   useEffect(() => { cargarSolicitudes(); }, []);
   const crear = async e => {
     e.preventDefault();
@@ -149,7 +149,7 @@ export function ReportesAdmin() {
   const [tipo, setTipo] = useState('asistencia'), [mes, setMes] = useState(hoyISO().slice(0, 7)), [parcial, setParcial] = useState('1');
   useEffect(() => {
     Promise.all([
-      SD.api('/api/alumnos'), SD.api('/api/clases'), SD.api('/api/asistencias'), SD.api('/api/calificaciones')
+      SD.cached('admin_alumnos', '/api/alumnos'), SD.cached('admin_clases_reportes', '/api/clases'), SD.cached('admin_asistencias', '/api/asistencias'), SD.cached('admin_calificaciones', '/api/calificaciones')
     ]).then(([alumnos, clases, asistencias, calificaciones]) => setDatos({ alumnos, clases, asistencias, calificaciones }))
       .catch(e => setError(e.message || 'No se pudieron cargar los datos para el reporte.'));
   }, []);
@@ -229,7 +229,7 @@ export function ReportesAdmin() {
 
 export function Historial() {
   const [lista, setLista] = useState(null), [filtro, setFiltro] = useState(''), [error, setError] = useState('');
-  const cargar = useCallback(() => SD.api('/api/admin/historial').then(setLista).catch(e => setError(e.message || 'No se pudo cargar el historial.')), []);
+  const cargar = useCallback(() => SD.cached('admin_historial', '/api/admin/historial').then(setLista).catch(e => setError(e.message || 'No se pudo cargar el historial.')), []);
   useEffect(() => { cargar(); }, [cargar]);
   const q = filtro.trim().toLowerCase();
   const visible = (lista || []).filter(x => !q || `${x.accion} ${x.detalle} ${x.actorNombre} ${x.actor}`.toLowerCase().includes(q));

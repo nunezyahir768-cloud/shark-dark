@@ -77,7 +77,7 @@ function useAvisoSiguiente(alumno, activo) {
 function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
   const rol = ses.rol, [abre, setAbre] = useState(false);
   const ruta = useRuta() || INICIO[rol];
-  const [yo, setYo] = useState(null), [vinc, setVinc] = useState([]), [activo, setActivo] = useState(localStorage.getItem('sd_alumno') || '');
+  const [yo, setYo] = useState(null), [vinc, setVinc] = useState([]), [activo, setActivo] = useState(sessionStorage.getItem('sd_alumno') || '');
   useEffect(() => {
     if (rol === 'alumno') SD.api('/api/yo').then(setYo).catch(() => setYo(ses));
     if (rol === 'tutor') SD.vinculos().then(setVinc);
@@ -87,7 +87,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
     if (rol === 'tutor') { const ok = vinc.filter(v => v.estado === 'vinculado'); return ok.find(v => v.curp === activo) || ok[0] || null; }
     return null;
   }, [rol, yo, vinc, activo]);
-  const elegir = c => { localStorage.setItem('sd_alumno', c); setActivo(c); };
+  const elegir = c => { sessionStorage.setItem('sd_alumno', c); setActivo(c); };
   const toast = useAvisoSiguiente(alumno, rol === 'alumno');
   useEffect(() => { setAbre(false); window.scrollTo(0, 0); }, [ruta]);
   const Pag = (PAGINAS[ruta] || {})[rol];
@@ -129,7 +129,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
 }
 
 export default function App() {
-  const [ses, setSes] = useState(SD.session());
+  const [ses, setSes] = useState(null), [ready, setReady] = useState(false);
   const [tema, setTema] = useState(() => {
     const guardado = localStorage.getItem('sd_tema');
     return ['claro', 'oscuro', 'predeterminado'].includes(guardado) ? guardado : 'predeterminado';
@@ -140,6 +140,7 @@ export default function App() {
   });
   const [intro, setIntro] = useState(() => !sessionStorage.getItem('sd_intro') && !matchMedia('(prefers-reduced-motion: reduce)').matches);
   const controlRoute = location.pathname.replace(/\/+$/, '') === '/control-escolar';
+  useEffect(() => { SD.init().then(setSes).catch(() => setSes(null)).finally(() => setReady(true)); }, []);
   useLayoutEffect(() => {
     const root = document.documentElement;
     const preferenciaSistema = window.matchMedia('(prefers-color-scheme: dark)');
@@ -166,6 +167,6 @@ export default function App() {
   const sesVisible = controlRoute && ses && ses.rol !== 'admin' ? null : ses;
   return (<>
     {intro && <Intro onFin={() => setIntro(false)} />}
-    {sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} />) : <Login onOk={() => { location.hash = ''; setSes(SD.session()); }} />}
+    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} />) : <Login onOk={() => { location.hash = ''; setSes(SD.session()); }} />)}
   </>);
 }
