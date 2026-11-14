@@ -21,7 +21,7 @@ export default function Intro({ onFin }) {
       <div className="intro-linea" aria-hidden="true" />
       <div className="intro-marca">
         <div className="intro-logo">
-          <img className="intro-logo-imagen" src="/img/logo-intro.jpeg" alt="Logotipo oficial SHARK DARK CBTIS 170" />
+          <img className="intro-logo-imagen" src="/img/tiburon.png" alt="Logotipo oficial SHARK DARK CBTIS 170" />
           <span className="intro-brillo" aria-hidden="true" />
         </div>
         <span className="intro-reflejo" aria-hidden="true" />
