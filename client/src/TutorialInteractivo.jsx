@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const EXPLICACIONES = {
   inicio: 'La bienvenida es el punto de partida. Desde aquí puedes abrir este recorrido; en Inicio también encuentras el acceso al menú de tu cuenta.',
@@ -26,53 +27,66 @@ const texto = (key, rol) => {
 
 export default function TutorialInteractivo({ rol, menu, onMenu, onClose }) {
   const pasos = useMemo(() => {
-    const lista = [{ tipo: 'bienvenida', titulo: 'Aprende a usar SHARK DARK', texto: 'Recorreremos las opciones disponibles para tu cuenta y veremos sus pantallas reales. Las acciones que guardan cambios se explican, pero no se ejecutan.' }];
+    const lista = [];
     for (const [key, titulo] of menu) {
-      lista.push({ tipo: 'menu', key, titulo, texto: texto(key, rol) });
-      if (key !== 'salir') lista.push({ tipo: 'vista', key, titulo, texto: texto(key, rol) });
+      lista.push({ tipo: 'menu', key, titulo, texto: `${texto(key, rol)} Para entrar, selecciona «${titulo}» en este menú.` });
+      if (key !== 'salir') lista.push({ tipo: 'vista', key, titulo, texto: `${texto(key, rol)} Ya estás en esta sección; revisa el elemento resaltado para ubicar sus controles.` });
     }
-    lista.push({ tipo: 'menu', key: 'cuenta', titulo: 'Mi cuenta', texto: texto('cuenta', rol) }, { tipo: 'vista', key: 'cuenta', titulo: 'Mi cuenta', texto: texto('cuenta', rol) });
-    lista.push({ tipo: 'menu', key: 'salir', titulo: 'Salir', texto: texto('salir', rol) }, { tipo: 'final', titulo: '¡Recorrido completado!', texto: '¡Felicidades! Ya conoces las funciones principales de SHARK DARK disponibles para tu cuenta.' });
+    lista.push({ tipo: 'menu', key: 'cuenta', titulo: 'Mi cuenta', texto: `${texto('cuenta', rol)} Para abrirla, pulsa «Mi cuenta» al final del menú lateral.` }, { tipo: 'vista', key: 'cuenta', titulo: 'Mi cuenta', texto: `${texto('cuenta', rol)} Ya estás viendo la información de tu cuenta.` });
+    lista.push({ tipo: 'menu', key: 'salir', titulo: 'Salir', texto: `${texto('salir', rol)} El botón está al final del menú. No lo pulses durante el recorrido.` }, { tipo: 'final', titulo: '¡Recorrido completado!', texto: '¡Felicidades! Ya conoces las funciones principales de SHARK DARK disponibles para tu cuenta.' });
     return lista;
   }, [menu, rol]);
   const [indice, setIndice] = useState(0);
+  const [posicionTarjeta, setPosicionTarjeta] = useState(null);
   const paso = pasos[indice];
 
   useEffect(() => {
-    const menuAbierto = paso.tipo === 'bienvenida' || paso.tipo === 'menu';
+    setPosicionTarjeta(null);
+    const menuAbierto = paso.tipo === 'menu';
     onMenu(menuAbierto);
     if (paso.tipo === 'vista') location.hash = `#/${paso.key}`;
     let selector = null;
-    if (paso.tipo === 'bienvenida') selector = '.side .marca';
     if (paso.tipo === 'menu') selector = paso.key === 'cuenta' ? '.side .pie a[href="#/cuenta"]' : paso.key === 'salir' ? '.side .salir' : `.side nav a[href="#/${paso.key}"]`;
     if (paso.tipo === 'vista') {
       const controles = { asistencia: rol === 'docente' ? '.contenido main select' : '.contenido main .stats', horario: '.contenido main .dias-selector', calificaciones: rol === 'docente' ? '.contenido main select' : '.contenido main .tabla', permisos: rol === 'tutor' ? '.contenido main form' : '.contenido main .card', avisos: '.contenido main .card', reportes: '.contenido main .reporte-panel', opciones: '.contenido main .opciones-item', cuenta: '.contenido main .card', escaner: '.contenido main .card', cuentas: '.contenido main .card', grupos: '.contenido main .card', clases: '.contenido main .card', horarios: '.contenido main .card', historial: '.contenido main .card' };
       selector = controles[paso.key] || '.contenido main .hero';
     }
+    let posicionTimer;
     const timer = setTimeout(() => {
       document.querySelectorAll('.tutorial-enfoque').forEach(el => el.classList.remove('tutorial-enfoque'));
-      const target = selector && document.querySelector(selector);
+      const target = (selector && document.querySelector(selector)) || (paso.tipo === 'vista' && document.querySelector('.contenido main .hero'));
       if (target) {
         target.classList.add('tutorial-enfoque');
-        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+        target.closest('.apartado-vista')?.classList.add('tutorial-vista-activa');
+        posicionTimer = setTimeout(() => {
+          const tarjeta = document.querySelector('.tutorial-tarjeta');
+          if (!tarjeta) return;
+          const foco = target.getBoundingClientRect(), caja = tarjeta.getBoundingClientRect(), margen = 12, alto = window.innerHeight;
+          const seCruzan = foco.bottom + margen > caja.top && foco.top - margen < caja.bottom;
+          if (!seCruzan) return setPosicionTarjeta(null);
+          if (foco.top - margen >= caja.height) setPosicionTarjeta({ top: `${Math.max(margen, foco.top - caja.height - margen)}px`, bottom: 'auto' });
+          else if (alto - foco.bottom - margen >= caja.height) setPosicionTarjeta({ top: `${foco.bottom + margen}px`, bottom: 'auto' });
+          else setPosicionTarjeta(null);
+        }, 40);
       }
     }, paso.tipo === 'vista' ? 220 : 0);
-    return () => { clearTimeout(timer); document.querySelectorAll('.tutorial-enfoque').forEach(el => el.classList.remove('tutorial-enfoque')); };
+    return () => { clearTimeout(timer); clearTimeout(posicionTimer); document.querySelectorAll('.tutorial-enfoque').forEach(el => el.classList.remove('tutorial-enfoque')); document.querySelectorAll('.tutorial-vista-activa').forEach(el => el.classList.remove('tutorial-vista-activa')); };
   }, [indice, paso, onMenu]);
 
-  const cerrar = () => { document.querySelectorAll('.tutorial-enfoque').forEach(el => el.classList.remove('tutorial-enfoque')); onClose(); };
+  const cerrar = () => { document.querySelectorAll('.tutorial-enfoque').forEach(el => el.classList.remove('tutorial-enfoque')); document.querySelectorAll('.tutorial-vista-activa').forEach(el => el.classList.remove('tutorial-vista-activa')); onClose(); };
   const siguiente = () => {
     if (paso.tipo === 'final') { location.hash = '#/inicio'; cerrar(); return; }
     setIndice(i => Math.min(i + 1, pasos.length - 1));
   };
   const anterior = () => setIndice(i => Math.max(0, i - 1));
 
-  return <div className="tutorial-guiado" role="presentation">
-    <div className="tutorial-sombra" />
-    <section className="tutorial-tarjeta" role="dialog" aria-modal="true" aria-label="Tutorial interactivo de SHARK DARK">
+  return createPortal(<>
+    <div className="tutorial-sombra" aria-hidden="true" />
+    <section className="tutorial-tarjeta" style={posicionTarjeta || undefined} role="dialog" aria-modal="true" aria-label="Tutorial interactivo de SHARK DARK">
       <p className="tutorial-counter">Paso {indice + 1} de {pasos.length}</p>
       <h2>{paso.titulo}</h2>
-      <p>{paso.texto}</p>
+      <div className="tutorial-texto"><p>{paso.texto}</p></div>
       {paso.tipo === 'vista' && <small>Explora la pantalla; usa Siguiente para volver al menú y continuar.</small>}
       {paso.tipo === 'final' && <button className="btn tutorial-comenzar" onClick={() => { location.hash = '#/inicio'; cerrar(); }}>Comenzar a utilizar SHARK DARK</button>}
       <div className="tutorial-acciones">
@@ -81,5 +95,5 @@ export default function TutorialInteractivo({ rol, menu, onMenu, onClose }) {
         {paso.tipo !== 'final' && <button className="btn" onClick={siguiente}>Siguiente</button>}
       </div>
     </section>
-  </div>;
+  </>, document.body);
 }
