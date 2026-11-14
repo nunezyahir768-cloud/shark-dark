@@ -5,13 +5,13 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
   const PROTEGIDAS = Object.keys(CAMPOS_ID);
   let llaveDatos = null;
   const dbp = new Promise((ok, fail) => {
-    const r = indexedDB.open('sharkdark', 5);
+    const r = indexedDB.open('sharkdark', 6);
     r.onupgradeneeded = () => {
       const d = r.result;
       const mk = (n, o) => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, o); };
       mk('usuarios', { keyPath: '_id' }); mk('alumnos', { keyPath: 'curp' }); mk('asistencias', { keyPath: 'uid' });
       mk('cola', { keyPath: 'qid', autoIncrement: true }); mk('avisos', { keyPath: 'id' });
-      mk('credenciales', { keyPath: 'id' }); mk('cache', { keyPath: 'id' });
+      mk('credenciales', { keyPath: 'id' }); mk('cache', { keyPath: 'id' }); mk('session', { keyPath: 'id' });
       if (d.objectStoreNames.contains('deviceKeys')) d.deleteObjectStore('deviceKeys');
     };
     r.onsuccess = () => ok(r.result);
@@ -55,11 +55,20 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
   /* ---------- Sesión y API ---------- */
   let sesionMemoria = null;
   const ses = () => sesionMemoria;
+  async function guardarSesionPersistente() {
+    const usuario = sesionMemoria, llave = llaveDatos;
+    if (!usuario || !llave) return;
+    const sesionCifrada = await cifrar(usuario, llave);
+    if (usuario === sesionMemoria && llave === llaveDatos) {
+      try { await rawPut('session', { id: 'active', sesionCifrada, llave }); }
+      catch (e) { console.warn('No se pudo conservar la sesiÃ³n en este navegador:', e); }
+    }
+  }
   const setSes = u => { sesionMemoria = {
     rol: u.rol, id: u.id, nombre: u.nombre, curp: u.curp, area: u.area, semestre: u.semestre,
     grupo: u.grupo, curpAlumno: u.curpAlumno, debeCambiarPassword: !!u.debeCambiarPassword,
     offline: !!u.offline, offlineExpiresAt: u.offlineExpiresAt || null, token: u.token || null
-  }; return sesionMemoria; };
+  }; if (llaveDatos) guardarSesionPersistente().catch(() => {}); return sesionMemoria; };
   const limpiarSesion = () => { sesionMemoria = null; };
 
   async function cacheGuardar(k, valor) {
@@ -190,7 +199,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     const u = { ...r.usuario, _id: keyId, rol, id: uid, token: r.token, offline: false };
     const guardar = { ...u }; delete guardar.token; delete guardar.offline;
     await put('usuarios', guardar);
-    setSes(u);
+    setSes(u); await guardarSesionPersistente();
     sync();
     return u;
   }
@@ -213,7 +222,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
       llaveDatos = key;
       c.fallos = 0; c.bloqueadaHasta = 0; await guardarCredencial(c);
       const u = { ...claims.usuario, offline: true, offlineExpiresAt: claims.exp, token: null };
-      setSes(u);
+      setSes(u); await guardarSesionPersistente();
       refrescarBadge();
       return u;
     } catch (e) {
@@ -243,15 +252,15 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
         const salt = c?.salt || nuevaSal(), key = await derivarClave(nueva, salt), claims = await validarTicket(r.offlineTicket);
         await reencifrarExistentes(key);
         await guardarCredencial({ id: `${u.rol}:${u.id}`, salt, ...await cifrar({ ticket: r.offlineTicket }, key), fallos: 0, bloqueadaHasta: 0 });
-        u.debeCambiarPassword = false; u.nombre = claims.usuario.nombre; setSes(u);
+        u.debeCambiarPassword = false; u.nombre = claims.usuario.nombre; setSes(u); await guardarSesionPersistente();
       } catch {
         for (const st of PROTEGIDAS) await clearStore(st);
         await clearStore('cache');
         Object.keys(localStorage).filter(x => x.startsWith('sdc_')).forEach(x => localStorage.removeItem(x));
         await del('credenciales', `${u.rol}:${u.id}`);
-        u.debeCambiarPassword = false; setSes(u);
+        u.debeCambiarPassword = false; setSes(u); await guardarSesionPersistente();
       }
-    } else if (u) { u.debeCambiarPassword = false; setSes(u); }
+    } else if (u) { u.debeCambiarPassword = false; setSes(u); await guardarSesionPersistente(); }
     return r;
   }
 
@@ -268,10 +277,11 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
       sessionStorage.removeItem('sd_alumno');
     } else if (anterior !== k) localStorage.setItem('sd_last', k);
   }
-  const logout = () => { limpiarSesion(); llaveDatos = null; location.hash = ''; location.reload(); };
+  const logout = async () => { limpiarSesion(); llaveDatos = null; await del('session', 'active').catch(() => {}); localStorage.removeItem('sd_ses'); sessionStorage.removeItem('sd_ses'); location.hash = ''; location.reload(); };
 
   async function invalidarCuenta(keyId) {
     await del('credenciales', keyId);
+    await del('session', 'active');
     for (const st of PROTEGIDAS) await clearStore(st);
     await clearStore('cache');
     Object.keys(localStorage).filter(x => x.startsWith('sdc_')).forEach(x => localStorage.removeItem(x));
@@ -295,7 +305,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
       await sync();
     } catch (e) {
       if (e.status === 404) await invalidarCuenta(`${s.rol}:${s.id}`);
-      else if (e.status === 401) { limpiarSesion(); llaveDatos = null; }
+      else if (e.status === 401) { limpiarSesion(); llaveDatos = null; await del('session', 'active'); }
       else { errorSync = 'No se pudo validar la sesión con el servidor; los pendientes no se enviaron.'; refrescarBadge(); return; }
       location.reload();
     }
@@ -304,10 +314,24 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
   async function init() {
     // La bóveda solo se desbloquea después de volver a introducir la contraseña.
     limpiarSesion();
-    localStorage.removeItem('sd_ses');
-    sessionStorage.removeItem('sd_ses');
     llaveDatos = null;
-    return null;
+    const guardada = await rawGet('session', 'active');
+    if (!guardada?.sesionCifrada || !guardada?.llave) { if (guardada) await del('session', 'active'); return null; }
+    let usuario;
+    try { usuario = await descifrar(guardada.sesionCifrada, guardada.llave); } catch { await del('session', 'active'); return null; }
+    if (usuario.offline) {
+      try {
+        if (!usuario.offlineExpiresAt || usuario.offlineExpiresAt <= Date.now()) throw new Error('Credencial offline vencida');
+        const c = await credencial(`${usuario.rol}:${usuario.id}`);
+        const ticket = c && await descifrar(c, guardada.llave);
+        const claims = ticket && await validarTicket(ticket.ticket);
+        if (!claims || claims.exp <= Date.now() || claims.sub !== usuario.id || claims.rol !== usuario.rol) throw new Error('Credencial offline inválida');
+      } catch { await del('session', 'active'); return null; }
+    }
+    llaveDatos = guardada.llave;
+    setSes(usuario);
+    if (usuario.token && navigator.onLine) validarSesionOnline();
+    return ses();
   }
 
   /* ---------- Asistencias y consulta ---------- */

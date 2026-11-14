@@ -120,7 +120,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
                 <div style={{ marginBottom: 14 }}><label style={{ marginTop: 0 }}>Alumno que estás viendo</label>
                   <select value={alumno ? alumno.curp : ''} onChange={e => elegir(e.target.value)}>{ok.map(v => <option key={v.curp} value={v.curp}>{v.nombre}</option>)}</select></div>
               )}
-              {Pag ? <Pag key={ruta + (alumno ? alumno.curp : '')} {...paginaProps} /> : <div className="card"><p className="vacio">Esta sección no existe.</p></div>}
+              {Pag ? <div className="apartado-vista" key={ruta + (alumno ? alumno.curp : '')}><Pag {...paginaProps} /></div> : <div className="card"><p className="vacio">Esta sección no existe.</p></div>}
             </main>
           </div>
         </div>

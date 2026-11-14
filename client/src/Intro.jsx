@@ -8,7 +8,7 @@ export default function Intro({ onFin }) {
   }, [onFin]);
 
   return (
-    <section className="intro" aria-label="Presentación de SHARK DARK">
+    <section className="intro" role="button" tabIndex="0" aria-label="Toca o haz clic en cualquier parte para saltar la introducción" onClick={onFin} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFin(); } }}>
       <div className="intro-atmosfera" aria-hidden="true" />
       <div className="intro-tunel" aria-hidden="true">
         {Array.from({ length: 28 }, (_, i) => (
@@ -27,7 +27,6 @@ export default function Intro({ onFin }) {
         </div>
         <span className="intro-reflejo" aria-hidden="true" />
       </div>
-      <button className="intro-saltar" type="button" onClick={onFin}>Saltar introducción</button>
     </section>
   );
 }
