@@ -1,4 +1,4 @@
-/* SHARK DARK · núcleo offline: IndexedDB + cola de sincronización + QR (generar y leer) */
+/* TIBURONES · núcleo offline: IndexedDB + cola de sincronización + QR (generar y leer) */
 import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDisponible } from './offline.js';
   /* ---------- Base de datos local ---------- */
   const CAMPOS_ID = { usuarios: '_id', alumnos: 'curp', asistencias: 'uid', cola: 'qid', avisos: 'id' };
@@ -480,7 +480,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
   function notificar(texto) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const icono = document.documentElement.dataset.tema === 'oscuro' ? '/icon-192.png' : '/icon-192-claro.png';
-    navigator.serviceWorker.ready.then(r => r.showNotification('SHARK DARK', { body: texto, icon: icono, badge: icono })).catch(() => {});
+    navigator.serviceWorker.ready.then(r => r.showNotification('TIBURONES', { body: texto, icon: icono, badge: icono })).catch(() => {});
   }
   const permisoAvisos = () => 'Notification' in window ? Notification.requestPermission() : Promise.resolve('denied');
 
@@ -610,7 +610,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
   function qr(text) {
     const m = qrMatrix(text), n = m.length + 8; let d = '';
     m.forEach((r, y) => r.forEach((c, x) => { if (c) d += `M${x + 4} ${y + 4}h1v1h-1z`; }));
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#FFFFFF"/><path d="${d}"/></svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#FFFFFF"/><path d="${d}" fill="#B5122A"/></svg>`;
   }
 
   const datos = async () => ({ alumnos: await all('alumnos'), asistencias: await all('asistencias'), avisos: await all('avisos') });

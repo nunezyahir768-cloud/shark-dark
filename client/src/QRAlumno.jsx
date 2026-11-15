@@ -31,7 +31,7 @@ function pdfQR(alumno, logo, qr) {
   objetos[6] = ['<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
   const contenido = [
     'q 150 0 0 105 222 690 cm /Logo Do Q',
-    `BT /F1 22 Tf 90 646 Td (CBTIS 170 - SHARK DARK) Tj ET`,
+    `BT /F1 22 Tf 90 646 Td (CBTIS 170 - TIBURONES) Tj ET`,
     `BT /F1 15 Tf 70 608 Td (${escPdf(alumno.nombre)}) Tj ET`,
     `BT /F1 12 Tf 70 584 Td (CURP: ${escPdf(alumno.curp)}) Tj ET`,
     `BT /F1 11 Tf 70 563 Td (${escPdf([alumno.semestre, alumno.area, alumno.grupo && 'Grupo ' + alumno.grupo].filter(Boolean).join(' - '))}) Tj ET`,
@@ -62,7 +62,7 @@ export default function QRAlumno({ alumno, onSalir }) {
       const svg = new Blob([SD.qr(alumno.curp)], { type: 'image/svg+xml' });
       const qrUrl = URL.createObjectURL(svg);
       try {
-        const [logo, qr] = await Promise.all([imagenJpeg('/img/tiburon.png', 600, 420), imagenJpeg(qrUrl, 640, 640)]);
+        const [logo, qr] = await Promise.all([imagenJpeg('/img/tiburones-claro.svg', 600, 420), imagenJpeg(qrUrl, 640, 640)]);
         const blob = pdfQR(alumno, logo, qr), url = URL.createObjectURL(blob), a = document.createElement('a');
         a.href = url; a.download = `QR-${alumno.curp}.pdf`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 3000);
       } finally { URL.revokeObjectURL(qrUrl); }

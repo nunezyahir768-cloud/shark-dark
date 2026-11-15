@@ -101,7 +101,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
       <TutorCtx.Provider value={{ vinc, activo: alumno ? alumno.curp : '', setActivo: elegir }}>
         <div className={'app' + (tutorial ? ' tutorial-activo' : '')}>
           <aside className={'side' + (abre ? ' abre' : '')}>
-            <div className="marca"><Logo darkIcon alt="SHARK DARK CBTIS 170" /><span>SHARK DARK<small>CBTIS 170</small></span></div>
+            <div className="marca"><Logo darkIcon alt="TIBURONES CBTIS 170" /><span>TIBURONES<small>CBTIS 170</small></span></div>
             <button className="side-close" type="button" aria-label="Cerrar menú" onClick={() => setAbre(false)}>×</button>
             <nav>{MENU[rol].map(([k, t]) => {
               const activa = ruta === k || (k === 'opciones' && (ruta === 'perfiles' || ruta === 'perfil'));
@@ -115,7 +115,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
           </aside>
           <div className={'velo' + (abre ? ' abre' : '')} onClick={() => setAbre(false)} />
           <div className="contenido">
-            <div className="top"><button aria-label="Abrir menú" aria-expanded={abre} onClick={() => setAbre(true)}>☰</button><b>{rol === 'admin' ? 'CONTROL ESCOLAR' : 'SHARK DARK'}</b></div>
+            <div className="top"><button aria-label="Abrir menú" aria-expanded={abre} onClick={() => setAbre(true)}>☰</button><b>{rol === 'admin' ? 'CONTROL ESCOLAR' : 'TIBURONES'}</b></div>
             {toast && <div className="toast">{toast}</div>}
             <main>
               {rol === 'tutor' && ok.length > 1 && ruta !== 'perfiles' && (

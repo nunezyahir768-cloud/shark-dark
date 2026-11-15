@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 680" role="img" aria-label="Tiburones CBTIS 170">
+  <defs><clipPath id="marca"><rect x="0" y="0" width="1024" height="458"/></clipPath></defs>
+  <image href="/img/tiburon-claro.png" x="0" y="0" width="1024" height="683" preserveAspectRatio="none" clip-path="url(#marca)"/>
+  <text x="512" y="590" text-anchor="middle" fill="#B5122A" font-family="Arial, sans-serif" font-size="82" font-weight="700" letter-spacing="8">TIBURONES</text>
+</svg>

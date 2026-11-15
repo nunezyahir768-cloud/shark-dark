@@ -1,5 +1,5 @@
-const CACHE = 'sharkdark-v38';
-const ARCHIVOS = ['./', '/control-escolar', 'index.html', 'bundle.js', 'bundle.css', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-192-claro.png', 'icon-512-claro.png', 'img/tiburon.png', 'img/tiburon-claro.png'];
+const CACHE = 'sharkdark-v39';
+const ARCHIVOS = ['./', '/control-escolar', 'index.html', 'bundle.js', 'bundle.css', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-192-claro.png', 'icon-512-claro.png', 'img/tiburon.png', 'img/tiburon-claro.png', 'img/tiburones-claro.svg', 'img/tiburones-oscuro.svg'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(ARCHIVOS.map(f => c.add(f).catch(() => {})))));
   self.skipWaiting();

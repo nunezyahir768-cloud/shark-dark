@@ -71,11 +71,11 @@ export default function TutorialInteractivo({ rol, menu, onMenu, onClose }) {
 
   return createPortal(<>
     <div className="tutorial-sombra" aria-hidden="true" />
-    <section className="tutorial-tarjeta" style={posicionTarjeta || undefined} role="dialog" aria-modal="true" aria-label="Tutorial interactivo de SHARK DARK">
+    <section className="tutorial-tarjeta" style={posicionTarjeta || undefined} role="dialog" aria-modal="true" aria-label="Tutorial interactivo de TIBURONES">
       <p className="tutorial-counter">Paso {indice + 1} de {pasos.length}</p>
       <h2>{paso.titulo}</h2>
       <div className="tutorial-texto"><p>{paso.texto}</p></div>
-      {paso.tipo === 'final' && <button className="btn tutorial-comenzar" onClick={() => { location.hash = '#/inicio'; cerrar(); }}>Comenzar a utilizar SHARK DARK</button>}
+      {paso.tipo === 'final' && <button className="btn tutorial-comenzar" onClick={() => { location.hash = '#/inicio'; cerrar(); }}>Comenzar a utilizar TIBURONES</button>}
       <div className="tutorial-acciones">
         <button className="btn sec" onClick={anterior} disabled={indice === 0}>Anterior</button>
         <button className="mini" onClick={cerrar}>Omitir tutorial</button>

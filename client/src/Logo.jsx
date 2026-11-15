@@ -1,7 +1,7 @@
-export default function Logo({ className = '', alt = 'Logo de SHARK DARK CBTIS 170', darkIcon = false, original = false }) {
-  if (original) return <img className={'logo-original ' + className} src="/img/tiburon.png" alt={alt} />;
-  const light = darkIcon ? '/icon-192-claro.png' : '/img/tiburon-claro.png';
-  const dark = darkIcon ? '/icon-192.png' : '/img/tiburon.png';
+export default function Logo({ className = '', alt = 'Logo de TIBURONES CBTIS 170', darkIcon = false, original = false }) {
+  if (original) return <img className={'logo-original ' + className} src="/img/tiburones-claro.svg" alt={alt} />;
+  const light = '/img/tiburones-claro.svg';
+  const dark = '/img/tiburones-oscuro.svg';
   return (
     <span className={'logo-tema ' + className} role="img" aria-label={alt}>
       <img className="logo-tema-imagen logo-tema-oscuro" src={dark} alt="" aria-hidden="true" />

@@ -38,8 +38,8 @@ export default function Login({ onOk }) {
   }
   return (
     <main className="centro">
-      <Logo className="logo" darkIcon alt="SHARK DARK CBTIS 170" />
-      <h1>{controlEscolar ? 'CONTROL ESCOLAR' : 'SHARK DARK'}</h1>
+      <Logo className="logo" darkIcon alt="TIBURONES CBTIS 170" />
+      <h1>{controlEscolar ? 'CONTROL ESCOLAR' : 'TIBURONES'}</h1>
       <p className="sub" style={{ textAlign: 'center' }}>{controlEscolar ? 'CBTIS 170 · Acceso administrativo' : 'CBTIS 170 · Portal escolar'}</p>
       <Card>
         {modo === 'activar' ? <form onSubmit={activar}>

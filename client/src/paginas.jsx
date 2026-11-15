@@ -53,7 +53,7 @@ export function ClaseAhora({ bl }) {
 export function InicioBienvenida({ rol, onTutorial, alumno, qrAbierto, onAbrirQr, onSalirQr }) {
   return (<>
     <div className="bienvenida">
-      <Hero titulo="¡Bienvenido a SHARK DARK!" />
+      <Hero titulo="¡Bienvenido a TIBURONES!" />
       <Logo className="bienvenida-logo" />
       <div className="bienvenida-acciones">
         <button className="btn bienvenida-accion" type="button" onClick={onTutorial}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11L13 8z" /></svg>Ver tutorial</button>
@@ -256,7 +256,7 @@ export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol, on
       ? { resumen: 'Consulta tus datos escolares y código QR.', descripcion: 'Revisa tu información académica y muestra tu código QR para registrar asistencia.', ruta: '#/perfil', accion: 'Abrir mi perfil' }
       : { resumen: 'Consulta los datos de tu cuenta.', descripcion: rol === 'admin' ? 'Revisa la información de tu cuenta de Control Escolar.' : 'Revisa la información de tu cuenta docente.', ruta: '#/cuenta', accion: 'Abrir mi cuenta' };
   return <>
-    <Hero titulo="Opciones" sub="Personaliza la apariencia de SHARK DARK en este dispositivo." />
+    <Hero titulo="Opciones" sub="Personaliza la apariencia de TIBURONES en este dispositivo." />
     <button className="btn sec tutorial-repetir" type="button" onClick={onTutorial}>Ver tutorial interactivo</button>
     <OpcionAcordeon id="tema" titulo="Tema" resumen={'Actual: ' + nombreTema} abierta={abierta} onToggle={alternar}>
       <p className="sub">Elige el aspecto de la aplicación. Predeterminado sigue el tema de tu dispositivo.</p>

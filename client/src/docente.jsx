@@ -99,7 +99,7 @@ export function CalifDocente() {
   }
   function excel() {
     const filas = grupo.map(a => [a.nombre, mats.map(m => { const v = val(a, m); return v === '' || v === undefined ? '' : +v; })]);
-    descargar(XL.calificaciones({ titulo: 'CBTIS 170 · SHARK DARK', subtitulo: `Calificaciones · ${c.semestre} ${c.area} ${c.grupo} · Parcial ${p}`, materias: mats, filas }), `calificaciones-${c.semestre}${c.area}${c.grupo}-P${p}.xlsx`);
+    descargar(XL.calificaciones({ titulo: 'CBTIS 170 · TIBURONES', subtitulo: `Calificaciones · ${c.semestre} ${c.area} ${c.grupo} · Parcial ${p}`, materias: mats, filas }), `calificaciones-${c.semestre}${c.area}${c.grupo}-P${p}.xlsx`);
   }
   return (<>
     <Hero titulo="Calificaciones" sub="Captura tu asignatura; las demás las ves en la tabla." /><Banner b={b} />
@@ -121,7 +121,7 @@ export function ReporteDocente() {
     const nom = new Map(m.g.map(a => [a.curp, a.nombre])), est = { asistio: 'Asistió', falta: 'Falta', justificada: 'Justificada' };
     const detalle = m.rs.slice().sort((x, y) => nom.get(x.curp).localeCompare(nom.get(y.curp)) || x.fecha.localeCompare(y.fecha)).map(r => [nom.get(r.curp), r.curp, r.fecha, r.hora || '', r.materia || '', est[r.estado] || r.estado, r.motivo || '']);
     const mesTxt = new Date(mes + '-15').toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
-    descargar(XL.asistencias({ titulo: 'CBTIS 170 · SHARK DARK', subtitulo: `Asistencias · ${c.materia} · ${c.semestre} ${c.area} ${c.grupo} · ${mesTxt}`, fechas: m.fechas.map(f => f.slice(8) + '/' + f.slice(5, 7)), filas: m.filas, detalle }), `asistencias-${c.materia}-${c.semestre}${c.area}${c.grupo}-${mes}.xlsx`);
+    descargar(XL.asistencias({ titulo: 'CBTIS 170 · TIBURONES', subtitulo: `Asistencias · ${c.materia} · ${c.semestre} ${c.area} ${c.grupo} · ${mesTxt}`, fechas: m.fechas.map(f => f.slice(8) + '/' + f.slice(5, 7)), filas: m.filas, detalle }), `asistencias-${c.materia}-${c.semestre}${c.area}${c.grupo}-${mes}.xlsx`);
     ban('ok', 'Reporte listo', `${m.g.length} alumnos y ${m.fechas.length} días. Ábrelo con Excel.`);
   }
   const col = { '✓': 'var(--ok)', '✗': 'var(--err)', J: 'var(--caramelo)' };

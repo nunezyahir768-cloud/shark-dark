@@ -177,13 +177,13 @@ export function ReportesAdmin() {
       const nom = new Map(alumnos.map(a => [a.curp, a.nombre]));
       const detalle = registros.map(a => [nom.get(a.curp) || 'Alumno', a.curp, a.fecha, a.hora || '', a.materia, a.estado, a.motivo || '']);
       descargar(XL.asistencias({
-        titulo: 'CBTIS 170 · SHARK DARK', subtitulo: `Asistencia · ${sub} · ${nombreMes}`,
+        titulo: 'CBTIS 170 · TIBURONES', subtitulo: `Asistencia · ${sub} · ${nombreMes}`,
         fechas: fechas.map(f => `${f.slice(8)}/${f.slice(5, 7)}`),
         filas: alumnos.map(a => [a.nombre, fechas.map(f => porFecha.get(`${a.curp}|${f}`) || '·')]), detalle
       }), `reporte-asistencia-${clase.semestre}${clase.area}${clase.grupo}-${mes}.xlsx`);
     } else {
       descargar(XL.calificaciones({
-        titulo: 'CBTIS 170 · SHARK DARK', subtitulo: `Calificaciones · ${sub} · Parcial ${parcial}`,
+        titulo: 'CBTIS 170 · TIBURONES', subtitulo: `Calificaciones · ${sub} · Parcial ${parcial}`,
         materias: [clase.materia],
         filas: alumnos.map(a => [a.nombre, [notaAlumno.has(a.curp) ? notaAlumno.get(a.curp) : '']])
       }), `reporte-calificaciones-${clase.semestre}${clase.area}${clase.grupo}-P${parcial}.xlsx`);
