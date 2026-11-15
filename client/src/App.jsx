@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import SD from './sd.js';
 import Intro from './Intro.jsx';
 import Logo from './Logo.jsx';
@@ -51,7 +51,8 @@ const PAGINAS = {
 };
 
 const useRuta = () => {
-  const [r, setR] = useState(location.hash.replace(/^#\/?/, ''));
+  const rutaInicial = location.hash.replace(/^#\/?/, '') || location.pathname.replace(/^\/+|\/+$/g, '');
+  const [r, setR] = useState(rutaInicial);
   useEffect(() => { const f = () => setR(location.hash.replace(/^#\/?/, '')); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
   return r;
 };
@@ -134,6 +135,8 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
 
 export default function App() {
   const [ses, setSes] = useState(null), [ready, setReady] = useState(false);
+  const finalizarIntro = useCallback(() => setIntro(false), []);
+  const rutaSolicitada = useRef(location.hash.replace(/^#\/?/, '') || location.pathname.replace(/^\/+|\/+$/g, ''));
   const [tema, setTema] = useState(() => {
     const guardado = localStorage.getItem('sd_tema');
     return ['claro', 'oscuro', 'predeterminado'].includes(guardado) ? guardado : 'predeterminado';
@@ -142,7 +145,7 @@ export default function App() {
     const guardado = localStorage.getItem('sd_tamano_fuente');
     return ['pequena', 'normal', 'grande'].includes(guardado) ? guardado : 'normal';
   });
-  const [intro, setIntro] = useState(() => !sessionStorage.getItem('sd_intro') && !matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [intro, setIntro] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const controlRoute = location.pathname.replace(/\/+$/, '') === '/control-escolar';
   useEffect(() => { SD.init().then(setSes).catch(() => setSes(null)).finally(() => setReady(true)); }, []);
   useLayoutEffect(() => {
@@ -165,14 +168,13 @@ export default function App() {
       return () => preferenciaSistema.removeEventListener('change', aplicarTema);
     }
   }, [tema, tamanoFuente]);
-  useEffect(() => { sessionStorage.setItem('sd_intro', '1'); }, []);
   useEffect(() => {
-    if (ses && ses.rol === 'admin' && !controlRoute) location.replace('/control-escolar' + location.hash);
+    if (ses && ses.rol === 'admin' && !controlRoute) location.replace('/control-escolar' + (location.hash || (rutaSolicitada.current ? `#/${rutaSolicitada.current}` : '')));
   }, [ses, controlRoute]);
   if (ses && ses.rol === 'admin' && !controlRoute) return null;
   const sesVisible = controlRoute && ses && ses.rol !== 'admin' ? null : ses;
   return (<>
-    {intro && <Intro onFin={() => setIntro(false)} />}
-    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} />) : <Login onOk={() => { location.hash = ''; setSes(SD.session()); }} />)}
+    {intro && <Intro onFin={finalizarIntro} />}
+    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} />) : <Login onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} />)}
   </>);
 }

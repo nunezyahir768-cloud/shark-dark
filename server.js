@@ -644,6 +644,10 @@ app.get('/api/asistencias', auth, h(async (req, res) => {
 }));
 
 app.get('/control-escolar', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 /* ---------- Arranque ---------- */
 async function iniciarServidor() {
