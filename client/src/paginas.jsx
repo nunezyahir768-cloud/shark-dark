@@ -1,6 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
 import SD from './sd.js';
-import Logo from './Logo.jsx';
 import QRAlumno from './QRAlumno.jsx';
 import { conDescanso, Card, Hero, Banner, useBanner, QR, useDatos, useCached, useAlumno, TutorCtx, DIAS, hh, fmtF, hoyISO, post, msgErr, delGrupo, estadoHorario, resumenAsistencia, ListaFaltas, nombreGrupo } from './ui.jsx';
 
@@ -54,7 +53,6 @@ export function InicioBienvenida({ rol, onTutorial, alumno, qrAbierto, onAbrirQr
   return (<>
     <div className="bienvenida">
       <Hero titulo="¡Bienvenido a TIBURONES!" />
-      <Logo className="bienvenida-logo" />
       <div className="bienvenida-acciones">
         <button className="btn bienvenida-accion" type="button" onClick={onTutorial}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11L13 8z" /></svg>Ver tutorial</button>
         {rol === 'alumno' && alumno && <button className="btn bienvenida-accion qr-acceso" type="button" onClick={onAbrirQr}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1h5v5H1zM10 1h5v5h-5zM1 10h5v5H1zM9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" /></svg>QR</button>}
