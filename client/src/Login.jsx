@@ -7,6 +7,7 @@ export default function Login({ onOk }) {
   const controlEscolar = location.pathname.replace(/\/+$/, '') === '/control-escolar';
   const [rol, setRol] = useState(() => {
     const guardado = localStorage.getItem('sd_rol');
+    if (controlEscolar) { const area = localStorage.getItem('sd_admin_area'); return ['portero', 'sara', 'gabriela', 'control'].includes(area) ? area : 'portero'; }
     return ['alumno', 'tutor', 'docente'].includes(guardado) ? guardado : 'alumno';
   });
   const [enLinea, setEnLinea] = useState(navigator.onLine);
@@ -21,7 +22,7 @@ export default function Login({ onOk }) {
   async function entrar(e) {
     e.preventDefault(); setMsg(''); setCargando(true);
     const tipo = controlEscolar ? 'admin' : rol;
-    try { await SD.login(tipo, u, password); localStorage.setItem('sd_rol', tipo); onOk(); }
+    try { await SD.login(tipo, u, password); localStorage.setItem('sd_rol', tipo); if (controlEscolar) localStorage.setItem('sd_admin_area', rol); onOk(); }
     catch (err) { setMsg(err.message); }
     finally { setCargando(false); }
   }
@@ -51,8 +52,9 @@ export default function Login({ onOk }) {
         <button className="btn" disabled={cargando}>{cargando ? 'GUARDANDO…' : 'CREAR MI CONTRASEÑA'}</button><p className="msg" role="alert">{msg}</p>
         <button type="button" className="mini" onClick={() => { setModo('login'); setMsg(''); }}>Volver al inicio</button>
       </form> : modo === 'login' ? <form onSubmit={entrar}>
-          {!controlEscolar && <><label htmlFor="rol">Entrar como</label>
-            <select id="rol" value={rol} onChange={e => setRol(e.target.value)}><option value="alumno">Alumno</option><option value="tutor">Tutor</option><option value="docente">Docente</option></select></>}
+          {<><label htmlFor="rol">Entrar como</label>
+            {controlEscolar ? <select id="rol" value={rol} onChange={e => setRol(e.target.value)}><option value="portero">Portero</option><option value="sara">Lic. Sara</option><option value="gabriela">Ing. Gabriela</option><option value="control">Control Escolar</option></select> : <select id="rol" value={rol} onChange={e => setRol(e.target.value)}><option value="alumno">Alumno</option><option value="tutor">Tutor</option><option value="docente">Docente</option></select>}
+          </>}
           <label htmlFor="u">CURP</label><input id="u" value={u} onChange={e => setU(e.target.value.toUpperCase())} placeholder="Tu CURP (18 caracteres)" maxLength="18" autoComplete="username" required />
           <label htmlFor="pw">Contraseña</label>
           <input id="pw" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Escribe tu contraseña" autoComplete="current-password" required />

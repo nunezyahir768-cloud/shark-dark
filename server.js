@@ -66,7 +66,7 @@ const auth = (req, res, next) => {
 const soloAdmin = (req, res, next) => req.u.rol === 'admin' ? next() : bad(res, 'Solo administración', 403);
 const publico = ({ salt, hash, _id, ...r }) => r;
 
-let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion, auditoria, avisosLeidos, reportesConducta, suscripcionesPush;
+let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion, auditoria, avisosLeidos, reportesConducta, citatorios, suscripcionesPush;
 let recordatoriosPush;
 const PUSH_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const PUSH_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
@@ -693,6 +693,23 @@ app.post('/api/permisos/:id/resolver', auth, soloAdmin, h(async (req, res) => {
     res.json({ ok: true });
 }));
 
+/* ---------- Citatorios de Servicios Escolares ---------- */
+app.get('/api/admin/citatorios', auth, soloAdmin, h(async (_req, res) => {
+    const l = await citatorios.find({}).sort({ creado: -1 }).limit(500).toArray();
+    res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
+}));
+app.post('/api/admin/citatorios', auth, soloAdmin, h(async (req, res) => {
+    const curp = s(req.body.curp).toUpperCase(), fecha = s(req.body.fecha), motivo = s(req.body.motivo).trim().slice(0, 1000);
+    if (!RX.curp.test(curp) || !FECHA.test(fecha) || !motivo) return bad(res, 'Elige alumno, fecha y motivo del citatorio');
+    const alumno = await usuarios.findOne({ _id: 'alumno:' + curp });
+    if (!alumno) return bad(res, 'No se encontró ese alumno', 404);
+    const id = crypto.randomBytes(6).toString('hex').toUpperCase();
+    const doc = { _id: id, curp, alumno: alumno.nombre, area: alumno.area, semestre: alumno.semestre, grupo: alumno.grupo, fecha, motivo, creado: new Date(), creadoPor: req.u.nombre || req.u.id };
+    await citatorios.insertOne(doc);
+    await registrarCambio(req, 'Citatorio creado', `${alumno.nombre} · ${fecha}`);
+    res.status(201).json({ ok: true, id });
+}));
+
 app.get('/api/avisos', auth, h(async (req, res) => {
     if (req.u.rol !== 'tutor') return res.json([]);
     const lista = await avisos.find({ para: req.u.id }).sort({ creado: -1 }).limit(100).toArray();
@@ -750,6 +767,7 @@ async function iniciarServidor() {
         auditoria = db.collection('auditoria');
         avisosLeidos = db.collection('avisosLeidos');
         reportesConducta = db.collection('reportesConducta');
+        citatorios = db.collection('citatorios');
         await solicitudesRecuperacion.createIndex({ curp: 1, rol: 1, estado: 1 });
         await asistencias.createIndex({ curp: 1, fecha: -1 });
         await reportesConducta.createIndex({ curp: 1, creado: -1 });

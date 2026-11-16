@@ -6,7 +6,7 @@ import Login, { CambiarPassword } from './Login.jsx';
 import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
 import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, Cuenta, Opciones } from './paginas.jsx';
 import { AsistenciaDocente, CalifDocente } from './docente.jsx';
-import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, Historial } from './servicios.jsx';
+import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, Historial, ReportesAdmin, Citatorios } from './servicios.jsx';
 import ReportesConducta from './ReportesConducta.jsx';
 import TutorialInteractivo from './TutorialInteractivo.jsx';
 
@@ -33,21 +33,22 @@ const MENU = {
   alumno: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
   tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
   docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Notificaciones'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['opciones', 'Opciones']],
-  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['historial', 'Historial'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
+  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['historial', 'Historial'], ['escaner', 'EscÃ¡ner'], ['opciones', 'Opciones']]
 };
+const MENU_ADMIN = { portero: [['inicio', 'Inicio'], ['escaner', 'Escáner']], sara: [['inicio', 'Inicio'], ['permisos', 'Permisos'], ['reportes', 'Reportes'], ['citatorios', 'Citatorios'], ['avisos', 'Notificaciones']], gabriela: [['inicio', 'Inicio'], ['horarios', 'Horarios']], control: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['calificaciones', 'Calificaciones'], ['historial', 'Historial']] };
 const INICIO = { alumno: 'inicio', tutor: 'inicio', docente: 'inicio', admin: 'inicio' };
 const PAGINAS = {
   inicio: { alumno: Inicio, tutor: Inicio, docente: Inicio, admin: InicioAdmin },
   perfil: { alumno: PerfilAlumno }, perfiles: { tutor: PerfilesTutor },
   asistencia: { alumno: AsistenciaVer, tutor: AsistenciaVer, docente: AsistenciaDocente },
   horario: { alumno: Horario, tutor: Horario, docente: Horario },
-  calificaciones: { alumno: CalifVer, tutor: CalifVer, docente: CalifDocente },
+  calificaciones: { alumno: CalifVer, tutor: CalifVer, docente: CalifDocente, admin: ReportesAdmin },
   permisos: { alumno: Permisos, tutor: Permisos, docente: Permisos, admin: Permisos },
   avisos: { alumno: Avisos, tutor: Avisos, docente: Avisos, admin: Avisos },
   reportes: { alumno: ReportesConducta, tutor: ReportesConducta, docente: ReportesConducta, admin: ReportesConducta },
   opciones: { alumno: Opciones, tutor: Opciones, docente: Opciones, admin: Opciones },
   cuenta: { alumno: Cuenta, tutor: Cuenta, docente: Cuenta, admin: Cuenta },
-  cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, historial: { admin: Historial }
+  cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, historial: { admin: Historial }, citatorios: { admin: Citatorios }
 };
 
 const useRuta = () => {
@@ -57,7 +58,7 @@ const useRuta = () => {
   return r;
 };
 
-/* Aviso 5 minutos antes de que termine la clase: dice cuál sigue (funciona con la app abierta) */
+/* Aviso 5 minutos antes de que termine la clase: dice cuÃ¡l sigue (funciona con la app abierta) */
 function useAvisoSiguiente(alumno, activo) {
   const [toast, setToast] = useState('');
   const bl = useRef([]);
@@ -68,7 +69,7 @@ function useAvisoSiguiente(alumno, activo) {
       if (!e.ahora || e.minutosParaFin > 5 || e.minutosParaFin < 1) return;
       const k = `sd_hn_${new Date().toLocaleDateString('sv-SE')}_${e.ahora.id}`;
       if (localStorage.getItem(k)) return; localStorage.setItem(k, '1');
-      const t = `Termina ${e.ahora.materia} en ${e.minutosParaFin} min. ` + (e.sig ? (e.sig.tipo === 'descanso' ? `Sigue el descanso (${hh(e.sig.inicio)}).` : `Sigue: ${e.sig.materia} a las ${hh(e.sig.inicio)}.`) : 'Es la última clase del día.');
+      const t = `Termina ${e.ahora.materia} en ${e.minutosParaFin} min. ` + (e.sig ? (e.sig.tipo === 'descanso' ? `Sigue el descanso (${hh(e.sig.inicio)}).` : `Sigue: ${e.sig.materia} a las ${hh(e.sig.inicio)}.`) : 'Es la Ãºltima clase del dÃ­a.');
       setToast(t); SD.notificar(t); setTimeout(() => setToast(''), 20000);
     };
     SD.cached('horario', '/api/horarios').then(l => { bl.current = conDescanso(delGrupo(l, alumno)); rev(); });
@@ -78,7 +79,7 @@ function useAvisoSiguiente(alumno, activo) {
 }
 
 function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, installMessage }) {
-  const rol = ses.rol, [abre, setAbre] = useState(false), [tutorial, setTutorial] = useState(false);
+  const rol = ses.rol, menu = rol === 'admin' ? (MENU_ADMIN[localStorage.getItem('sd_admin_area')] || MENU_ADMIN.portero) : MENU[rol], [abre, setAbre] = useState(false), [tutorial, setTutorial] = useState(false);
   const ruta = useRuta() || INICIO[rol];
   const [yo, setYo] = useState(null), [vinc, setVinc] = useState([]), [activo, setActivo] = useState(sessionStorage.getItem('sd_alumno') || '');
   useEffect(() => {
@@ -93,7 +94,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
   const elegir = c => { sessionStorage.setItem('sd_alumno', c); setActivo(c); };
   const toast = useAvisoSiguiente(alumno, rol === 'alumno');
   useEffect(() => { setAbre(false); window.scrollTo(0, 0); }, [ruta]);
-  const Pag = (PAGINAS[ruta] || {})[rol];
+  const Pag = menu.some(([clave]) => clave === ruta) ? (PAGINAS[ruta] || {})[rol] : null;
   const iniciarTutorial = () => { setTutorial(true); location.hash = '#/inicio'; };
   const paginaProps = ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente, rol, onTutorial: iniciarTutorial } : ruta === 'inicio' ? { onTutorial: iniciarTutorial, onInstall, installMessage } : {};
   const ok = vinc.filter(v => v.estado === 'vinculado');
@@ -103,8 +104,8 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
         <div className={'app' + (tutorial ? ' tutorial-activo' : '')}>
           <aside className={'side' + (abre ? ' abre' : '')}>
             <div className="marca"><Logo darkIcon alt="TIBURONES CBTIS 170" /><span>TIBURONES<small>CBTIS 170</small></span></div>
-            <button className="side-close" type="button" aria-label="Cerrar menú" onClick={() => setAbre(false)}>×</button>
-            <nav>{MENU[rol].map(([k, t]) => {
+            <button className="side-close" type="button" aria-label="Cerrar menÃº" onClick={() => setAbre(false)}>Ã—</button>
+            <nav>{menu.map(([k, t]) => {
               const activa = ruta === k || (k === 'opciones' && (ruta === 'perfiles' || ruta === 'perfil'));
               return <a key={k} href={'#/' + k} className={activa ? 'on' : ''} aria-current={activa ? 'page' : undefined}><IconoMenu nombre={k} /><span>{t}</span></a>;
             })}</nav>
@@ -116,18 +117,18 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
           </aside>
           <div className={'velo' + (abre ? ' abre' : '')} onClick={() => setAbre(false)} />
           <div className="contenido">
-            <div className="top"><button aria-label="Abrir menú" aria-expanded={abre} onClick={() => setAbre(true)}>☰</button><b>{rol === 'admin' ? 'CONTROL ESCOLAR' : 'TIBURONES'}</b></div>
+            <div className="top"><button aria-label="Abrir menÃº" aria-expanded={abre} onClick={() => setAbre(true)}>â˜°</button><b>{rol === 'admin' ? 'CONTROL ESCOLAR' : 'TIBURONES'}</b></div>
             {toast && <div className="toast">{toast}</div>}
             <main>
               {rol === 'tutor' && ok.length > 1 && ruta !== 'perfiles' && (
-                <div style={{ marginBottom: 14 }}><label style={{ marginTop: 0 }}>Alumno que estás viendo</label>
+                <div style={{ marginBottom: 14 }}><label style={{ marginTop: 0 }}>Alumno que estÃ¡s viendo</label>
                   <select value={alumno ? alumno.curp : ''} onChange={e => elegir(e.target.value)}>{ok.map(v => <option key={v.curp} value={v.curp}>{v.nombre}</option>)}</select></div>
               )}
-              {Pag ? <div className="apartado-vista" key={ruta + (alumno ? alumno.curp : '')}><Pag {...paginaProps} /></div> : <div className="card"><p className="vacio">Esta sección no existe.</p></div>}
+              {Pag ? <div className="apartado-vista" key={ruta + (alumno ? alumno.curp : '')}><Pag {...paginaProps} /></div> : <div className="card"><p className="vacio">Esta secciÃ³n no existe.</p></div>}
             </main>
           </div>
         </div>
-        {tutorial && <TutorialInteractivo rol={rol} menu={MENU[rol]} onMenu={setAbre} onClose={() => { setTutorial(false); setAbre(false); }} />}
+        {tutorial && <TutorialInteractivo rol={rol} menu={menu} onMenu={setAbre} onClose={() => { setTutorial(false); setAbre(false); }} />}
       </TutorCtx.Provider>
     </AlumnoCtx.Provider>
   );
@@ -157,12 +158,12 @@ export default function App() {
   }, []);
   const instalar = useCallback(async () => {
     setInstallMessage('');
-    if (window.matchMedia('(display-mode: standalone)').matches) { setInstallMessage('La app ya está instalada en este dispositivo.'); return; }
-    if (!installPrompt) { setInstallMessage('Abre el menú del navegador y elige “Instalar app” o “Agregar a pantalla principal”.'); return; }
+    if (window.matchMedia('(display-mode: standalone)').matches) { setInstallMessage('La app ya estÃ¡ instalada en este dispositivo.'); return; }
+    if (!installPrompt) { setInstallMessage('Abre el menÃº del navegador y elige â€œInstalar appâ€ o â€œAgregar a pantalla principalâ€.'); return; }
     await installPrompt.prompt();
     const { outcome } = await installPrompt.userChoice;
     setInstallPrompt(null);
-    if (outcome === 'accepted') setInstallMessage('Sigue los pasos del dispositivo para terminar la instalación.');
+    if (outcome === 'accepted') setInstallMessage('Sigue los pasos del dispositivo para terminar la instalaciÃ³n.');
   }, [installPrompt]);
   useEffect(() => { SD.init().then(setSes).catch(() => setSes(null)).finally(() => setReady(true)); }, []);
   useLayoutEffect(() => {

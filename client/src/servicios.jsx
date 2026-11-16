@@ -254,3 +254,27 @@ export function Escaner() {
       <Card title="Historial"><ul className="l">{r.asistencias.slice(0, 20).map(a => <li key={a.uid}><span>{a.fecha} · {a.hora}</span><span>{a.estado === 'falta' ? 'falta · ' : ''}{a.materia}</span></li>)}{!r.asistencias.length && <li className="vacio">Sin registros</li>}</ul></Card></>}
   </>);
 }
+
+export function Citatorios() {
+  const { u } = useServicios();
+  const [lista, setLista] = useState([]), [error, setError] = useState(''), [b, ban] = useBanner();
+  const [f, setF] = useState({ curp: '', fecha: hoyISO(), motivo: '' });
+  const cargar = useCallback(() => SD.cached('admin_citatorios', '/api/admin/citatorios').then(setLista).catch(e => setError(e.message || 'No se pudieron cargar los citatorios.')), []);
+  useEffect(() => { cargar(); }, [cargar]);
+  const crear = async e => {
+    e.preventDefault();
+    try { await post('/api/admin/citatorios', f); setF({ ...f, motivo: '' }); ban('ok', 'Citatorio creado', 'Quedó registrado para el alumno.'); cargar(); }
+    catch (e) { ban('err', 'No se pudo crear', msgErr(e)); }
+  };
+  return <>
+    <Hero titulo="Citatorios" sub="Registra citatorios para alumnos y consulta los anteriores." /><Banner b={b} />
+    {error && <p className="msg" role="alert">{error}</p>}
+    <Card title="Nuevo citatorio"><form onSubmit={crear}>
+      <label htmlFor="citatorio-alumno">Alumno</label><select id="citatorio-alumno" value={f.curp} onChange={e => setF({ ...f, curp: e.target.value })} required><option value="">Selecciona un alumno</option>{u.filter(x => x.rol === 'alumno').map(x => <option key={x.id} value={x.id}>{x.nombre} · {x.semestre} {x.area} {x.grupo}</option>)}</select>
+      <label htmlFor="citatorio-fecha">Fecha de cita</label><input id="citatorio-fecha" type="date" value={f.fecha} onChange={e => setF({ ...f, fecha: e.target.value })} required />
+      <label htmlFor="citatorio-motivo">Motivo</label><textarea id="citatorio-motivo" rows="4" maxLength="1000" value={f.motivo} onChange={e => setF({ ...f, motivo: e.target.value })} required />
+      <button className="btn">REGISTRAR CITATORIO</button></form></Card>
+    {lista.map(x => <Card key={x.id} title={`${x.alumno} · ${x.fecha}`}><p>{x.motivo}</p><p className="sub">{x.semestre} {x.area} {x.grupo} · Registrado por {x.creadoPor}</p></Card>)}
+    {!lista.length && <Card><p className="vacio">Aún no hay citatorios registrados.</p></Card>}
+  </>;
+}
