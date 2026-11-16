@@ -106,6 +106,10 @@ export function AsistenciaVer() {
   if (!al) return <Sin />;
   const rs = d.asistencias.filter(a => a.curp === al.curp), g = resumenAsistencia(rs);
   const materias = [...new Set(rs.map(a => a.materia).filter(Boolean))].sort();
+  const diasEscuela = [...new Set(rs.map(a => a.fecha))].sort((a, b) => b.localeCompare(a)).map(fecha => ({
+    fecha,
+    asistio: rs.some(a => a.fecha === fecha && a.estado === 'asistio')
+  }));
   const av = d.avisos.filter(a => a.curp === al.curp).sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora)).slice(0, 8);
   return (<>
     <Hero titulo="Asistencia" sub={al.nombre} />
@@ -114,6 +118,9 @@ export function AsistenciaVer() {
       <div><div className="num">{g.asist}</div><small className="vacio">Asistió</small></div>
       <div><div className="num rojo">{g.falt}</div><small className="vacio">Faltas</small></div>
       <div><div className="num">{g.just}</div><small className="vacio">Justificadas</small></div></div></Card>
+    <Card title="Asistencia a la escuela"><div className="tabla"><table className="tb"><thead><tr><th>Día</th><th>Mes</th><th>Año</th><th>¿Asistió?</th></tr></thead>
+      <tbody>{diasEscuela.map(({ fecha, asistio }) => { const [anio, mes, dia] = fecha.split('-'); return <tr key={fecha}><td>{Number(dia)}</td><td>{Number(mes)}</td><td>{anio}</td><td aria-label={asistio ? 'Sí asistió' : 'No asistió'}>{asistio ? '☑' : '✕'}</td></tr>; })}
+        {!diasEscuela.length && <tr><td colSpan="4">Sin registros todavía</td></tr>}</tbody></table></div></Card>
     <Card title="Por clase"><div className="tabla"><table className="tb"><thead><tr><th className="izq">Materia</th><th>Asistió</th><th>Faltas</th><th>Justif.</th><th>%</th></tr></thead>
       <tbody>{materias.map(m => { const r = resumenAsistencia(rs.filter(a => a.materia === m)); return <tr key={m}><td className="izq">{m}</td><td>{r.asist}</td><td>{r.falt}</td><td>{r.just}</td><td>{r.pct}%</td></tr>; })}
         {!materias.length && <tr><td className="izq" colSpan="5">Sin registros todavía</td></tr>}</tbody></table></div></Card>

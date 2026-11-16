@@ -56,10 +56,10 @@ html[data-tamano-fuente="pequena"] .hero .sub{margin-top:2px}
 .bienvenida .hero{text-align:center}
 .logo-tema{display:block;position:relative}.logo-tema-imagen{display:none;width:100%;height:auto}.logo-tema-claro{display:block}html[data-tema="oscuro"] .logo-tema-claro{display:none}html[data-tema="oscuro"] .logo-tema-oscuro{display:block}
 .logo-original{display:block;position:relative}.logo-original img{display:block;width:100%;height:auto}.logo-original-oscuro{display:none}html[data-tema="oscuro"] .logo-original-claro{display:none}html[data-tema="oscuro"] .logo-original-oscuro{display:block}
-.bienvenida-acciones{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;margin:12px auto 0}
-.bienvenida-accion{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;min-height:42px;margin:0;padding:9px 16px;border-radius:10px;font-size:.9rem}
+.bienvenida-acciones{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:nowrap;width:100%;margin:12px auto 0}
+.bienvenida-accion{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:0 1 auto;min-width:0;width:auto;min-height:42px;margin:0;padding:9px 16px;border-radius:10px;font-size:clamp(.62rem,2.5vw,.9rem);line-height:1.2}
 .bienvenida-accion svg{width:15px;height:15px;fill:currentColor}
-.bienvenida-accion.acceso-directo{background:var(--caramelo);color:#171614;border:1px solid var(--caramelo)}
+.bienvenida-accion.acceso-directo{background:var(--rojo);color:#fff;border:1px solid var(--rojo)}
 .bienvenida-accion.acceso-directo svg{fill:none;stroke:currentColor;stroke-width:1.5}
 .bienvenida-accion.acceso-directo:hover{filter:brightness(1.08)}
 .bienvenida-accion.qr-acceso{background:var(--rojo);color:#fff;border:1px solid var(--rojo)}
@@ -74,7 +74,7 @@ html[data-tamano-fuente="pequena"] .hero .sub{margin-top:2px}
 .qr-alumno-ayuda{font-size:.88rem}
 .qr-alumno-acciones{display:flex;gap:10px;margin-top:16px}
 .qr-alumno-acciones .btn{margin:0;flex:1}
-@media(max-width:480px){.bienvenida-acciones{gap:8px}.bienvenida-accion{min-height:40px;padding:8px 13px}.qr-alumno-modal{padding:18px 16px 14px}.qr-alumno-acciones{gap:8px}}
+@media(max-width:480px){.bienvenida-acciones{gap:6px}.bienvenida-accion{min-height:38px;padding:7px clamp(5px,2vw,10px);gap:5px}.bienvenida-accion svg{width:13px;height:13px;flex:none}.qr-alumno-modal{padding:18px 16px 14px}.qr-alumno-acciones{gap:8px}}
 
 /* Tutorial */
 .tutorial-cta{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:6px 2px 10px}

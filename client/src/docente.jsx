@@ -4,12 +4,18 @@ import * as XL from './excel.js';
 import { Card, Hero, Banner, useBanner, QR, useDatos, useCached, hh, fmtF, hoyISO, post, msgErr, estadoHorario, mesDatos, descargar } from './ui.jsx';
 
 export function Camara({ onTexto, onError }) {
-  const v = useRef(null), parar = useRef(null), [on, setOn] = useState(false), ultimo = useRef('');
+  const v = useRef(null), parar = useRef(null), [on, setOn] = useState(false), ultimo = useRef(''), procesando = useRef(false);
   useEffect(() => () => { parar.current && parar.current(); }, []);
   const alternar = async () => {
     if (on) { parar.current && parar.current(); parar.current = null; setOn(false); return; }
     setOn(true);
-    try { parar.current = await SD.scan(v.current, t => { t = t.trim().toUpperCase(); if (t !== ultimo.current) { ultimo.current = t; onTexto(t); setTimeout(() => (ultimo.current = ''), 4000); } }, onError); }
+    try { parar.current = await SD.scan(v.current, async t => {
+      t = t.trim().toUpperCase();
+      if (procesando.current || t === ultimo.current) return;
+      procesando.current = true; ultimo.current = t;
+      try { await onTexto(t); }
+      finally { setTimeout(() => { ultimo.current = ''; procesando.current = false; }, 1200); }
+    }, onError); }
     catch (e) { setOn(false); onError('No se pudo abrir la cámara (permiso o HTTPS).'); }
   };
   return (<><button className="btn" type="button" onClick={alternar}>{on ? 'DETENER CÁMARA' : 'ACTIVAR CÁMARA'}</button><video ref={v} playsInline muted style={{ display: on ? 'block' : 'none' }} /></>);
