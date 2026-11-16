@@ -16,3 +16,21 @@ self.addEventListener('fetch', e => {
     return hit || red;
   }));
 });
+self.addEventListener('push', e => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch { data = { body: e.data?.text() || '' }; }
+  const icon = '/icon-192.png';
+  e.waitUntil(self.registration.showNotification(data.title || 'TIBURONES', {
+    body: data.body || 'Tienes un nuevo aviso escolar.', icon, badge: icon,
+    data: { url: data.url || '/' }
+  }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || '/', self.location.origin).href;
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    const tab = list.find(c => c.url.startsWith(self.location.origin));
+    if (tab) return tab.focus().then(() => tab.navigate(url));
+    return clients.openWindow(url);
+  }));
+});

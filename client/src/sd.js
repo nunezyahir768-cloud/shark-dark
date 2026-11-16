@@ -200,6 +200,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     const guardar = { ...u }; delete guardar.token; delete guardar.offline;
     await put('usuarios', guardar);
     setSes(u); await guardarSesionPersistente();
+    if ('Notification' in window && Notification.permission === 'granted') registrarPush().catch(e => console.warn('Push:', e.message));
     sync();
     return u;
   }
@@ -482,7 +483,26 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     const icono = document.documentElement.dataset.tema === 'oscuro' ? '/icon-192.png' : '/icon-192-claro.png';
     navigator.serviceWorker.ready.then(r => r.showNotification('TIBURONES', { body: texto, icon: icono, badge: icono })).catch(() => {});
   }
-  const permisoAvisos = () => 'Notification' in window ? Notification.requestPermission() : Promise.resolve('denied');
+  async function registrarPush() {
+    const s = ses();
+    if (!s?.token || s.offline || !('serviceWorker' in navigator) || !('PushManager' in window) || Notification.permission !== 'granted') return false;
+    const { clave } = await api('/api/push/clave-publica');
+    if (!clave) throw new Error('El servidor aún no tiene configuradas las notificaciones push.');
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const bytes = Uint8Array.from(atob(clave.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - clave.length % 4) % 4)), c => c.charCodeAt(0));
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes });
+    }
+    await api('/api/push/suscripcion', { method: 'POST', body: { subscription: sub.toJSON() } });
+    return true;
+  }
+  async function permisoAvisos() {
+    if (!('Notification' in window)) return 'denied';
+    const permiso = await Notification.requestPermission();
+    if (permiso === 'granted') await registrarPush();
+    return permiso;
+  }
 
   /* ---------- Indicador de conexión ---------- */
   let badge;
@@ -629,5 +649,5 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     try { const r = await api(path); await cacheGuardar(key, r); return r; }
     catch (e) { return cacheLeer(key, []); }
   }
-  const SD = { init, login, activarCuenta, activarAlumno, solicitarRecuperacion, cambiarPassword, logout, session: ses, asistencia, consultar, sync, scan, qr, datos, cierre, corregir, permisoAvisos, api, vinculos, alumnoActivo, notificar, cached, offlineHabilitado: offlineDisponible };
+  const SD = { init, login, activarCuenta, activarAlumno, solicitarRecuperacion, cambiarPassword, logout, session: ses, asistencia, consultar, sync, scan, qr, datos, cierre, corregir, permisoAvisos, registrarPush, api, vinculos, alumnoActivo, notificar, cached, offlineHabilitado: offlineDisponible };
   export default SD;

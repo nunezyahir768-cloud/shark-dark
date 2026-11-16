@@ -9,6 +9,7 @@ const path = require('node:path');
 const express = require('express');
 const { MongoClient } = require('mongodb');
 const { crearTicketOffline } = require('./offline-auth');
+const webpush = require('web-push');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -65,7 +66,46 @@ const auth = (req, res, next) => {
 const soloAdmin = (req, res, next) => req.u.rol === 'admin' ? next() : bad(res, 'Solo administración', 403);
 const publico = ({ salt, hash, _id, ...r }) => r;
 
-let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion, auditoria, avisosLeidos, reportesConducta;
+let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion, auditoria, avisosLeidos, reportesConducta, suscripcionesPush;
+let recordatoriosPush;
+const PUSH_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
+const PUSH_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
+const PUSH_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@sharkdark.app';
+if (PUSH_PUBLIC && PUSH_PRIVATE) webpush.setVapidDetails(PUSH_SUBJECT, PUSH_PUBLIC, PUSH_PRIVATE);
+async function enviarPush(rol, id, titulo, body, url = '/') {
+    if (!suscripcionesPush || !PUSH_PUBLIC || !PUSH_PRIVATE) return;
+    const regs = await suscripcionesPush.find({ rol, usuarioId: id }).toArray();
+    const payload = JSON.stringify({ title: titulo, body, url });
+    await Promise.all(regs.map(async r => {
+        try { await webpush.sendNotification(r.subscription, payload); }
+        catch (e) {
+            if (e.statusCode === 404 || e.statusCode === 410) await suscripcionesPush.deleteOne({ _id: r._id });
+            else console.warn('No se pudo entregar push:', e.statusCode || e.message);
+        }
+    }));
+}
+async function revisarRecordatoriosClase() {
+    if (!recordatoriosPush || !PUSH_PUBLIC || !PUSH_PRIVATE) return;
+    const partes = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Mexico_City', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    }).formatToParts(new Date()).map(p => [p.type, p.value]));
+    const dias = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const dia = dias[partes.weekday], ahora = Number(partes.hour) * 60 + Number(partes.minute);
+    if (!dia) return;
+    const fecha = `${partes.year}-${partes.month}-${partes.day}`;
+    const bloques = await horarios.find({ dia, tipo: 'clase' }).toArray();
+    for (const b of bloques) {
+        const [h, m] = b.fin.split(':').map(Number), faltan = h * 60 + m - ahora;
+        if (faltan !== 5) continue;
+        const evento = `${fecha}:${b._id}`;
+        try { await recordatoriosPush.insertOne({ _id: evento, creado: new Date() }); }
+        catch (e) { if (e.code === 11000) continue; throw e; }
+        const alumnos = await usuarios.find({ rol: 'alumno', area: b.area, semestre: b.semestre, grupo: b.grupo }).toArray();
+        const siguiente = await horarios.find({ dia, area: b.area, semestre: b.semestre, grupo: b.grupo, inicio: { $gte: b.fin }, tipo: 'clase' }).sort({ inicio: 1 }).limit(1).next();
+        const texto = `Tu clase de ${b.materia} termina en 5 minutos.` + (siguiente ? ` Sigue ${siguiente.materia} a las ${siguiente.inicio}.` : ' Es la última clase del día.');
+        await Promise.all(alumnos.map(a => enviarPush('alumno', a.id, 'TIBURONES · Próxima clase', texto, '/')));
+    }
+}
 const intentosRecuperacion = new Map();
 const validaPassword = pw => typeof pw === 'string' && pw.length >= 10 && pw.length <= 128;
 const generaTemporal = () => crypto.randomBytes(9).toString('base64url');
@@ -104,7 +144,7 @@ async function avisar(alumno, tipo, hora, fecha, clave, materia, extra) {
     const tutores = cand.filter((x, i) => cand.findIndex(y => y.id === x.id) === i && vinculoOk(x, alumno));
     for (const tu of tutores) {
         const texto = extra || (tipo === 'falta' ? `${alumno.nombre} faltó a ${materia}` : `${alumno.nombre} asistió a ${materia} (${hora})`);
-        try { await avisos.insertOne({ _id: `${tipo}:${clave}:${tu.id}`, para: tu.id, curp: alumno.curp, tipo, materia, texto, fecha, hora, creado: new Date() }); }
+        try { await avisos.insertOne({ _id: `${tipo}:${clave}:${tu.id}`, para: tu.id, curp: alumno.curp, tipo, materia, texto, fecha, hora, creado: new Date() }); await enviarPush('tutor', tu.id, 'TIBURONES · Aviso escolar', texto, '/'); }
         catch (e) { if (e.code !== 11000) throw e; }
     }
 }
@@ -137,6 +177,24 @@ app.post('/api/login', h(async (req, res) => {
     const datos = publico(u);
     const usuario = { ...datos, rol: rolReal, debeCambiarPassword: !!u.debeCambiarPassword };
     res.json({ token: firmar({ id: u.id, rol: rolReal, exp: Date.now() + 12 * 3600e3 }), usuario, offlineTicket: await firmarOffline(usuario) });
+}));
+
+app.get('/api/push/clave-publica', (req, res) => res.json({ clave: PUSH_PUBLIC || null }));
+app.post('/api/push/suscripcion', auth, h(async (req, res) => {
+    if (!PUSH_PUBLIC || !PUSH_PRIVATE) return bad(res, 'Las notificaciones push aún no están configuradas en el servidor.', 503);
+    const sub = req.body.subscription;
+    if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) return bad(res, 'Suscripción push inválida.');
+    await suscripcionesPush.updateOne(
+        { endpoint: sub.endpoint },
+        { $set: { endpoint: sub.endpoint, subscription: sub, usuarioId: req.u.id, rol: req.u.rol, actualizado: new Date() } },
+        { upsert: true }
+    );
+    res.json({ ok: true });
+}));
+app.delete('/api/push/suscripcion', auth, h(async (req, res) => {
+    const endpoint = s(req.body.endpoint);
+    if (endpoint) await suscripcionesPush.deleteOne({ endpoint, usuarioId: req.u.id, rol: req.u.rol });
+    res.json({ ok: true });
 }));
 
 /* Alumnos, tutores y docentes activan cuentas previamente dadas de alta. */
@@ -495,12 +553,16 @@ app.post('/api/admin/vincular', auth, soloAdmin, h(async (req, res) => {
 }));
 
 /* ---------- Avisos de la administración (anuncios) ---------- */
-const DESTINOS = { tutor: ['tutor'], docente: ['docente'], alumno: ['alumno'], 'alumno,docente': ['alumno', 'docente'], 'tutor,alumno': ['tutor', 'alumno'], 'tutor,docente': ['tutor', 'docente'], todos: ['tutor', 'docente', 'alumno'] };
+const DESTINOS = { tutor: ['tutor'], docente: ['docente'], alumno: ['alumno'], 'alumno,docente': ['alumno', 'docente'], 'tutor,alumno': ['tutor', 'alumno'], 'tutor,docente': ['tutor', 'docente'], todos: ['tutor', 'docente', 'alumno', 'admin'] };
 app.post('/api/anuncios', auth, soloAdmin, h(async (req, res) => {
     const titulo = s(req.body.titulo).slice(0, 80), mensaje = s(req.body.mensaje).slice(0, 1000), para = DESTINOS[s(req.body.destino)];
     if (!titulo || !mensaje || !para) return bad(res, 'Escribe el título, el mensaje y elige a quién va');
     const id = crypto.randomBytes(5).toString('hex');
     await anuncios.insertOne({ _id: id, titulo, mensaje, para, creado: new Date(), por: req.u.id });
+    await Promise.all(para.map(async rol => {
+        const us = await usuarios.find({ rol }).project({ id: 1 }).toArray();
+        await Promise.all(us.map(u => enviarPush(rol, u.id, titulo, mensaje, '/')));
+    }));
     await registrarCambio(req, 'Aviso publicado', `${titulo} · ${para.join(', ')}`);
     res.status(201).json({ ok: true, id });
 }));
@@ -682,6 +744,8 @@ async function iniciarServidor() {
         anuncios = db.collection('anuncios');
         horarios = db.collection('horarios');
         avisos = db.collection('avisos');
+        suscripcionesPush = db.collection('suscripcionesPush');
+        recordatoriosPush = db.collection('recordatoriosPush');
         solicitudesRecuperacion = db.collection('solicitudesRecuperacion');
         auditoria = db.collection('auditoria');
         avisosLeidos = db.collection('avisosLeidos');
@@ -695,7 +759,10 @@ async function iniciarServidor() {
 
         console.log('✅ Conexión exitosa a MongoDB Atlas');
         console.log('🦈 Base de datos: SHARK-DARK');
-        app.listen(PORT, () => console.log(`🚀 Shark Dark está disponible en http://localhost:${PORT}`));
+        app.listen(PORT, () => {
+            console.log(`🚀 Shark Dark está disponible en http://localhost:${PORT}`);
+            setInterval(() => revisarRecordatoriosClase().catch(e => console.warn('Recordatorios push:', e.message)), 20000);
+        });
     } catch (error) {
         console.error('❌ Error al conectar con MongoDB Atlas:');
         console.error(error.message);

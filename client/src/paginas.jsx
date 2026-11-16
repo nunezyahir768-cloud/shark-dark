@@ -30,7 +30,7 @@ function BotonAvisos() {
       setError(e.message || 'No se pudieron activar las notificaciones.');
     }
   }
-  if (activo) return null;
+  if (activo) return <><p className="sub" role="status">Notificaciones activadas para esta cuenta en este dispositivo. Si el servidor tiene configuradas las claves push, también llegarán con la app cerrada.</p>{error && <p className="msg" role="alert">{error}</p>}</>;
   return <>
     <button className="btn sec" onClick={activar}>Activar avisos en este teléfono</button>
     {error && <p className="msg" role="status">{error}</p>}
@@ -175,7 +175,7 @@ export function Permisos() {
   </>);
 }
 
-const DESTINOS = [['tutor', 'Tutores'], ['docente', 'Docentes'], ['alumno', 'Alumnos'], ['alumno,docente', 'Alumnos y docentes'], ['tutor,alumno', 'Tutores y alumnos'], ['tutor,docente', 'Tutores y docentes'], ['todos', 'Todos (tutores, docentes y alumnos)']];
+const DESTINOS = [['tutor', 'Tutores'], ['docente', 'Docentes'], ['alumno', 'Alumnos'], ['alumno,docente', 'Alumnos y docentes'], ['tutor,alumno', 'Tutores y alumnos'], ['tutor,docente', 'Tutores y docentes'], ['todos', 'Toda la comunidad escolar']];
 const NOM = { tutor: 'Tutores', docente: 'Docentes', alumno: 'Alumnos' };
 export function Avisos() {
   const adm = SD.session().rol === 'admin', [lista, cargar] = useCached('anuncios', '/api/anuncios'), [b, ban] = useBanner();
@@ -267,6 +267,10 @@ export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol, on
       <div className="opciones-elecciones" role="group" aria-label="Tamaño de fuente">
         {tamanos.map(([valor, texto]) => <button key={valor} type="button" className="opciones-eleccion" aria-pressed={tamanoFuente === valor} onClick={() => setTamanoFuente(valor)}>{texto}</button>)}
       </div>
+    </OpcionAcordeon>
+    <OpcionAcordeon id="avisos" titulo="Notificaciones" resumen="Avisos en este dispositivo" abierta={abierta} onToggle={alternar}>
+      <p className="sub">Activa los avisos para esta cuenta. Si el navegador lo permite, también llegarán cuando la aplicación esté cerrada.</p>
+      <BotonAvisos />
     </OpcionAcordeon>
     <OpcionAcordeon id="perfiles" titulo="Perfiles" resumen={perfil.resumen} abierta={abierta} onToggle={alternar}>
       <p className="sub">{perfil.descripcion}</p>
