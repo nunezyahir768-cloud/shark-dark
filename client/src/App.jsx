@@ -30,10 +30,10 @@ const ICONOS_MENU = {
 const IconoMenu = ({ nombre }) => <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONOS_MENU[nombre]}</svg>;
 
 const MENU = {
-  alumno: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Actividad'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
-  tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Actividad'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
-  docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Actividad'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['opciones', 'Opciones']],
-  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Actividad'], ['reportes', 'Reportes'], ['historial', 'Historial'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
+  alumno: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
+  tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
+  docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Notificaciones'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['opciones', 'Opciones']],
+  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['historial', 'Historial'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
 };
 const INICIO = { alumno: 'inicio', tutor: 'inicio', docente: 'inicio', admin: 'inicio' };
 const PAGINAS = {

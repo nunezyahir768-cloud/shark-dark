@@ -331,6 +331,9 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     }
     llaveDatos = guardada.llave;
     setSes(usuario);
+    if (usuario.token && navigator.onLine && 'Notification' in window && Notification.permission === 'granted') {
+      registrarPush().catch(e => console.warn('No se pudo registrar push:', e.message));
+    }
     if (usuario.token && navigator.onLine) validarSesionOnline();
     return ses();
   }

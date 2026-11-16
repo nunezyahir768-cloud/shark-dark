@@ -7,7 +7,7 @@ const Sin = () => <Card><p className="vacio">No tienes un alumno vinculado. Pide
 
 function BotonAvisos() {
   const permisoActivo = () => typeof Notification !== 'undefined' && Notification.permission === 'granted';
-  const [activo, setActivo] = useState(permisoActivo), [error, setError] = useState('');
+  const [activo, setActivo] = useState(permisoActivo), [error, setError] = useState(''), [vinculado, setVinculado] = useState(false), [cargando, setCargando] = useState(false);
   useEffect(() => {
     const revisar = () => setActivo(permisoActivo());
     window.addEventListener('focus', revisar);
@@ -17,22 +17,27 @@ function BotonAvisos() {
       document.removeEventListener('visibilitychange', revisar);
     };
   }, []);
+  useEffect(() => {
+    if (!permisoActivo()) return;
+    SD.registrarPush().then(() => setVinculado(true)).catch(e => setError(e.message || 'No se pudo vincular este dispositivo con el servidor.'));
+  }, []);
   async function activar() {
-    setError('');
+    setError(''); setCargando(true);
     try {
-      const permiso = await SD.permisoAvisos();
+      const permiso = permisoActivo() ? 'granted' : await SD.permisoAvisos();
       setActivo(permiso === 'granted');
-      if (permiso !== 'granted') setError(permiso === 'denied'
+      if (permiso === 'granted') { await SD.registrarPush(); setVinculado(true); }
+      else setError(permiso === 'denied'
         ? 'Las notificaciones están bloqueadas. Puedes permitirlas desde los ajustes de este sitio en tu navegador.'
         : 'No se activaron las notificaciones. Inténtalo de nuevo.');
     } catch (e) {
       setActivo(permisoActivo());
       setError(e.message || 'No se pudieron activar las notificaciones.');
-    }
+    } finally { setCargando(false); }
   }
-  if (activo) return <><p className="sub" role="status">Notificaciones activadas para esta cuenta en este dispositivo. Si el servidor tiene configuradas las claves push, también llegarán con la app cerrada.</p>{error && <p className="msg" role="alert">{error}</p>}</>;
   return <>
-    <button className="btn sec" onClick={activar}>Activar avisos en este teléfono</button>
+    {activo && <p className="sub" role="status">{vinculado ? 'Este dispositivo quedó vinculado para recibir notificaciones push.' : 'Permiso concedido; falta confirmar la conexión push con el servidor.'}</p>}
+    <button className="btn sec" onClick={activar} disabled={cargando}>{cargando ? 'Conectando…' : activo ? 'Reintentar conexión de notificaciones' : 'Activar avisos en este teléfono'}</button>
     {error && <p className="msg" role="status">{error}</p>}
   </>;
 }
@@ -180,11 +185,11 @@ const NOM = { tutor: 'Tutores', docente: 'Docentes', alumno: 'Alumnos' };
 export function Avisos() {
   const adm = SD.session().rol === 'admin', [lista, cargar] = useCached('anuncios', '/api/anuncios'), [b, ban] = useBanner();
   const [f, setF] = useState({ destino: 'todos', titulo: '', mensaje: '' });
-  const enviar = async e => { e.preventDefault(); try { await post('/api/anuncios', f); setF({ ...f, titulo: '', mensaje: '' }); ban('ok', 'Aviso enviado', 'Ya lo pueden ver en la sección Actividad.'); cargar(); } catch (er) { ban('err', 'No se pudo enviar', msgErr(er)); } };
+  const enviar = async e => { e.preventDefault(); try { await post('/api/anuncios', f); setF({ ...f, titulo: '', mensaje: '' }); ban('ok', 'Aviso enviado', 'Ya lo pueden ver en Notificaciones.'); cargar(); } catch (er) { ban('err', 'No se pudo enviar', msgErr(er)); } };
   const borrar = async id => { if (!confirm('¿Borrar este aviso?')) return; try { await post(`/api/anuncios/${id}/borrar`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
   const marcarLeido = async id => { try { await post(`/api/anuncios/${encodeURIComponent(id)}/leido`); await cargar(); } catch (er) { ban('err', 'No se pudo actualizar el aviso', msgErr(er)); } };
   return (<>
-    <Hero titulo="Actividad" sub={adm ? 'Los avisos que envíes aparecerán en la sección Actividad de cada persona.' : 'Mensajes y avisos de Servicios Escolares.'} /><Banner b={b} />
+    <Hero titulo="Notificaciones" sub={adm ? 'Los avisos que envíes aparecerán en la sección Notificaciones de cada persona.' : 'Mensajes y avisos de Servicios Escolares.'} /><Banner b={b} />
     {adm && <Card title="Enviar un aviso"><form onSubmit={enviar}>
       <label>¿A quién se lo mandas?</label><select value={f.destino} onChange={e => setF({ ...f, destino: e.target.value })}>{DESTINOS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
       <label>Título</label><input value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} maxLength="80" required />
@@ -195,7 +200,7 @@ export function Avisos() {
         <p className="sub" style={{ margin: 0 }}>{new Date(a.creado).toLocaleDateString('es-MX')}{adm ? ' · Para: ' + a.para.map(r => NOM[r]).join(', ') : ''}</p>
         {!adm && !a.leido && <button className="mini" style={{ marginLeft: 0, marginTop: 8 }} onClick={() => marcarLeido(a.id)}>Marcar como revisado</button>}
         {adm && <button className="mini rojo" style={{ marginLeft: 0, marginTop: 8 }} onClick={() => borrar(a.id)}>Borrar</button>}</Card>))}
-    {lista && !lista.length && <Card><p className="vacio">No hay actividad por ahora.</p></Card>}
+    {lista && !lista.length && <Card><p className="vacio">No hay notificaciones por ahora.</p></Card>}
   </>);
 }
 
