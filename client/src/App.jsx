@@ -17,7 +17,7 @@ const ICONOS_MENU = {
   horario: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
   calificaciones: <><path d="M4 20V10m5 10V4m5 16v-7m5 7V7" /><path d="M2 20h20" /></>,
   permisos: <><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" /><path d="m9 12 2 2 4-4" /></>,
-  avisos: <><path d="M3 12h4l3-8 4 16 3-8h4" /></>,
+  avisos: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
   reportes: <><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h7" /></>,
   opciones: <><path d="M4 7h9m4 0h3M4 17h3m4 0h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></>,
   cuentas: <><circle cx="9" cy="8" r="3" /><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5" /></>,
@@ -77,7 +77,7 @@ function useAvisoSiguiente(alumno, activo) {
   return toast;
 }
 
-function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
+function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, installMessage }) {
   const rol = ses.rol, [abre, setAbre] = useState(false), [tutorial, setTutorial] = useState(false);
   const ruta = useRuta() || INICIO[rol];
   const [yo, setYo] = useState(null), [vinc, setVinc] = useState([]), [activo, setActivo] = useState(sessionStorage.getItem('sd_alumno') || '');
@@ -95,7 +95,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
   useEffect(() => { setAbre(false); window.scrollTo(0, 0); }, [ruta]);
   const Pag = (PAGINAS[ruta] || {})[rol];
   const iniciarTutorial = () => { setTutorial(true); location.hash = '#/inicio'; };
-  const paginaProps = ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente, rol, onTutorial: iniciarTutorial } : ruta === 'inicio' ? { onTutorial: iniciarTutorial } : {};
+  const paginaProps = ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente, rol, onTutorial: iniciarTutorial } : ruta === 'inicio' ? { onTutorial: iniciarTutorial, onInstall, installMessage } : {};
   const ok = vinc.filter(v => v.estado === 'vinculado');
   return (
     <AlumnoCtx.Provider value={alumno}>
@@ -135,6 +135,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente }) {
 
 export default function App() {
   const [ses, setSes] = useState(null), [ready, setReady] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null), [installMessage, setInstallMessage] = useState('');
   const finalizarIntro = useCallback(() => setIntro(false), []);
   const rutaSolicitada = useRef(location.hash.replace(/^#\/?/, '') || location.pathname.replace(/^\/+|\/+$/g, ''));
   const [tema, setTema] = useState(() => {
@@ -147,6 +148,22 @@ export default function App() {
   });
   const [intro, setIntro] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const controlRoute = location.pathname.replace(/\/+$/, '') === '/control-escolar';
+  useEffect(() => {
+    const capturar = e => { e.preventDefault(); setInstallPrompt(e); };
+    const instalado = () => { setInstallPrompt(null); setInstallMessage('Acceso directo instalado. Puedes abrir TIBURONES desde tu pantalla de inicio.'); };
+    window.addEventListener('beforeinstallprompt', capturar);
+    window.addEventListener('appinstalled', instalado);
+    return () => { window.removeEventListener('beforeinstallprompt', capturar); window.removeEventListener('appinstalled', instalado); };
+  }, []);
+  const instalar = useCallback(async () => {
+    setInstallMessage('');
+    if (window.matchMedia('(display-mode: standalone)').matches) { setInstallMessage('La app ya está instalada en este dispositivo.'); return; }
+    if (!installPrompt) { setInstallMessage('Abre el menú del navegador y elige “Instalar app” o “Agregar a pantalla principal”.'); return; }
+    await installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    setInstallPrompt(null);
+    if (outcome === 'accepted') setInstallMessage('Sigue los pasos del dispositivo para terminar la instalación.');
+  }, [installPrompt]);
   useEffect(() => { SD.init().then(setSes).catch(() => setSes(null)).finally(() => setReady(true)); }, []);
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -175,6 +192,6 @@ export default function App() {
   const sesVisible = controlRoute && ses && ses.rol !== 'admin' ? null : ses;
   return (<>
     {intro && <Intro onFin={finalizarIntro} />}
-    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} />) : <Login onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} />)}
+    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} onInstall={instalar} installMessage={installMessage} />) : <Login onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} />)}
   </>);
 }

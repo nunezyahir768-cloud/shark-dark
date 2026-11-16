@@ -29,7 +29,7 @@ const ICONOS_APARTADO = {
   horario: 'M3 5h18v16H3zM7 3v4m10-4v4M3 10h18',
   calificaciones: 'M4 20V11m5 9V4m6 16v-7m5 7V8M2 21h20',
   permisos: 'M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Zm-3-10 2 2 4-4',
-  actividad: 'M3 12h4l3-8 4 16 3-8h4',
+  avisos: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4',
   reporte: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7',
   cuenta: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-8 9a8 8 0 0 1 16 0',
   grupos: 'M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-3a3 3 0 0 0 0-6m3 15v-2a4 4 0 0 0-3-3.87',
@@ -40,7 +40,7 @@ const ICONOS_APARTADO = {
 };
 function IconoApartado({ titulo }) {
   const t = String(titulo || '').toLocaleLowerCase();
-  const clave = /opcion/.test(t) ? 'opciones' : /asisten|clase de ahora|lista de la clase|faltas/.test(t) ? 'asistencia' : /horario|d[ií]a/.test(t) ? 'horario' : /calific|promedio|parcial/.test(t) ? 'calificaciones' : /permiso/.test(t) ? 'permisos' : /actividad|aviso/.test(t) ? 'actividad' : /reporte|historial/.test(t) ? 'reporte' : /esc[aá]ner|qr|c[oó]digo/.test(t) ? 'escaner' : /grupo|materia|clase|cuenta|perfil|alumno|tutor|docente|nombre|curp/.test(t) ? 'grupos' : /ahora|bienvenido|inicio|datos|general|selecciona/.test(t) ? 'inicio' : 'general';
+  const clave = /opcion/.test(t) ? 'opciones' : /asisten|clase de ahora|lista de la clase|faltas/.test(t) ? 'asistencia' : /horario|d[ií]a/.test(t) ? 'horario' : /calific|promedio|parcial/.test(t) ? 'calificaciones' : /permiso/.test(t) ? 'permisos' : /actividad|aviso|notific/.test(t) ? 'avisos' : /reporte|historial/.test(t) ? 'reporte' : /esc[aá]ner|qr|c[oó]digo/.test(t) ? 'escaner' : /grupo|materia|clase|cuenta|perfil|alumno|tutor|docente|nombre|curp/.test(t) ? 'grupos' : /ahora|bienvenido|inicio|datos|general|selecciona/.test(t) ? 'inicio' : 'general';
   return <svg className="apartado-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONOS_APARTADO[clave]} /></svg>;
 }
 export const Card = ({ title, children, className = '', style }) => (

@@ -36,8 +36,8 @@ function BotonAvisos() {
     } finally { setCargando(false); }
   }
   return <>
-    {activo && <p className="sub" role="status">{vinculado ? 'Este dispositivo quedó vinculado para recibir notificaciones push.' : 'Permiso concedido; falta confirmar la conexión push con el servidor.'}</p>}
-    <button className="btn sec" onClick={activar} disabled={cargando}>{cargando ? 'Conectando…' : activo ? 'Reintentar conexión de notificaciones' : 'Activar avisos en este teléfono'}</button>
+    {activo && <p className="sub" role="status">{vinculado ? 'Las notificaciones están permitidas. Este dispositivo quedó vinculado para recibirlas con la app cerrada.' : 'Las notificaciones están permitidas; falta confirmar la conexión con el servidor.'}</p>}
+    {(!activo || error) && <button className="btn sec" onClick={activar} disabled={cargando}>{cargando ? 'Conectando...' : activo ? 'Reintentar conexión' : 'Permitir notificaciones'}</button>}
     {error && <p className="msg" role="status">{error}</p>}
   </>;
 }
@@ -54,23 +54,25 @@ export function ClaseAhora({ bl }) {
   );
 }
 
-export function InicioBienvenida({ rol, onTutorial, alumno, qrAbierto, onAbrirQr, onSalirQr }) {
+export function InicioBienvenida({ rol, onTutorial, onInstall, installMessage, alumno, qrAbierto, onAbrirQr, onSalirQr }) {
   return (<>
     <div className="bienvenida">
       <Hero titulo="¡Bienvenido a TIBURONES!" />
       <div className="bienvenida-acciones">
         <button className="btn bienvenida-accion" type="button" onClick={onTutorial}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11L13 8z" /></svg>Ver tutorial</button>
+        <button className="btn bienvenida-accion acceso-directo" type="button" onClick={onInstall}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v9m-3-3 3 3 3-3M2 10v4h12v-4" /></svg>Descargar acceso directo</button>
         {rol === 'alumno' && alumno && <button className="btn bienvenida-accion qr-acceso" type="button" onClick={onAbrirQr}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1h5v5H1zM10 1h5v5h-5zM1 10h5v5H1zM9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" /></svg>QR</button>}
       </div>
+      {installMessage && <p className="sub acceso-directo-ayuda" role="status">{installMessage}</p>}
     </div>
     {qrAbierto && alumno && <QRAlumno alumno={alumno} onSalir={onSalirQr} />}
   </>);
 }
 
-export function Inicio({ onTutorial }) {
+export function Inicio({ onTutorial, onInstall, installMessage }) {
   const ses = SD.session() || {};
   const alumno = useAlumno(), [qrAbierto, setQrAbierto] = useState(false);
-  return <InicioBienvenida rol={ses.rol} onTutorial={onTutorial} alumno={alumno} qrAbierto={qrAbierto} onAbrirQr={() => setQrAbierto(true)} onSalirQr={() => setQrAbierto(false)} />;
+  return <InicioBienvenida rol={ses.rol} onTutorial={onTutorial} onInstall={onInstall} installMessage={installMessage} alumno={alumno} qrAbierto={qrAbierto} onAbrirQr={() => setQrAbierto(true)} onSalirQr={() => setQrAbierto(false)} />;
 }
 export function PerfilAlumno() {
   const al = useAlumno(), [tut, setTut] = useState([]);
@@ -190,6 +192,7 @@ export function Avisos() {
   const marcarLeido = async id => { try { await post(`/api/anuncios/${encodeURIComponent(id)}/leido`); await cargar(); } catch (er) { ban('err', 'No se pudo actualizar el aviso', msgErr(er)); } };
   return (<>
     <Hero titulo="Notificaciones" sub={adm ? 'Los avisos que envíes aparecerán en la sección Notificaciones de cada persona.' : 'Mensajes y avisos de Servicios Escolares.'} /><Banner b={b} />
+    <Card title="Notificaciones en este dispositivo"><p className="sub">Permite las notificaciones para recibir avisos aunque la app esté cerrada.</p><BotonAvisos /></Card>
     {adm && <Card title="Enviar un aviso"><form onSubmit={enviar}>
       <label>¿A quién se lo mandas?</label><select value={f.destino} onChange={e => setF({ ...f, destino: e.target.value })}>{DESTINOS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
       <label>Título</label><input value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} maxLength="80" required />
@@ -272,10 +275,6 @@ export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol, on
       <div className="opciones-elecciones" role="group" aria-label="Tamaño de fuente">
         {tamanos.map(([valor, texto]) => <button key={valor} type="button" className="opciones-eleccion" aria-pressed={tamanoFuente === valor} onClick={() => setTamanoFuente(valor)}>{texto}</button>)}
       </div>
-    </OpcionAcordeon>
-    <OpcionAcordeon id="avisos" titulo="Notificaciones" resumen="Avisos en este dispositivo" abierta={abierta} onToggle={alternar}>
-      <p className="sub">Activa los avisos para esta cuenta. Si el navegador lo permite, también llegarán cuando la aplicación esté cerrada.</p>
-      <BotonAvisos />
     </OpcionAcordeon>
     <OpcionAcordeon id="perfiles" titulo="Perfiles" resumen={perfil.resumen} abierta={abierta} onToggle={alternar}>
       <p className="sub">{perfil.descripcion}</p>
