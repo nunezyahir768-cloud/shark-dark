@@ -60,7 +60,7 @@ export function InicioBienvenida({ rol, onTutorial, onInstall, installMessage, a
       <Hero titulo="¡Bienvenido a TIBURONES!" />
       <div className="bienvenida-acciones">
         <button className="btn bienvenida-accion" type="button" onClick={onTutorial}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11L13 8z" /></svg>Ver tutorial</button>
-        <button className="btn bienvenida-accion acceso-directo" type="button" onClick={onInstall}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v9m-3-3 3 3 3-3M2 10v4h12v-4" /></svg>Descargar acceso directo</button>
+        <button className="btn bienvenida-accion acceso-directo" type="button" onClick={onInstall}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v9m-3-3 3 3 3-3M2 10v4h12v-4" /></svg>{rol === 'admin' ? 'Descargar acceso administrativo' : 'Descargar acceso directo'}</button>
         {rol === 'alumno' && alumno && <button className="btn bienvenida-accion qr-acceso" type="button" onClick={onAbrirQr}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1h5v5H1zM10 1h5v5h-5zM1 10h5v5H1zM9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" /></svg>QR</button>}
       </div>
       {installMessage && <p className="sub acceso-directo-ayuda" role="status">{installMessage}</p>}
@@ -113,11 +113,6 @@ export function AsistenciaVer() {
   const av = d.avisos.filter(a => a.curp === al.curp).sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora)).slice(0, 8);
   return (<>
     <Hero titulo="Asistencia" sub={al.nombre} />
-    <Card title="General"><div className="stats">
-      <div><div className="num">{g.pct}<small>%</small></div><small className="vacio">Asistencia</small></div>
-      <div><div className="num">{g.asist}</div><small className="vacio">Asistió</small></div>
-      <div><div className="num rojo">{g.falt}</div><small className="vacio">Faltas</small></div>
-      <div><div className="num">{g.just}</div><small className="vacio">Justificadas</small></div></div></Card>
     <Card title="Asistencia a la escuela"><div className="tabla"><table className="tb"><thead><tr><th>Día</th><th>Mes</th><th>Año</th><th>¿Asistió?</th></tr></thead>
       <tbody>{diasEscuela.map(({ fecha, asistio }) => { const [anio, mes, dia] = fecha.split('-'); return <tr key={fecha}><td>{Number(dia)}</td><td>{Number(mes)}</td><td>{anio}</td><td aria-label={asistio ? 'Sí asistió' : 'No asistió'}>{asistio ? '☑' : '✕'}</td></tr>; })}
         {!diasEscuela.length && <tr><td colSpan="4">Sin registros todavía</td></tr>}</tbody></table></div></Card>
@@ -192,7 +187,7 @@ export function Permisos() {
 const DESTINOS = [['tutor', 'Tutores'], ['docente', 'Docentes'], ['alumno', 'Alumnos'], ['alumno,docente', 'Alumnos y docentes'], ['tutor,alumno', 'Tutores y alumnos'], ['tutor,docente', 'Tutores y docentes'], ['todos', 'Toda la comunidad escolar']];
 const NOM = { tutor: 'Tutores', docente: 'Docentes', alumno: 'Alumnos' };
 export function Avisos() {
-  const adm = SD.session().rol === 'admin', [lista, cargar] = useCached('anuncios', '/api/anuncios'), [b, ban] = useBanner();
+  const adm = SD.session().rol === 'admin', [lista, cargar] = useCached('anuncios', '/api/anuncios'), [avisosPersonales] = useCached('avisos-personales', '/api/avisos'), [b, ban] = useBanner();
   const [f, setF] = useState({ destino: 'todos', titulo: '', mensaje: '' });
   const enviar = async e => { e.preventDefault(); try { await post('/api/anuncios', f); setF({ ...f, titulo: '', mensaje: '' }); ban('ok', 'Aviso enviado', 'Ya lo pueden ver en Notificaciones.'); cargar(); } catch (er) { ban('err', 'No se pudo enviar', msgErr(er)); } };
   const borrar = async id => { if (!confirm('¿Borrar este aviso?')) return; try { await post(`/api/anuncios/${id}/borrar`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
@@ -200,6 +195,7 @@ export function Avisos() {
   return (<>
     <Hero titulo="Notificaciones" sub={adm ? 'Los avisos que envíes aparecerán en la sección Notificaciones de cada persona.' : 'Mensajes y avisos de Servicios Escolares.'} /><Banner b={b} />
     <Card title="Notificaciones en este dispositivo"><p className="sub">Permite las notificaciones para recibir avisos aunque la app esté cerrada.</p><BotonAvisos /></Card>
+    {!adm && (avisosPersonales || []).map(a => <Card key={a.id} title={a.tipo === 'password' ? 'Restablecimiento de contraseña' : a.tipo === 'calif' ? 'Calificación subida' : 'Aviso escolar'}><p>{a.texto}</p><p className="sub">{a.fecha}</p></Card>)}
     {adm && <Card title="Enviar un aviso"><form onSubmit={enviar}>
       <label>¿A quién se lo mandas?</label><select value={f.destino} onChange={e => setF({ ...f, destino: e.target.value })}>{DESTINOS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
       <label>Título</label><input value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} maxLength="80" required />

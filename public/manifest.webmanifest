@@ -7,6 +7,9 @@
   "background_color": "#080808",
   "theme_color": "#080808",
   "lang": "es",
+  "shortcuts": [
+    { "name": "Acceso administrativo", "short_name": "Administración", "url": "/control-escolar", "icons": [{ "src": "icon-acceso-192.png", "sizes": "192x192" }] }
+  ],
   "icons": [
     { "src": "icon-acceso-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-acceso-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }

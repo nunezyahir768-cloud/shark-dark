@@ -160,14 +160,15 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
   }
 
   /* ---------- Inicio de sesión con contraseña ---------- */
-  async function login(rol, id, password) {
-    id = String(id).trim().toUpperCase();
+  async function login(rol, id, password, adminArea = 'control') {
+    id = String(id || (rol === 'admin' ? localStorage.getItem('sd_admin_id') : '') || '').trim().toUpperCase();
     if (!navigator.onLine) return loginOffline(rol, id, password);
     let r;
-    try { r = await api('/api/login', { method: 'POST', body: { rol: rol || '', id, password } }); }
+    try { r = await api('/api/login', { method: 'POST', body: { rol: rol || '', id, password, adminArea } }); }
     catch (e) { if (!e.status) return loginOffline(rol, id, password); throw e; }
     rol = r.usuario.rol;
     const uid = r.usuario.id || id;
+    if (rol === 'admin') localStorage.setItem('sd_admin_id', uid);
     const keyId = `${rol}:${uid}`;
     let claims = null;
     try {
@@ -289,7 +290,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     limpiarSesion(); llaveDatos = null;
   }
 
-  async function validarSesionOnline() {
+  async function validarSesionOnline(sincronizar = true) {
     const s = ses();
     if (!s?.token) return;
     try {
@@ -303,7 +304,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
           await invalidarCuenta(keyId); location.reload(); return;
         }
       }
-      await sync();
+      if (sincronizar) await sync();
     } catch (e) {
       if (e.status === 404) await invalidarCuenta(`${s.rol}:${s.id}`);
       else if (e.status === 401) { limpiarSesion(); llaveDatos = null; await del('session', 'active'); }
@@ -435,7 +436,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
         }
       }
       const s = ses();
-      if (s && s.token && s.rol === 'tutor') {         // avisos nuevos -> notificación del teléfono
+      if (s && s.token && s.rol !== 'admin') {         // avisos nuevos -> notificación del teléfono
         const antes = new Set((await all('avisos')).map(x => x.id));
         for (const av of await api('/api/avisos')) {
           await put('avisos', av);
@@ -461,7 +462,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
         if (s.rol === 'docente' || s.rol === 'admin') {
           try { await cacheGuardar('reportes_alumnos', await api('/api/reportes-conducta/alumnos')); } catch (e) { if (e.status === 401 || e.status === 403) throw e; }
         }
-        if (s.rol === 'admin') {
+        if (s.rol === 'admin' && s.adminArea === 'control') {
           for (const [k, path] of [
             ['admin_alumnos', '/api/alumnos'], ['admin_asistencias', '/api/asistencias'], ['admin_calificaciones', '/api/calificaciones'],
             ['admin_usuarios', '/api/admin/usuarios'], ['admin_grupos', '/api/grupos'], ['admin_clases', '/api/clases'], ['admin_clases_reportes', '/api/clases'],
@@ -539,6 +540,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     validarSesionOnline();
   });
   addEventListener('offline', refrescarBadge);
+  setInterval(() => { if (navigator.onLine && ses()?.token) validarSesionOnline(false); }, 20000);
   if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 
   /* ---------- Lector de QR ---------- */

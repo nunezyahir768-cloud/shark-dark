@@ -3,11 +3,11 @@ import SD from './sd.js';
 import { Card } from './ui.jsx';
 import Logo from './Logo.jsx';
 
-export default function Login({ onOk }) {
+export default function Login({ onOk, onInstall, installMessage }) {
   const controlEscolar = location.pathname.replace(/\/+$/, '') === '/control-escolar';
   const [rol, setRol] = useState(() => {
     const guardado = localStorage.getItem('sd_rol');
-    if (controlEscolar) { const area = localStorage.getItem('sd_admin_area'); return ['portero', 'sara', 'gabriela', 'control'].includes(area) ? area : 'portero'; }
+    if (controlEscolar) { const area = localStorage.getItem('sd_admin_area'); return ['portero', 'sara', 'gabriela', 'control'].includes(area) ? area : 'control'; }
     return ['alumno', 'tutor', 'docente'].includes(guardado) ? guardado : 'alumno';
   });
   const [enLinea, setEnLinea] = useState(navigator.onLine);
@@ -22,7 +22,7 @@ export default function Login({ onOk }) {
   async function entrar(e) {
     e.preventDefault(); setMsg(''); setCargando(true);
     const tipo = controlEscolar ? 'admin' : rol;
-    try { await SD.login(tipo, u, password); localStorage.setItem('sd_rol', tipo); if (controlEscolar) localStorage.setItem('sd_admin_area', rol); onOk(); }
+    try { await SD.login(tipo, u, password, controlEscolar ? rol : ''); localStorage.setItem('sd_rol', tipo); if (controlEscolar) localStorage.setItem('sd_admin_area', rol); onOk(); }
     catch (err) { setMsg(err.message); }
     finally { setCargando(false); }
   }
@@ -47,22 +47,20 @@ export default function Login({ onOk }) {
         <h2>Crea tu contraseña</h2><p className="sub">Activa tu cuenta de {rol}. Usa exactamente tu nombre registrado por Servicios Escolares.</p>
         <label>CURP</label><input value={u} onChange={e => setU(e.target.value.toUpperCase())} maxLength="18" autoComplete="username" required />
         <label>Nombre completo registrado</label><input value={nombre} onChange={e => setNombre(e.target.value)} autoComplete="name" required />
-        <label>Crea una contraseña (mínimo 10 caracteres)</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} minLength="10" autoComplete="new-password" required />
-        <label>Confirma tu contraseña</label><input type="password" value={confirmar} onChange={e => setConfirmar(e.target.value)} minLength="10" autoComplete="new-password" required />
+        <label>Crea una contraseña (mínimo 4 caracteres)</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} minLength="4" autoComplete="new-password" required />
+        <label>Confirma tu contraseña</label><input type="password" value={confirmar} onChange={e => setConfirmar(e.target.value)} minLength="4" autoComplete="new-password" required />
         <button className="btn" disabled={cargando}>{cargando ? 'GUARDANDO…' : 'CREAR MI CONTRASEÑA'}</button><p className="msg" role="alert">{msg}</p>
         <button type="button" className="mini" onClick={() => { setModo('login'); setMsg(''); }}>Volver al inicio</button>
       </form> : modo === 'login' ? <form onSubmit={entrar}>
-          {<><label htmlFor="rol">Entrar como</label>
-            {controlEscolar ? <select id="rol" value={rol} onChange={e => setRol(e.target.value)}><option value="portero">Portero</option><option value="sara">Lic. Sara</option><option value="gabriela">Ing. Gabriela</option><option value="control">Control Escolar</option></select> : <select id="rol" value={rol} onChange={e => setRol(e.target.value)}><option value="alumno">Alumno</option><option value="tutor">Tutor</option><option value="docente">Docente</option></select>}
-          </>}
-          <label htmlFor="u">CURP</label><input id="u" value={u} onChange={e => setU(e.target.value.toUpperCase())} placeholder="Tu CURP (18 caracteres)" maxLength="18" autoComplete="username" required />
-          <label htmlFor="pw">Contraseña</label>
-          <input id="pw" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Escribe tu contraseña" autoComplete="current-password" required />
+          {!controlEscolar && <><label htmlFor="rol">Entrar como</label><select id="rol" value={rol} onChange={e => setRol(e.target.value)}><option value="alumno">Alumno</option><option value="tutor">Tutor</option><option value="docente">Docente</option></select></>}
+          {controlEscolar && <><label htmlFor="rol">Entrar como</label><select id="rol" value={rol} onChange={e => setRol(e.target.value)}><option value="control">Control Escolar</option><option value="sara">Lic. Sara</option><option value="gabriela">Ing. Gabriela</option><option value="portero">Portero</option></select></>}
+          {!controlEscolar && <><label htmlFor="u">CURP</label><input id="u" value={u} onChange={e => setU(e.target.value.toUpperCase())} placeholder="Tu CURP (18 caracteres)" maxLength="18" autoComplete="username" required /></>}
+          <label htmlFor="pw">{controlEscolar ? 'Contraseña de Control Escolar' : 'Contraseña (si ya la creaste)'}</label>
+          <input id="pw" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={controlEscolar ? 'Escribe la contraseña de acceso' : 'Déjala vacía en tu primer acceso'} autoComplete="current-password" required={controlEscolar} />
           <p className="sub" role="status" style={{ margin: '10px 0 4px' }}>{enLinea
             ? (SD.offlineHabilitado ? 'Conectado. El inicio de sesión valida tu cuenta y actualiza los datos guardados.' : 'Conectado. El acceso offline se habilita en builds realizados con TOKEN_SECRET configurado.')
             : 'Sin conexión. Usa tu CURP y contraseña si ya iniciaste sesión en línea en este dispositivo. Los datos pueden estar desactualizados.'}</p>
           <button className="btn" type="submit" disabled={cargando}>{cargando ? 'VERIFICANDO…' : controlEscolar ? 'ENTRAR A CONTROL ESCOLAR' : 'INICIAR SESIÓN'}</button>
-          {!controlEscolar && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('activar'); setMsg(''); }}>¿Primera vez? Crea tu contraseña</button>}
           {!controlEscolar && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('recuperar'); setMsg(''); }}>¿Olvidaste tu contraseña?</button>}
           <p className="msg" role="alert">{msg}</p>
         </form> : <form onSubmit={pedir}>
@@ -77,8 +75,7 @@ export default function Login({ onOk }) {
       </Card>
       {controlEscolar
         ? <p className="sub" style={{ textAlign: 'center' }}><a href="/">Volver al acceso escolar</a></p>
-        : <><p className="sub" style={{ textAlign: 'center' }}>El alumno debe estar dado de alta por Servicios Escolares antes de crear su contraseña.</p>
-          <p className="sub" style={{ textAlign: 'center' }}><a href="/control-escolar">Acceso de Control Escolar</a></p></>}
+        : <><p className="sub" style={{ textAlign: 'center' }}>Si es tu primer acceso, escribe solo tu CURP y crea tu contraseña después de entrar.</p><button className="btn sec" type="button" onClick={onInstall}>DESCARGAR ACCESO ADMINISTRATIVO</button>{installMessage && <p className="sub" role="status">{installMessage}</p>}</>}
     </main>
   );
 }
@@ -87,7 +84,7 @@ export function CambiarPassword({ onDone }) {
   const [actual, setActual] = useState(''), [nueva, setNueva] = useState(''), [confirmar, setConfirmar] = useState(''), [msg, setMsg] = useState(''), [cargando, setCargando] = useState(false);
   async function guardar(e) {
     e.preventDefault(); setMsg('');
-    if (nueva.length < 10) return setMsg('Usa al menos 10 caracteres.');
+    if (nueva.length < 4) return setMsg('Usa al menos 4 caracteres.');
     if (nueva !== confirmar) return setMsg('Las contraseñas no coinciden.');
     setCargando(true);
     try { await SD.cambiarPassword(actual, nueva); onDone(); }
@@ -95,8 +92,8 @@ export function CambiarPassword({ onDone }) {
     finally { setCargando(false); }
   }
   return <main className="centro"><h1>Actualiza tu contraseña</h1><p className="sub">Por seguridad, debes cambiar tu contraseña temporal antes de continuar.</p><Card><form onSubmit={guardar}>
-    <label>Contraseña temporal o actual</label><input type="password" value={actual} onChange={e => setActual(e.target.value)} autoComplete="current-password" required />
-    <label>Nueva contraseña</label><input type="password" value={nueva} onChange={e => setNueva(e.target.value)} autoComplete="new-password" minLength="10" required />
+    {!SD.session()?.debeCambiarPassword && <><label>Contraseña actual</label><input type="password" value={actual} onChange={e => setActual(e.target.value)} autoComplete="current-password" required /></>}
+    <label>Nueva contraseña</label><input type="password" value={nueva} onChange={e => setNueva(e.target.value)} autoComplete="new-password" minLength="4" required />
     <label>Confirma la nueva contraseña</label><input type="password" value={confirmar} onChange={e => setConfirmar(e.target.value)} autoComplete="new-password" required />
     <button className="btn" disabled={cargando}>{cargando ? 'GUARDANDO…' : 'GUARDAR CONTRASEÑA'}</button><p className="msg" role="alert">{msg}</p>
   </form></Card></main>;

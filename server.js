@@ -58,13 +58,19 @@ const leer = t => {
         return p.exp > Date.now() ? p : null;
     } catch { return null; }
 };
-const auth = (req, res, next) => {
+const auth = async (req, res, next) => {
     const p = leer((req.headers.authorization || '').replace('Bearer ', ''));
-    if (!p) return bad(res, 'Sesión expirada', 401);
-    req.u = p; next();
+    if (!p) return bad(res, 'Sesion expirada', 401);
+    try {
+        const campoSesion = p.rol === 'admin' ? `sessionId_${p.adminArea}` : 'sessionId';
+        const cuenta = await usuarios.findOne({ _id: `${p.rol}:${p.id}` }, { projection: { [campoSesion]: 1 } });
+        if (!cuenta || !p.sid || cuenta[campoSesion] !== p.sid) return bad(res, 'Esta cuenta inicio sesion en otro dispositivo. Vuelve a entrar para continuar.', 401);
+        req.u = p; next();
+    } catch (e) { next(e); }
 };
-const soloAdmin = (req, res, next) => req.u.rol === 'admin' ? next() : bad(res, 'Solo administración', 403);
-const publico = ({ salt, hash, _id, ...r }) => r;
+const adminDe = (...areas) => (req, res, next) => req.u.rol === 'admin' && areas.includes(req.u.adminArea) ? next() : bad(res, 'No tienes permiso para esta seccion', 403);
+const soloAdmin = adminDe('control');
+const publico = ({ salt, hash, _id, accessEnvHash, sessionId, sessionId_control, sessionId_sara, sessionId_gabriela, sessionId_portero, ...r }) => r;
 
 let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion, auditoria, avisosLeidos, reportesConducta, citatorios, suscripcionesPush;
 let recordatoriosPush;
@@ -107,7 +113,7 @@ async function revisarRecordatoriosClase() {
     }
 }
 const intentosRecuperacion = new Map();
-const validaPassword = pw => typeof pw === 'string' && pw.length >= 10 && pw.length <= 128;
+const validaPassword = pw => typeof pw === 'string' && pw.length >= 4 && pw.length <= 128;
 const generaTemporal = () => crypto.randomBytes(9).toString('base64url');
 const registrarCambio = (req, accion, detalle) => auditoria.insertOne({
     accion, detalle, actor: req.u.id, actorNombre: req.u.nombre || 'Servicios Escolares', creado: new Date()
@@ -151,32 +157,46 @@ async function avisar(alumno, tipo, hora, fecha, clave, materia, extra) {
 
 /* ---------- Registro y login con CURP + contraseña ---------- */
 const ADMIN_CURP = (process.env.ADMIN_CURP || '').toUpperCase();
+const ADMIN_ID = ADMIN_CURP || 'CONTROL_ESCOLAR';
+const ADMIN_ACCESS_PASSWORDS = {
+    control: process.env.ADMIN_ACCESS_PASSWORD || '',
+    sara: process.env.ADMIN_ACCESS_PASSWORD_SARA || '',
+    gabriela: process.env.ADMIN_ACCESS_PASSWORD_GABRIELA || '',
+    portero: process.env.ADMIN_ACCESS_PASSWORD_PORTERO || ''
+};
 app.post('/api/login', h(async (req, res) => {
     const id = s(req.body.id).toUpperCase(), rol = s(req.body.rol), password = String(req.body.password || '');
     const llave = 'ip:' + req.ip;
     if (bloqueado(llave, 40)) return bad(res, 'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo', 429);
     if (rol === 'admin') {
-        if (!RX.curp.test(ADMIN_CURP)) return bad(res, 'El acceso de Control Escolar no está configurado. Contacta al administrador del sistema.', 503);
-        const admin = id === ADMIN_CURP ? await usuarios.findOne({ _id: 'admin:' + ADMIN_CURP, rol: 'admin' }) : null;
-        if (!admin || !admin.salt || !admin.hash || !password || !okPw(password, admin)) {
+        const adminArea = s(req.body.adminArea).toLowerCase();
+        const acceso = ADMIN_ACCESS_PASSWORDS[adminArea];
+        if (typeof acceso !== 'string' || acceso.length < 4) return bad(res, 'La password de este perfil no esta configurada en Render.', 503);
+        const esperado = Buffer.from(acceso), recibido = Buffer.from(password);
+        const admin = await usuarios.findOne({ _id: 'admin:' + ADMIN_ID, rol: 'admin' });
+        if (!admin || esperado.length !== recibido.length || !crypto.timingSafeEqual(esperado, recibido)) {
             fallo(llave);
-            return bad(res, 'CURP o contraseña incorrectas', 401);
+            return bad(res, 'Password incorrecto', 401);
         }
         fallos.delete(llave);
+        const sid = crypto.randomBytes(24).toString('base64url');
+        await usuarios.updateOne({ _id: admin._id }, { $set: { [`sessionId_${adminArea}`]: sid } });
         const datos = publico(admin);
-        const usuario = { ...datos, id: ADMIN_CURP, curp: ADMIN_CURP, rol: 'admin', debeCambiarPassword: !!admin.debeCambiarPassword };
-        return res.json({ token: firmar({ id: ADMIN_CURP, rol: 'admin', nombre: admin.nombre, exp: Date.now() + 12 * 3600e3 }), usuario, offlineTicket: await firmarOffline(usuario) });
+        const usuario = { ...datos, id: ADMIN_ID, curp: ADMIN_CURP, rol: 'admin', adminArea, debeCambiarPassword: false };
+        return res.json({ token: firmar({ id: ADMIN_ID, rol: 'admin', adminArea, sid, nombre: admin.nombre, exp: Date.now() + 12 * 3600e3 }), usuario, offlineTicket: await firmarOffline(usuario) });
     }
     if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Elige cómo quieres entrar');
-    if (!RX.curp.test(id) || !password) return bad(res, 'Escribe una CURP válida y tu contraseña');
+    if (!RX.curp.test(id)) return bad(res, 'Escribe una CURP v\u00e1lida');
     const u = await usuarios.findOne({ _id: `${rol}:${id}`, rol });
-    if (!u || !u.salt || !u.hash) { fallo(llave); return bad(res, 'Cuenta sin contraseña configurada. Solicita a Servicios Escolares que la habilite.', 401); }
-    if (!okPw(password, u)) { fallo(llave); return bad(res, 'CURP o contraseña incorrectas', 401); }
+    if (!u) { fallo(llave); return bad(res, 'No encontramos esa cuenta. Revisa la CURP con Servicios Escolares.', 401); }
+    if (u.hash && (!password || !okPw(password, u))) { fallo(llave); return bad(res, 'CURP o contraseña incorrectas', 401); }
     fallos.delete(llave);
+    const sid = crypto.randomBytes(24).toString('base64url');
+    await usuarios.updateOne({ _id: u._id }, { $set: { sessionId: sid } });
     const rolReal = u.rol === 'admin' ? 'admin' : rol;
     const datos = publico(u);
     const usuario = { ...datos, rol: rolReal, debeCambiarPassword: !!u.debeCambiarPassword };
-    res.json({ token: firmar({ id: u.id, rol: rolReal, exp: Date.now() + 12 * 3600e3 }), usuario, offlineTicket: await firmarOffline(usuario) });
+    res.json({ token: firmar({ id: u.id, rol: rolReal, sid, exp: Date.now() + 12 * 3600e3 }), usuario, offlineTicket: u.hash ? await firmarOffline(usuario) : null });
 }));
 
 app.get('/api/push/clave-publica', (req, res) => res.json({ clave: PUSH_PUBLIC || null }));
@@ -200,17 +220,17 @@ app.delete('/api/push/suscripcion', auth, h(async (req, res) => {
 /* Alumnos, tutores y docentes activan cuentas previamente dadas de alta. */
 const activarCuenta = h(async (req, res) => {
     const rol = s(req.body.rol);
-    const curp = s(req.body.curp).toUpperCase(), nombre = s(req.body.nombre).replace(/\s+/g, ' ').toLocaleLowerCase('es-MX');
+    const curp = s(req.body.curp).toUpperCase();
     const password = String(req.body.password || ''), confirmar = String(req.body.confirmar || '');
     if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Tipo de cuenta inválido');
     if (!RX.curp.test(curp)) return bad(res, 'Escribe una CURP válida de 18 caracteres');
-    if (!validaPassword(password)) return bad(res, 'La contraseña debe tener entre 10 y 128 caracteres');
+    if (!validaPassword(password)) return bad(res, 'Usa una contrase\u00f1a de 4 a 128 caracteres');
     if (password !== confirmar) return bad(res, 'Las contraseñas no coinciden');
     const llave = 'activar:' + req.ip;
     if (bloqueado(llave, 8)) return bad(res, 'Demasiados intentos. Espera 15 minutos.', 429);
     const cuenta = await usuarios.findOne({ _id: `${rol}:${curp}`, rol });
     const nombreGuardado = s(cuenta?.nombre).replace(/\s+/g, ' ').toLocaleLowerCase('es-MX');
-    if (!cuenta || !cuenta.debeCambiarPassword || !nombre || nombre !== nombreGuardado) {
+    if (!cuenta || !cuenta.debeCambiarPassword) {
         fallo(llave); return bad(res, 'No se pudo validar la cuenta. Revisa tu CURP y nombre o solicita ayuda a Servicios Escolares.', 401);
     }
     const hp = hashPw(password);
@@ -234,17 +254,20 @@ app.post('/api/recuperacion', h(async (req, res) => {
     const cuenta = await usuarios.findOne({ _id: `${rol}:${id}` });
     if (cuenta) {
         const pendiente = await solicitudesRecuperacion.findOne({ curp: id, rol, estado: 'pendiente' });
-        if (!pendiente) await solicitudesRecuperacion.insertOne({ curp: id, rol, nombre: cuenta.nombre, estado: 'pendiente', creado: new Date(), ipHash: crypto.createHash('sha256').update(req.ip || '').digest('hex') });
+        if (!pendiente) {
+            await solicitudesRecuperacion.insertOne({ curp: id, rol, nombre: cuenta.nombre, estado: 'pendiente', creado: new Date(), ipHash: crypto.createHash('sha256').update(req.ip || '').digest('hex') });
+            await enviarPush('admin', ADMIN_ID, 'Solicitud para restablecer contraseña', `${rol}: ${cuenta.nombre} · ${id}`, '/control-escolar#/cuentas');
+        }
     }
     res.json({ ok: true, mensaje: 'Si los datos corresponden a una cuenta, la solicitud fue enviada a Servicios Escolares.' });
 }));
 
 app.post('/api/cambiar-password', auth, h(async (req, res) => {
     const actual = String(req.body.actual || ''), nueva = String(req.body.nueva || '');
-    if (!validaPassword(nueva)) return bad(res, 'La nueva contraseña debe tener entre 10 y 128 caracteres');
+    if (!validaPassword(nueva)) return bad(res, 'La contrase\u00f1a debe tener entre 4 y 128 caracteres');
     const rol = req.u.rol === 'admin' ? 'admin' : req.u.rol;
     const u = await usuarios.findOne({ _id: `${rol}:${req.u.id}` });
-    if (!u || !u.salt || !okPw(actual, u)) return bad(res, 'La contraseña actual no es correcta', 401);
+    if (!u || (u.hash ? !okPw(actual, u) : !u.debeCambiarPassword)) return bad(res, 'La contraseña actual no es correcta', 401);
     const hp = hashPw(nueva);
     await usuarios.updateOne({ _id: u._id }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date() } });
     const usuario = { ...publico(u), id: req.u.id, rol, debeCambiarPassword: false };
@@ -287,7 +310,7 @@ app.get('/api/reportes-conducta/alumnos', auth, h(async (req, res) => {
     res.json(lista.map(({ _id, ...a }) => a));
 }));
 app.post('/api/reportes-conducta', auth, h(async (req, res) => {
-    if (!['docente', 'admin'].includes(req.u.rol)) return bad(res, 'Solo docentes y administración pueden crear reportes', 403);
+    if (req.u.rol !== 'docente' && !(req.u.rol === 'admin' && ['sara', 'control'].includes(req.u.adminArea))) return bad(res, 'No tienes permiso para crear reportes', 403);
     const curp = s(req.body.curp).toUpperCase();
     const lugar = s(req.body.lugar).replace(/\s+/g, ' ').slice(0, 120);
     const descripcion = s(req.body.descripcion).slice(0, 1500);
@@ -320,7 +343,7 @@ app.get('/api/reportes-conducta', auth, h(async (req, res) => {
     const lista = await reportesConducta.find(filtro).sort({ creado: -1 }).limit(500).toArray();
     res.json(lista.map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
-app.post('/api/reportes-conducta/:id/aceptar', auth, soloAdmin, h(async (req, res) => {
+app.post('/api/reportes-conducta/:id/aceptar', auth, adminDe('sara', 'control'), h(async (req, res) => {
     const id = s(req.params.id);
     const reporte = await reportesConducta.findOne({ _id: id, estado: 'pendiente' });
     if (!reporte) return bad(res, 'La solicitud ya fue atendida o no existe', 404);
@@ -418,13 +441,14 @@ app.post('/api/admin/recuperaciones/:id/resolver', auth, soloAdmin, h(async (req
         return res.json({ ok: true });
     }
     if (accion !== 'restablecer') return bad(res, 'Acción inválida');
-    const temporal = generaTemporal(), hp = hashPw(temporal);
     const cuenta = await usuarios.findOne({ _id: `${solicitud.rol}:${solicitud.curp}` });
     if (!cuenta) return bad(res, 'La cuenta ya no existe', 404);
-    await usuarios.updateOne({ _id: cuenta._id }, { $set: { ...hp, debeCambiarPassword: true, passwordActualizada: new Date() } });
+    await usuarios.updateOne({ _id: cuenta._id }, { $set: { debeCambiarPassword: true, passwordActualizada: new Date(), sessionId: null }, $unset: { salt: '', hash: '' } });
     await solicitudesRecuperacion.updateOne({ _id: solicitud._id }, { $set: { estado: 'restablecida', resuelta: new Date(), resueltaPor: req.u.id } });
     await registrarCambio(req, 'Restablecimiento de contraseña', `${solicitud.rol} · ${solicitud.curp}`);
-    res.json({ ok: true, passwordTemporal: temporal });
+    await avisos.insertOne({ _id: 'password:' + solicitud.curp + ':' + Date.now(), para: solicitud.curp, curp: solicitud.curp, tipo: 'password', texto: 'Tu contrase\u00f1a fue eliminada. Entra con tu CURP y crea una contrase\u00f1a nueva.', fecha: new Date().toISOString().slice(0,10), creado: new Date() });
+    await enviarPush(solicitud.rol, solicitud.curp, 'Contrase?a restablecida', 'Tu contrase\u00f1a fue eliminada. Entra con tu CURP y crea una nueva.', '/');
+    res.json({ ok: true });
 }));
 app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     const d = req.body || {}, rol = s(d.rol), id = s(d.id).toUpperCase();
@@ -432,9 +456,7 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     if (!RX.curp.test(id)) return bad(res, 'CURP inválida (18 letras y números)');
     if (ADMIN_CURP && id === ADMIN_CURP) return bad(res, 'Esa CURP está reservada para Servicios Escolares');
     if (s(d.nombre).length < 3) return bad(res, 'Escribe el nombre completo');
-    const temporal = generaTemporal();
-    const hp = hashPw(temporal);
-    const doc = { _id: `${rol}:${id}`, rol, id, curp: id, nombre: s(d.nombre), ...hp, debeCambiarPassword: true, creado: new Date() };
+    const doc = { _id: `${rol}:${id}`, rol, id, curp: id, nombre: s(d.nombre), debeCambiarPassword: true, creado: new Date() };
     if (rol === 'alumno') {            // el grupo se crea solo la primera vez que se usa
         const semestre = s(d.semestre).slice(0, 20), area = s(d.area).slice(0, 40), grupo = s(d.grupo).toUpperCase().slice(0, 3);
         if (!semestre || !area || !['A', 'B', 'C'].includes(grupo)) return bad(res, 'Elige el semestre, el área y el grupo (A, B o C)');
@@ -444,7 +466,7 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     try { await usuarios.insertOne(doc); } catch (e) { if (e.code === 11000) return bad(res, 'Ya existe esa cuenta', 409); throw e; }
     if (rol === 'alumno') await grupos.updateOne({ _id: `${doc.semestre}|${doc.area}|${doc.grupo}` }, { $set: { semestre: doc.semestre, area: doc.area, grupo: doc.grupo, nombre: `${doc.semestre} ${doc.area} ${doc.grupo}` } }, { upsert: true });
     await registrarCambio(req, 'Cuenta creada', `${rol} · ${id}`);
-    res.status(201).json({ ok: true, passwordTemporal: temporal });
+    res.status(201).json({ ok: true });
 }));
 app.post('/api/admin/editar', auth, soloAdmin, h(async (req, res) => {
     const id = 'alumno:' + s(req.body.id).toUpperCase(), c = {};
@@ -520,7 +542,7 @@ app.get('/api/horarios', auth, h(async (req, res) => {
     }
     res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
-app.post('/api/admin/horarios', auth, soloAdmin, h(async (req, res) => {
+app.post('/api/admin/horarios', auth, adminDe('gabriela', 'control'), h(async (req, res) => {
     const b = req.body || {}, area = s(b.area), semestre = s(b.semestre), grupo = s(b.grupo).toUpperCase(), dia = Number(b.dia), tipo = b.tipo === 'descanso' ? 'descanso' : 'clase', HM = /^\d{2}:\d{2}$/;
     if (!await grupos.findOne({ _id: `${semestre}|${area}|${grupo}` })) return bad(res, 'Grupo inválido');
     if (tipo === 'clase' && s(b.inicio) < '10:00' && s(b.fin) > '09:30') return bad(res, 'Ese horario choca con el descanso fijo (9:30 a 10:00)');
@@ -536,7 +558,7 @@ app.post('/api/admin/horarios', auth, soloAdmin, h(async (req, res) => {
     await registrarCambio(req, 'Horario añadido', `${diaNombre} · ${doc.materia} · ${semestre} ${area} ${grupo} · ${doc.inicio}-${doc.fin}`);
     res.status(201).json({ ok: true });
 }));
-app.post('/api/admin/horarios/borrar', auth, soloAdmin, h(async (req, res) => {
+app.post('/api/admin/horarios/borrar', auth, adminDe('gabriela', 'control'), h(async (req, res) => {
     const id = s(req.body.id), bloque = await horarios.findOne({ _id: id });
     await horarios.deleteOne({ _id: id });
     if (bloque) await registrarCambio(req, 'Horario eliminado', `${bloque.materia} · ${bloque.semestre} ${bloque.area} ${bloque.grupo} · ${bloque.inicio}-${bloque.fin}`);
@@ -554,7 +576,7 @@ app.post('/api/admin/vincular', auth, soloAdmin, h(async (req, res) => {
 
 /* ---------- Avisos de la administración (anuncios) ---------- */
 const DESTINOS = { tutor: ['tutor'], docente: ['docente'], alumno: ['alumno'], 'alumno,docente': ['alumno', 'docente'], 'tutor,alumno': ['tutor', 'alumno'], 'tutor,docente': ['tutor', 'docente'], todos: ['tutor', 'docente', 'alumno', 'admin'] };
-app.post('/api/anuncios', auth, soloAdmin, h(async (req, res) => {
+app.post('/api/anuncios', auth, adminDe('sara', 'control'), h(async (req, res) => {
     const titulo = s(req.body.titulo).slice(0, 80), mensaje = s(req.body.mensaje).slice(0, 1000), para = DESTINOS[s(req.body.destino)];
     if (!titulo || !mensaje || !para) return bad(res, 'Escribe el título, el mensaje y elige a quién va');
     const id = crypto.randomBytes(5).toString('hex');
@@ -587,7 +609,7 @@ app.post('/api/anuncios/:id/leido', auth, h(async (req, res) => {
     } catch (e) { if (e.code !== 11000) throw e; }
     res.json({ ok: true });
 }));
-app.post('/api/anuncios/:id/borrar', auth, soloAdmin, h(async (req, res) => {
+app.post('/api/anuncios/:id/borrar', auth, adminDe('sara', 'control'), h(async (req, res) => {
     const id = s(req.params.id), anuncio = await anuncios.findOne({ _id: id });
     await anuncios.deleteOne({ _id: id });
     await avisosLeidos.deleteMany({ anuncioId: id });
@@ -637,15 +659,18 @@ app.post('/api/cuenta/datos', auth, h(async (req, res) => {
 
 /* ---------- Calificaciones ---------- */
 app.post('/api/calificaciones', auth, h(async (req, res) => {
-    if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
+    if (req.u.rol !== 'docente' && !(req.u.rol === 'admin' && req.u.adminArea === 'control')) return bad(res, 'No tienes permiso para subir calificaciones', 403);
     const m = limpiaMat(req.body.materia), key = m.toLowerCase(), p = Number(req.body.parcial), notas = req.body.notas;
     if (!m || ![1, 2, 3].includes(p) || !Array.isArray(notas)) return bad(res, 'Datos inválidos');
     const hoy = new Date().toISOString().slice(0, 10); let n = 0;
     for (const x of notas.slice(0, 200)) {
         const curp = s(x.curp).toUpperCase(), nota = Number(x.nota);
         if (!RX.curp.test(curp) || !(nota >= 0 && nota <= 10)) continue;
-        const al = await usuarios.findOne({ _id: 'alumno:' + curp }); if (!al) continue;
+        const al = await usuarios.findOne({ _id: 'alumno:' + curp }); if (!al || (req.u.rol === 'admin' && (al.area !== req.body.area || al.semestre !== req.body.semestre || al.grupo !== req.body.grupo))) continue;
         await calificaciones.updateOne({ _id: `C:${curp}:${key}:${p}` }, { $set: { curp, materia: m, materiaKey: key, parcial: p, nota, docente: req.u.id } }, { upsert: true });
+        const texto = `Ya subieron tu calificaci?n de ${m}, parcial ${p}: ${nota}.`;
+        await avisos.insertOne({ _id: `calif:${curp}:${key}:${p}:${Date.now()}`, para: curp, curp, tipo: 'calif', texto, materia: m, fecha: hoy, creado: new Date() });
+        await enviarPush('alumno', curp, 'Calificaci?n subida', texto, '/');
         await avisar(al, 'calif', '', hoy, `C:${curp}:${key}:${p}:${nota}`, m, `${al.nombre}: ${m}, parcial ${p}: ${nota}`); n++;
     }
     res.json({ ok: true, guardadas: n });
@@ -679,7 +704,7 @@ app.get('/api/permisos', auth, h(async (req, res) => {
     else l = await permisos.find({ curp: req.u.id }).limit(200).toArray();
     res.json(l.sort((a, b) => new Date(b.creado) - new Date(a.creado)).slice(0, 100).map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
-app.post('/api/permisos/:id/resolver', auth, soloAdmin, h(async (req, res) => {
+app.post('/api/permisos/:id/resolver', auth, adminDe('sara', 'control'), h(async (req, res) => {
     const p = await permisos.findOne({ _id: s(req.params.id) });
     if (!p) return bad(res, 'Permiso no encontrado', 404);
     if (p.estado !== 'pendiente') return bad(res, 'Ese permiso ya fue resuelto', 409);
@@ -694,11 +719,11 @@ app.post('/api/permisos/:id/resolver', auth, soloAdmin, h(async (req, res) => {
 }));
 
 /* ---------- Citatorios de Servicios Escolares ---------- */
-app.get('/api/admin/citatorios', auth, soloAdmin, h(async (_req, res) => {
+app.get('/api/admin/citatorios', auth, adminDe('sara', 'control'), h(async (_req, res) => {
     const l = await citatorios.find({}).sort({ creado: -1 }).limit(500).toArray();
     res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
-app.post('/api/admin/citatorios', auth, soloAdmin, h(async (req, res) => {
+app.post('/api/admin/citatorios', auth, adminDe('sara', 'control'), h(async (req, res) => {
     const curp = s(req.body.curp).toUpperCase(), fecha = s(req.body.fecha), motivo = s(req.body.motivo).trim().slice(0, 1000);
     if (!RX.curp.test(curp) || !FECHA.test(fecha) || !motivo) return bad(res, 'Elige alumno, fecha y motivo del citatorio');
     const alumno = await usuarios.findOne({ _id: 'alumno:' + curp });
@@ -711,7 +736,6 @@ app.post('/api/admin/citatorios', auth, soloAdmin, h(async (req, res) => {
 }));
 
 app.get('/api/avisos', auth, h(async (req, res) => {
-    if (req.u.rol !== 'tutor') return res.json([]);
     const lista = await avisos.find({ para: req.u.id }).sort({ creado: -1 }).limit(100).toArray();
     res.json(lista.map(({ _id, para, ...r }) => ({ id: _id, ...r })));
 }));
@@ -731,7 +755,7 @@ app.get('*', (req, res, next) => {
 /* ---------- Arranque ---------- */
 async function iniciarServidor() {
     if (!MONGODB_URI) { console.error('Error: No se encontró MONGODB_URI en el archivo .env'); process.exit(1); }
-    if (!RX.curp.test(ADMIN_CURP)) console.warn('Aviso: define ADMIN_CURP con una CURP válida de 18 caracteres para habilitar Control Escolar.');
+    if (!Object.values(ADMIN_ACCESS_PASSWORDS).some(password => password.length >= 4)) console.warn('Aviso: define ADMIN_ACCESS_PASSWORD en Render para habilitar Control Escolar.');
     if (!SECRET || SECRET.length < 16) { console.error('Error: define TOKEN_SECRET (mínimo 16 caracteres) en .env'); process.exit(1); }
 
     const limpia = MONGODB_URI.trim().replace(/^["']|["']$/g, '');
@@ -743,15 +767,15 @@ async function iniciarServidor() {
         const db = cliente.db('SHARK-DARK');
         await db.command({ ping: 1 });
         usuarios = db.collection('usuarios');
-        if (ADMIN_CURP) {
-            const adminId = 'admin:' + ADMIN_CURP;
+        {
+            const adminId = 'admin:' + ADMIN_ID;
             const adminActual = await usuarios.findOne({ _id: adminId });
-            const inicial = process.env.ADMIN_INITIAL_PASSWORD || '';
-            if ((!adminActual || !adminActual.hash || !adminActual.salt) && validaPassword(inicial)) {
-                const cred = { rol: 'admin', id: ADMIN_CURP, curp: ADMIN_CURP, nombre: 'Servicios Escolares', ...hashPw(inicial), debeCambiarPassword: true, creado: adminActual?.creado || new Date() };
-                await usuarios.updateOne({ _id: adminId }, { $set: cred }, { upsert: true });
-                console.log('Credenciales iniciales de Servicios Escolares configuradas; cambia la contraseña al entrar.');
-            } else if (!adminActual || !adminActual.hash) console.warn('Define ADMIN_INITIAL_PASSWORD (10+ caracteres) para habilitar la cuenta de Servicios Escolares.');
+            const envHash = Object.values(ADMIN_ACCESS_PASSWORDS).some(Boolean) ? crypto.createHash('sha256').update(JSON.stringify(ADMIN_ACCESS_PASSWORDS)).digest('hex') : '';
+            if (!adminActual) {
+                await usuarios.insertOne({ _id: adminId, rol: 'admin', id: ADMIN_ID, curp: ADMIN_CURP, nombre: 'Servicios Escolares', accessEnvHash: envHash, passwordActualizada: new Date(), creado: new Date() });
+            } else if (envHash && envHash !== adminActual.accessEnvHash) {
+                await usuarios.updateOne({ _id: adminId }, { $set: { id: ADMIN_ID, curp: ADMIN_CURP, nombre: 'Servicios Escolares', accessEnvHash: envHash, passwordActualizada: new Date() } });
+            }
         }
         asistencias = db.collection('asistencias');
         calificaciones = db.collection('calificaciones');
@@ -761,6 +785,11 @@ async function iniciarServidor() {
         anuncios = db.collection('anuncios');
         horarios = db.collection('horarios');
         avisos = db.collection('avisos');
+        const areasBase = ['Programaci\u00f3n', 'Ofim\u00e1tica', 'Enfermer\u00eda', 'Electricidad', 'Laboratorios Qu\u00edmicos', 'Administraci\u00f3n'];
+        for (const semestre of ['1-2 semestre', '3-4 semestre', '5-6 semestre']) for (const area of areasBase) for (const grupo of ['A', 'B', 'C']) {
+            const id = `${semestre}|${area}|${grupo}`;
+            await grupos.updateOne({ _id: id }, { $setOnInsert: { semestre, area, grupo, nombre: `${semestre} ${area} ${grupo}` } }, { upsert: true });
+        }
         suscripcionesPush = db.collection('suscripcionesPush');
         recordatoriosPush = db.collection('recordatoriosPush');
         solicitudesRecuperacion = db.collection('solicitudesRecuperacion');

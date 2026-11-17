@@ -67,18 +67,20 @@ Render detecta el cambio solo y publica la nueva versión en unos minutos.
 - **Environment (variables):**
   - `MONGODB_URI` → la dirección de tu Atlas (con tu clave). El servidor selecciona la base `SHARK-DARK`.
   - `TOKEN_SECRET` → una frase larga y secreta
-  - `ADMIN_CURP` → la CURP de Servicios Escolares (18 caracteres)
-  - `ADMIN_INITIAL_PASSWORD` → contraseña temporal de la cuenta de Control Escolar (10+ caracteres; solo se necesita para crearla la primera vez)
+  - `ADMIN_ACCESS_PASSWORD` -> password elegido para Control Escolar; configuralo en Render Environment.
+  - `ADMIN_ACCESS_PASSWORD_SARA` -> password para Lic. Sara.
+  - `ADMIN_ACCESS_PASSWORD_GABRIELA` -> password para Ing. Gabriela.
+  - `ADMIN_ACCESS_PASSWORD_PORTERO` -> password para Portero.
+  - `ADMIN_CURP` (opcional) -> identidad interna del administrador para avisos push.
 - Ya NO se usan `ADMIN_PASSWORD`, `ADMIN_RFC`, `CODIGO_DOCENTE` ni `CODIGO_ADMIN`: puedes borrarlas.
 
 ## Inicio de sesión y contraseñas
 
 - Alumnos, tutores y docentes entran con **tipo de cuenta + CURP + contraseña**.
-- Control Escolar tiene una entrada independiente en **`/control-escolar`** y autentica la CURP y contraseña de la cuenta de administrador registrada en MongoDB. El rol no se concede por visitar la ruta; el servidor firma una sesión administrativa solo después de comprobar esa cuenta.
+- Control Escolar entra en `/control-escolar` solo con la variable secreta `ADMIN_ACCESS_PASSWORD`, configurada en Render Environment.
 - El administrador da de alta primero al alumno. El alumno activa su cuenta en el inicio con CURP, nombre registrado y una contraseña propia (mínimo 10 caracteres). Solo puede hacerlo una vez mientras la cuenta esté pendiente de activación.
 - La contraseña se guarda protegida con `scrypt`, nunca en texto plano. Alumnos pueden usar la misma CURP y contraseña en otros dispositivos conectados a internet.
-- En el primer inicio, `ADMIN_INITIAL_PASSWORD` crea la cuenta asociada a `ADMIN_CURP` y obliga a cambiar la contraseña. Después, se inicia desde `/control-escolar` con esa CURP y la contraseña personal. Ya no se utiliza una contraseña administrativa compartida ni el acceso de administrador como docente.
-- Si la instalación anterior solo usaba `ADMIN_ACCESS_PASSWORD` y aún no tenía una cuenta administrativa guardada, configura `ADMIN_INITIAL_PASSWORD` (10+ caracteres) y `ADMIN_CURP` para inicializarla antes de usar la nueva entrada. La antigua variable `ADMIN_ACCESS_PASSWORD` ya no otorga acceso.
+- Configura `ADMIN_ACCESS_PASSWORD` en Render con el password elegido para Control Escolar. Al cambiarla, reinicia o vuelve a desplegar el servicio.
 - Si alguien olvida su contraseña, envía una solicitud desde el inicio de sesión. Administración la revisa en **Cuentas → Solicitudes de restablecimiento**, verifica la identidad y genera una contraseña temporal.
 - La contraseña temporal se muestra una sola vez al administrador. Debe entregarse al titular por un canal privado; al entrar tendrá que crear otra.
 - Las solicitudes no revelan si una CURP existe y tienen limitación de frecuencia.
@@ -99,7 +101,7 @@ Orden recomendado para empezar:
 - No compartas la contraseña inicial ni las contraseñas temporales.
 - Servicios Escolares debe comprobar la identidad antes de aprobar una recuperación.
 - La contraseña temporal se debe entregar por un canal privado y no debe enviarse en grupos.
-- Mantén `TOKEN_SECRET`, `MONGODB_URI` y `ADMIN_INITIAL_PASSWORD` únicamente en variables de entorno; nunca las subas a GitHub.
+- Mantén `TOKEN_SECRET`, `MONGODB_URI` y `ADMIN_ACCESS_PASSWORD` únicamente en variables de entorno; nunca las subas a GitHub.
 - Los usuarios que ya existían antes de activar el inicio con contraseña deben solicitar un restablecimiento para recibir su contraseña temporal.
 
 ## Notas
@@ -130,7 +132,7 @@ El envío push requiere estas variables en el entorno del servidor: `VAPID_PUBLI
 - Servicios Escolares primero da de alta al alumno con su nombre y CURP.
 - En la pantalla de entrada, el alumno elige **¿Primera vez? Crea tu contraseña**, escribe CURP, nombre exactamente como quedó registrado y crea una contraseña de al menos 10 caracteres.
 - La contraseña se guarda en MongoDB como hash con salt; no se almacena en texto plano. Después puede entrar en cualquier dispositivo con CURP y contraseña.
-- Control Escolar entra en `/control-escolar` con la CURP definida en `ADMIN_CURP` y la contraseña personal de su cuenta. Al crear la cuenta por primera vez, usa `ADMIN_INITIAL_PASSWORD` como contraseña temporal y cámbiala al iniciar sesión.
+- Control Escolar entra en `/control-escolar` solo con la variable secreta `ADMIN_ACCESS_PASSWORD`, configurada en Render Environment.
 
 ## Inicio offline y datos locales
 

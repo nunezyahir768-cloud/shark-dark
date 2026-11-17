@@ -6,7 +6,7 @@ import Login, { CambiarPassword } from './Login.jsx';
 import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
 import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, Cuenta, Opciones } from './paginas.jsx';
 import { AsistenciaDocente, CalifDocente } from './docente.jsx';
-import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, Historial, ReportesAdmin, Citatorios } from './servicios.jsx';
+import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, CalificacionesAdmin, ReportesAdmin, Citatorios } from './servicios.jsx';
 import ReportesConducta from './ReportesConducta.jsx';
 import TutorialInteractivo from './TutorialInteractivo.jsx';
 
@@ -33,22 +33,22 @@ const MENU = {
   alumno: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
   tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
   docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Notificaciones'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['opciones', 'Opciones']],
-  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['historial', 'Historial'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
+  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
 };
-const MENU_ADMIN = { portero: [['inicio', 'Inicio'], ['escaner', 'Escáner']], sara: [['inicio', 'Inicio'], ['permisos', 'Permisos'], ['reportes', 'Reportes'], ['citatorios', 'Citatorios'], ['avisos', 'Notificaciones']], gabriela: [['inicio', 'Inicio'], ['horarios', 'Horarios']], control: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['calificaciones', 'Calificaciones'], ['historial', 'Historial']] };
+const MENU_ADMIN = { portero: [['inicio', 'Inicio'], ['escaner', 'Escáner']], sara: [['inicio', 'Inicio'], ['permisos', 'Permisos'], ['reportes', 'Reportes'], ['citatorios', 'Citatorios'], ['avisos', 'Notificaciones']], gabriela: [['inicio', 'Inicio'], ['horarios', 'Horarios']], control: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['calificaciones', 'Calificaciones']] };
 const INICIO = { alumno: 'inicio', tutor: 'inicio', docente: 'inicio', admin: 'inicio' };
 const PAGINAS = {
   inicio: { alumno: Inicio, tutor: Inicio, docente: Inicio, admin: InicioAdmin },
   perfil: { alumno: PerfilAlumno }, perfiles: { tutor: PerfilesTutor },
   asistencia: { alumno: AsistenciaVer, tutor: AsistenciaVer, docente: AsistenciaDocente },
   horario: { alumno: Horario, tutor: Horario, docente: Horario },
-  calificaciones: { alumno: CalifVer, tutor: CalifVer, docente: CalifDocente, admin: ReportesAdmin },
+  calificaciones: { alumno: CalifVer, tutor: CalifVer, docente: CalifDocente, admin: CalificacionesAdmin },
   permisos: { alumno: Permisos, tutor: Permisos, docente: Permisos, admin: Permisos },
   avisos: { alumno: Avisos, tutor: Avisos, docente: Avisos, admin: Avisos },
   reportes: { alumno: ReportesConducta, tutor: ReportesConducta, docente: ReportesConducta, admin: ReportesConducta },
   opciones: { alumno: Opciones, tutor: Opciones, docente: Opciones, admin: Opciones },
   cuenta: { alumno: Cuenta, tutor: Cuenta, docente: Cuenta, admin: Cuenta },
-  cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, historial: { admin: Historial }, citatorios: { admin: Citatorios }
+  cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, citatorios: { admin: Citatorios }
 };
 
 const useRuta = () => {
@@ -96,7 +96,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
   useEffect(() => { setAbre(false); window.scrollTo(0, 0); }, [ruta]);
   const Pag = menu.some(([clave]) => clave === ruta) ? (PAGINAS[ruta] || {})[rol] : null;
   const iniciarTutorial = () => { setTutorial(true); location.hash = '#/inicio'; };
-  const paginaProps = ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente, rol, onTutorial: iniciarTutorial } : ruta === 'inicio' ? { onTutorial: iniciarTutorial, onInstall, installMessage } : {};
+  const paginaProps = rol === 'admin' && ruta === 'inicio' ? { onTutorial: iniciarTutorial, onInstall, installMessage } : ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente, rol, onTutorial: iniciarTutorial } : ruta === 'inicio' ? { onTutorial: iniciarTutorial, onInstall, installMessage } : {};
   const ok = vinc.filter(v => v.estado === 'vinculado');
   return (
     <AlumnoCtx.Provider value={alumno}>
@@ -147,7 +147,8 @@ export default function App() {
     const guardado = localStorage.getItem('sd_tamano_fuente');
     return ['pequena', 'normal', 'grande'].includes(guardado) ? guardado : 'normal';
   });
-  const [intro, setIntro] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const introPermitida = ['/', '/control-escolar'].includes(location.pathname.replace(/\/+$/, '') || '/');
+  const [intro, setIntro] = useState(() => introPermitida && !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const controlRoute = location.pathname.replace(/\/+$/, '') === '/control-escolar';
   useEffect(() => {
     const capturar = e => { e.preventDefault(); setInstallPrompt(e); };
@@ -193,6 +194,6 @@ export default function App() {
   const sesVisible = controlRoute && ses && ses.rol !== 'admin' ? null : ses;
   return (<>
     {intro && <Intro onFin={finalizarIntro} />}
-    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} onInstall={instalar} installMessage={installMessage} />) : <Login onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} />)}
+    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} onInstall={instalar} installMessage={installMessage} />) : <Login onInstall={instalar} installMessage={installMessage} onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} />)}
   </>);
 }
