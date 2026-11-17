@@ -488,7 +488,7 @@ app.post('/api/admin/borrar', auth, soloAdmin, h(async (req, res) => {
 app.get('/api/grupos', auth, h(async (req, res) => {
     res.json((await grupos.find({}).limit(500).toArray()).map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
-app.post('/api/admin/grupos/borrar', auth, soloAdmin, h(async (req, res) => {
+app.post('/api/admin/grupos/eliminar-cuentas', auth, soloAdmin, h(async (req, res) => {
     const g = await grupos.findOne({ _id: s(req.body.id) });
     if (!g) return bad(res, 'Grupo no encontrado', 404);
     const filtro = { area: g.area, semestre: g.semestre, grupo: g.grupo };
@@ -499,8 +499,8 @@ app.post('/api/admin/grupos/borrar', auth, soloAdmin, h(async (req, res) => {
     }
     for (const tu of await usuarios.find({ rol: 'tutor' }).toArray())
         for (const c of (tu.hijos || []).filter(x => curps.includes(x))) await usuarios.updateOne({ _id: tu._id }, { $pull: { hijos: c } });
-    await clases.deleteMany(filtro); await horarios.deleteMany(filtro); await grupos.deleteOne({ _id: g._id });
-    await registrarCambio(req, 'Grupo eliminado', `${g.semestre} ${g.area} ${g.grupo} · ${curps.length} alumnos`);
+    // El grupo, sus clases y horarios se conservan.
+    await registrarCambio(req, 'Cuentas de grupo eliminadas', `${g.semestre} ${g.area} ${g.grupo} · ${curps.length} alumnos`);
     res.json({ ok: true, alumnos: curps.length });
 }));
 app.get('/api/clases', auth, h(async (req, res) => {

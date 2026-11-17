@@ -41,7 +41,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
     <main className="centro">
       <Logo className="logo" darkIcon alt="TIBURONES CBTIS 170" />
       <h1>{controlEscolar ? 'CONTROL ESCOLAR' : 'TIBURONES'}</h1>
-      <p className="sub" style={{ textAlign: 'center' }}>{controlEscolar ? 'CBTIS 170 · Acceso administrativo' : 'CBTIS 170 · Portal escolar'}</p>
+      <p className="sub" style={{ textAlign: 'center' }}>{controlEscolar ? 'CBTIS 170 · Portal administrativo' : 'CBTIS 170 · TIBURONES'}</p>
       <Card>
         {modo === 'activar' ? <form onSubmit={activar}>
         <h2>Crea tu contraseña</h2><p className="sub">Activa tu cuenta de {rol}. Usa exactamente tu nombre registrado por Servicios Escolares.</p>
@@ -74,8 +74,8 @@ export default function Login({ onOk, onInstall, installMessage }) {
         </form>}
       </Card>
       {controlEscolar
-        ? <p className="sub" style={{ textAlign: 'center' }}><a href="/">Volver al acceso escolar</a></p>
-        : <><p className="sub" style={{ textAlign: 'center' }}>Si es tu primer acceso, escribe solo tu CURP y crea tu contraseña después de entrar.</p><button className="btn sec" type="button" onClick={onInstall}>DESCARGAR ACCESO ADMINISTRATIVO</button>{installMessage && <p className="sub" role="status">{installMessage}</p>}</>}
+        ? <p className="sub" style={{ textAlign: 'center' }}><a href="/">Volver a TIBURONES</a></p>
+        : <><p className="sub" style={{ textAlign: 'center' }}>Si es tu primer acceso, escribe solo tu CURP y crea tu contraseña después de entrar.</p><button className="btn sec" type="button" onClick={onInstall}>DESCARGAR ACCESO DIRECTO AL PORTAL ADMINISTRATIVO</button>{installMessage && <p className="sub" role="status">{installMessage}</p>}</>}
     </main>
   );
 }

@@ -66,7 +66,7 @@ export function Cuentas() {
       {errorSolicitudes && <p className="msg" role="alert">{errorSolicitudes}</p>}
       {!solicitudes.length && !errorSolicitudes && <p className="vacio">No hay solicitudes pendientes.</p>}
     </Card>
-    <button className="btn sec" type="button" onClick={() => setFiltrosAbiertos(v => !v)}>{filtrosAbiertos ? 'CERRAR FILTROS' : 'BUSCAR Y FILTRAR CUENTAS'}</button>
+    <button className="btn rojo" type="button" onClick={() => setFiltrosAbiertos(v => !v)}>{filtrosAbiertos ? 'CERRAR FILTROS' : 'BUSCAR Y FILTRAR CUENTAS'}</button>
     {filtrosAbiertos && <Card title="Buscar y filtrar cuentas">
       <label htmlFor="cuentas-buscar">Nombre o CURP</label><input id="cuentas-buscar" value={q} onChange={e => setQ(e.target.value)} placeholder="Escribe nombre o CURP" />
       <div className="fila2">
@@ -88,15 +88,18 @@ export function Cuentas() {
 
 export function Grupos() {
   const { g, u, c, cargar, error } = useServicios(), [b, ban] = useBanner();
+  const [ver, setVer] = useState('');
   const cuenta = k => u.filter(x => x.rol === 'alumno' && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length;
   const borrar = async k => {
-    if (!confirm(`¿Eliminar el grupo ${nombreGrupo(k)}?\n\nSe borrarán sus ${cuenta(k)} cuentas de alumnos (con sus asistencias y calificaciones), sus clases y su horario. No se puede deshacer.`)) return;
-    try { const r = await post('/api/admin/grupos/borrar', { id: k.id }); ban('ok', 'Grupo eliminado', `${r.alumnos} cuentas de alumnos borradas.`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); }
+    if (!confirm(`¿Eliminar las ${cuenta(k)} cuentas de alumnos de ${nombreGrupo(k)}? El grupo, sus materias y horarios se conservarán.`)) return;
+    try { const r = await post('/api/admin/grupos/eliminar-cuentas', { id: k.id }); ban('ok', 'Cuentas eliminadas', `${r.alumnos} cuentas de alumnos borradas. El grupo se conservó.`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); }
   };
   return (<>
-    <Hero titulo="Grupos" sub="Los grupos se crean solos al dar de alta al primer alumno de cada grupo." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
-    {g.map(k => <Card key={k.id}><b>{nombreGrupo(k)}</b><p className="sub" style={{ margin: '4px 0 8px' }}>{cuenta(k)} alumnos · {c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length} materias</p>
-      <button className="mini rojo" style={{ marginLeft: 0 }} onClick={() => borrar(k)}>Eliminar grupo y sus cuentas</button></Card>)}
+    <Hero titulo="Grupos" sub="Consulta las cuentas y administra alumnos sin eliminar la estructura del grupo." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
+    {g.map(k => { const alumnos = u.filter(x => x.rol === 'alumno' && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo); return <Card key={k.id}><b>{nombreGrupo(k)}</b><p className="sub" style={{ margin: '4px 0 8px' }}>{alumnos.length} alumnos · {c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length} materias</p>
+      <button className="mini" style={{ marginLeft: 0 }} onClick={() => setVer(ver === k.id ? '' : k.id)}>{ver === k.id ? 'Ocultar cuentas' : 'Ver cuentas'}</button><button className="mini rojo" onClick={() => borrar(k)}>Eliminar cuentas</button>
+      {ver === k.id && <div className="grupo-cuentas" aria-live="polite">{alumnos.length ? alumnos.sort((a,b) => a.nombre.localeCompare(b.nombre)).map(x => <div className="grupo-cuenta" key={x.id}><b>{x.nombre}</b><span>{x.curp || x.id}</span></div>) : <p className="vacio">Este grupo todavía no tiene cuentas.</p>}</div>}
+    </Card>; })}
     {!g.length && <Card><p className="vacio">Todavía no hay grupos. Crea la cuenta de un alumno y su grupo aparecerá aquí.</p></Card>}
   </>);
 }

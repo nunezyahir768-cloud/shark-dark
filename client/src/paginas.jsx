@@ -60,7 +60,7 @@ export function InicioBienvenida({ rol, onTutorial, onInstall, installMessage, a
       <Hero titulo="¡Bienvenido a TIBURONES!" />
       <div className="bienvenida-acciones">
         <button className="btn bienvenida-accion" type="button" onClick={onTutorial}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11L13 8z" /></svg>Ver tutorial</button>
-        <button className="btn bienvenida-accion acceso-directo" type="button" onClick={onInstall}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v9m-3-3 3 3 3-3M2 10v4h12v-4" /></svg>{rol === 'admin' ? 'Descargar acceso administrativo' : 'Descargar acceso directo'}</button>
+        <button className="btn bienvenida-accion acceso-directo" type="button" onClick={onInstall}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v9m-3-3 3 3 3-3M2 10v4h12v-4" /></svg>{rol === 'admin' ? 'Descargar acceso directo al portal administrativo' : 'Descargar acceso directo'}</button>
         {rol === 'alumno' && alumno && <button className="btn bienvenida-accion qr-acceso" type="button" onClick={onAbrirQr}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1h5v5H1zM10 1h5v5h-5zM1 10h5v5H1zM9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" /></svg>QR</button>}
       </div>
       {installMessage && <p className="sub acceso-directo-ayuda" role="status">{installMessage}</p>}
