@@ -61,7 +61,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     const sesionCifrada = await cifrar(usuario, llave);
     if (usuario === sesionMemoria && llave === llaveDatos) {
       try { await rawPut('session', { id: 'active', sesionCifrada, llave }); }
-      catch (e) { console.warn('No se pudo conservar la sesiÃ³n en este navegador:', e); }
+      catch (e) { console.warn('No se pudo conservar la sesión en este navegador:', e); }
     }
   }
   const setSes = u => { sesionMemoria = {
