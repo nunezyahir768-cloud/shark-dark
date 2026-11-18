@@ -147,9 +147,12 @@ export default function App() {
     const guardado = localStorage.getItem('sd_tamano_fuente');
     return ['pequena', 'normal', 'grande'].includes(guardado) ? guardado : 'normal';
   });
-  const introPermitida = ['/', '/control-escolar'].includes(location.pathname.replace(/\/+$/, '') || '/');
-  const [intro, setIntro] = useState(() => introPermitida && !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const introPermitida = (location.pathname.replace(/\/+$/, '') || '/') === '/';
+  const [intro, setIntro] = useState(() => introPermitida
+    && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    && sessionStorage.getItem('sd_intro_visto') !== '1');
   const controlRoute = location.pathname.replace(/\/+$/, '') === '/control-escolar';
+  useEffect(() => { if (intro) sessionStorage.setItem('sd_intro_visto', '1'); }, [intro]);
   useEffect(() => {
     const capturar = e => { e.preventDefault(); setInstallPrompt(e); };
     const instalado = () => { setInstallPrompt(null); setInstallMessage('Acceso directo instalado. Puedes abrir TIBURONES desde tu pantalla de inicio.'); };
@@ -194,6 +197,6 @@ export default function App() {
   const sesVisible = controlRoute && ses && ses.rol !== 'admin' ? null : ses;
   return (<>
     {intro && <Intro onFin={finalizarIntro} />}
-    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} onInstall={instalar} installMessage={installMessage} />) : <Login onInstall={instalar} installMessage={installMessage} onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} />)}
+    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} onInstall={instalar} installMessage={installMessage} />) : <Login onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} />)}
   </>);
 }

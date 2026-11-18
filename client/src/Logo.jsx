@@ -1,6 +1,6 @@
 export default function Logo({ className = '', alt = 'Logo de TIBURONES CBTIS 170', darkIcon = false, original = false }) {
-  const light = '/img/logo-nuevo-oscuro.jpeg';
-  const dark = '/img/logo-nuevo-claro.jpeg';
+  const light = '/img/tiburon-claro.png';
+  const dark = '/img/tiburon.png';
   if (original) return <picture className={'logo-original ' + className} role="img" aria-label={alt}>
     <img className="logo-original-claro" src={light} alt="" aria-hidden="true" />
     <img className="logo-original-oscuro" src={dark} alt="" aria-hidden="true" />

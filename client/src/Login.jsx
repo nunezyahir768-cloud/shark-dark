@@ -3,7 +3,7 @@ import SD from './sd.js';
 import { Card } from './ui.jsx';
 import Logo from './Logo.jsx';
 
-export default function Login({ onOk, onInstall, installMessage }) {
+export default function Login({ onOk }) {
   const controlEscolar = location.pathname.replace(/\/+$/, '') === '/control-escolar';
   const [rol, setRol] = useState(() => {
     const guardado = localStorage.getItem('sd_rol');
@@ -38,7 +38,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
     finally { setCargando(false); }
   }
   return (
-    <main className="centro">
+    <main className="centro centro-login">
       <Logo className="logo" darkIcon alt="TIBURONES CBTIS 170" />
       <h1>{controlEscolar ? 'CONTROL ESCOLAR' : 'TIBURONES'}</h1>
       <p className="sub" style={{ textAlign: 'center' }}>{controlEscolar ? 'CBTIS 170 · Portal administrativo' : 'CBTIS 170 · TIBURONES'}</p>
@@ -61,7 +61,10 @@ export default function Login({ onOk, onInstall, installMessage }) {
             ? (SD.offlineHabilitado ? 'Conectado. El inicio de sesión valida tu cuenta y actualiza los datos guardados.' : 'Conectado. El acceso offline se habilita en builds realizados con TOKEN_SECRET configurado.')
             : 'Sin conexión. Usa tu CURP y contraseña si ya iniciaste sesión en línea en este dispositivo. Los datos pueden estar desactualizados.'}</p>
           <button className="btn" type="submit" disabled={cargando}>{cargando ? 'VERIFICANDO…' : controlEscolar ? 'ENTRAR A CONTROL ESCOLAR' : 'INICIAR SESIÓN'}</button>
-          {!controlEscolar && <button type="button" className="mini" style={{ margin: '12px 0 0' }} onClick={() => { setModo('recuperar'); setMsg(''); }}>¿Olvidaste tu contraseña?</button>}
+          {!controlEscolar && <>
+            <button type="button" className="mini" onClick={() => { setModo('activar'); setMsg(''); }}>¿Primera vez? Crea tu contraseña</button>
+            <button type="button" className="mini" onClick={() => { setModo('recuperar'); setMsg(''); }}>¿Olvidaste tu contraseña?</button>
+          </>}
           <p className="msg" role="alert">{msg}</p>
         </form> : <form onSubmit={pedir}>
           <h2>Recuperar contraseña</h2>
@@ -75,7 +78,13 @@ export default function Login({ onOk, onInstall, installMessage }) {
       </Card>
       {controlEscolar
         ? <p className="sub" style={{ textAlign: 'center' }}><a href="/">Volver a TIBURONES</a></p>
-        : <><p className="sub" style={{ textAlign: 'center' }}>Si es tu primer acceso, escribe solo tu CURP y crea tu contraseña después de entrar.</p><button className="btn sec" type="button" onClick={onInstall}>DESCARGAR ACCESO DIRECTO AL PORTAL ADMINISTRATIVO</button>{installMessage && <p className="sub" role="status">{installMessage}</p>}</>}
+        : <div className="login-pie">
+          <p className="sub">El alumno debe estar dado de alta por Servicios Escolares antes de crear su contraseña.</p>
+          <a className="login-control" href="/control-escolar">Acceso de Control Escolar</a>
+        </div>}
+      <span className={'login-estado' + (enLinea ? ' conectado' : '')} role="status">
+        <i aria-hidden="true" />{enLinea ? 'En línea' : 'Sin conexión'}
+      </span>
     </main>
   );
 }
