@@ -438,6 +438,10 @@ app.get('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     const l = await usuarios.find({ rol: { $in: ['alumno', 'docente', 'tutor'] } }).limit(3000).toArray();
     res.json(l.map(publico));
 }));
+app.get('/api/admin/docentes', auth, adminDe('gabriela', 'control'), h(async (_req, res) => {
+    const docentes = await usuarios.find({ rol: 'docente' }).project({ _id: 0, id: 1, nombre: 1 }).limit(1000).toArray();
+    res.json(docentes);
+}));
 app.get('/api/admin/historial', auth, soloAdmin, h(async (req, res) => {
     const l = await auditoria.find({}).sort({ creado: -1 }).limit(300).toArray();
     res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
@@ -482,6 +486,49 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     if (rol === 'alumno') await grupos.updateOne({ _id: `${doc.semestre}|${doc.area}|${doc.grupo}` }, { $set: { semestre: doc.semestre, area: doc.area, grupo: doc.grupo, nombre: `${doc.semestre} ${doc.area} ${doc.grupo}` } }, { upsert: true });
     await registrarCambio(req, 'Cuenta creada', `${rol} · ${id}`);
     res.status(201).json({ ok: true });
+}));
+app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => {
+    const filas = req.body?.cuentas;
+    if (!Array.isArray(filas) || !filas.length || filas.length > 500) return bad(res, 'Envía entre 1 y 500 cuentas para importar.');
+    const semestresValidos = ['1-2 semestre', '3-4 semestre', '5-6 semestre'];
+    const areasValidas = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'];
+    const documentos = [], curps = new Set(), gruposNuevos = new Map();
+    for (let i = 0; i < filas.length; i++) {
+        const d = filas[i] || {}, rol = s(d.rol), id = s(d.id).toUpperCase(), nombre = s(d.nombre).replace(/\s+/g, ' ');
+        if (!['alumno', 'docente', 'tutor'].includes(rol)) return bad(res, `Fila ${i + 1}: rol inválido.`);
+        if (!RX.curp.test(id)) return bad(res, `Fila ${i + 1}: CURP inválida.`);
+        if (ADMIN_CURP && id === ADMIN_CURP) return bad(res, `Fila ${i + 1}: CURP reservada para Servicios Escolares.`);
+        if (nombre.length < 3 || nombre.length > 120) return bad(res, `Fila ${i + 1}: escribe un nombre de 3 a 120 caracteres.`);
+        const _id = `${rol}:${id}`;
+        if (curps.has(id)) return bad(res, `Fila ${i + 1}: CURP repetida en el archivo.`);
+        curps.add(id);
+        const doc = { _id, rol, id, curp: id, nombre, debeCambiarPassword: true, creado: new Date() };
+        if (rol === 'alumno') {
+            const semestre = s(d.semestre), area = s(d.area), grupo = s(d.grupo).toUpperCase();
+            if (!semestresValidos.includes(semestre) || !areasValidas.includes(area) || !['A', 'B', 'C'].includes(grupo)) return bad(res, `Fila ${i + 1}: semestre, área o grupo inválido.`);
+            Object.assign(doc, { semestre, area, grupo, tutores: [] });
+            const key = `${semestre}|${area}|${grupo}`;
+            gruposNuevos.set(key, { _id: key, semestre, area, grupo, nombre: `${semestre} ${area} ${grupo}` });
+        }
+        if (rol === 'tutor') doc.hijos = [];
+        documentos.push(doc);
+    }
+    const session = usuarios.client.startSession();
+    let conflictos = [];
+    try {
+        await session.withTransaction(async () => {
+            conflictos = (await usuarios.find({ curp: { $in: [...curps] } }, { projection: { _id: 1 }, session }).toArray()).map(x => x._id);
+            if (conflictos.length) return;
+            await usuarios.insertMany(documentos, { ordered: true, session });
+            for (const grupo of gruposNuevos.values()) await grupos.updateOne({ _id: grupo._id }, { $setOnInsert: grupo }, { upsert: true, session });
+            await auditoria.insertOne({ accion: 'Cuentas importadas desde Excel', detalle: `${documentos.length} cuentas`, actor: req.u.id, actorNombre: req.u.nombre || 'Servicios Escolares', creado: new Date() }, { session });
+        });
+    } catch (e) {
+        if (e.code === 11000) return bad(res, 'Hay cuentas duplicadas. No se creó ninguna cuenta; actualiza la lista e intenta de nuevo.', 409);
+        throw e;
+    } finally { await session.endSession(); }
+    if (conflictos.length) return bad(res, `No se creó ninguna cuenta. Ya existen: ${conflictos.join(', ')}.`, 409);
+    res.status(201).json({ ok: true, creadas: documentos.length });
 }));
 app.post('/api/admin/editar', auth, soloAdmin, h(async (req, res) => {
     const id = 'alumno:' + s(req.body.id).toUpperCase(), c = {};
