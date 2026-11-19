@@ -4,7 +4,7 @@ import Intro from './Intro.jsx';
 import Logo from './Logo.jsx';
 import Login, { CambiarPassword } from './Login.jsx';
 import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
-import { Inicio, PerfilAlumno, PerfilesTutor, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, Cuenta, Opciones } from './paginas.jsx';
+import { Inicio, PerfilAlumno, PerfilesTutor, PerfilDocente, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, Cuenta, Opciones } from './paginas.jsx';
 import { AsistenciaDocente, CalifDocente } from './docente.jsx';
 import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, CalificacionesAdmin, ReportesAdmin, Citatorios } from './servicios.jsx';
 import ReportesConducta from './ReportesConducta.jsx';
@@ -39,7 +39,7 @@ const MENU_ADMIN = { portero: [['inicio', 'Inicio'], ['escaner', 'Escáner']], s
 const INICIO = { alumno: 'inicio', tutor: 'inicio', docente: 'inicio', admin: 'inicio' };
 const PAGINAS = {
   inicio: { alumno: Inicio, tutor: Inicio, docente: Inicio, admin: InicioAdmin },
-  perfil: { alumno: PerfilAlumno }, perfiles: { tutor: PerfilesTutor },
+  perfil: { alumno: PerfilAlumno, tutor: PerfilesTutor, docente: PerfilDocente, admin: Cuenta }, perfiles: { tutor: PerfilesTutor },
   asistencia: { alumno: AsistenciaVer, tutor: AsistenciaVer, docente: AsistenciaDocente },
   horario: { alumno: Horario, tutor: Horario, docente: Horario },
   calificaciones: { alumno: CalifVer, tutor: CalifVer, docente: CalifDocente, admin: CalificacionesAdmin },
@@ -94,9 +94,11 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
   const elegir = c => { sessionStorage.setItem('sd_alumno', c); setActivo(c); };
   const toast = useAvisoSiguiente(alumno, rol === 'alumno');
   useEffect(() => { setAbre(false); window.scrollTo(0, 0); }, [ruta]);
-  const Pag = menu.some(([clave]) => clave === ruta) ? (PAGINAS[ruta] || {})[rol] : null;
+  const rutasPerfil = ['perfil', 'perfiles', 'cuenta'];
+  const rutaPermitida = menu.some(([clave]) => clave === ruta) || (rutasPerfil.includes(ruta) && !!(PAGINAS[ruta] || {})[rol]);
+  const Pag = rutaPermitida ? (PAGINAS[ruta] || {})[rol] : null;
   const iniciarTutorial = () => { setTutorial(true); location.hash = '#/inicio'; };
-  const paginaProps = rol === 'admin' && ruta === 'inicio' ? { onTutorial: iniciarTutorial, onInstall, installMessage } : ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente, rol, onTutorial: iniciarTutorial } : ruta === 'inicio' ? { onTutorial: iniciarTutorial, onInstall, installMessage } : {};
+  const paginaProps = ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente, rol, onTutorial: iniciarTutorial } : ruta === 'inicio' ? { onTutorial: iniciarTutorial } : {};
   const ok = vinc.filter(v => v.estado === 'vinculado');
   return (
     <AlumnoCtx.Provider value={alumno}>
@@ -197,6 +199,6 @@ export default function App() {
   const sesVisible = controlRoute && ses && ses.rol !== 'admin' ? null : ses;
   return (<>
     {intro && <Intro onFin={finalizarIntro} />}
-    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} onInstall={instalar} installMessage={installMessage} />) : <Login onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} />)}
+    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} />) : <Login onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} onInstall={instalar} installMessage={installMessage} />)}
   </>);
 }

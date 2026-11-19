@@ -54,25 +54,23 @@ export function ClaseAhora({ bl }) {
   );
 }
 
-export function InicioBienvenida({ rol, onTutorial, onInstall, installMessage, alumno, qrAbierto, onAbrirQr, onSalirQr }) {
+export function InicioBienvenida({ rol, onTutorial, alumno, qrAbierto, onAbrirQr, onSalirQr }) {
   return (<>
     <div className="bienvenida">
       <Hero titulo="¡Bienvenido a TIBURONES!" />
       <div className="bienvenida-acciones">
         <button className="btn bienvenida-accion" type="button" onClick={onTutorial}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11L13 8z" /></svg>Ver tutorial</button>
-        <button className="btn bienvenida-accion acceso-directo" type="button" onClick={onInstall}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v9m-3-3 3 3 3-3M2 10v4h12v-4" /></svg>{rol === 'admin' ? 'Descargar acceso directo al portal administrativo' : 'Descargar acceso directo'}</button>
         {rol === 'alumno' && alumno && <button className="btn bienvenida-accion qr-acceso" type="button" onClick={onAbrirQr}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1h5v5H1zM10 1h5v5h-5zM1 10h5v5H1zM9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" /></svg>QR</button>}
       </div>
-      {installMessage && <p className="sub acceso-directo-ayuda" role="status">{installMessage}</p>}
     </div>
     {qrAbierto && alumno && <QRAlumno alumno={alumno} onSalir={onSalirQr} />}
   </>);
 }
 
-export function Inicio({ onTutorial, onInstall, installMessage }) {
+export function Inicio({ onTutorial }) {
   const ses = SD.session() || {};
   const alumno = useAlumno(), [qrAbierto, setQrAbierto] = useState(false);
-  return <InicioBienvenida rol={ses.rol} onTutorial={onTutorial} onInstall={onInstall} installMessage={installMessage} alumno={alumno} qrAbierto={qrAbierto} onAbrirQr={() => setQrAbierto(true)} onSalirQr={() => setQrAbierto(false)} />;
+  return <InicioBienvenida rol={ses.rol} onTutorial={onTutorial} alumno={alumno} qrAbierto={qrAbierto} onAbrirQr={() => setQrAbierto(true)} onSalirQr={() => setQrAbierto(false)} />;
 }
 export function PerfilAlumno() {
   const al = useAlumno(), [tut, setTut] = useState([]);
@@ -99,6 +97,19 @@ export function PerfilesTutor() {
       </Card>))}
     {!vinc.some(v => v.estado === 'vinculado') && <Sin />}
   </>);
+}
+
+export function PerfilDocente() {
+  const [yo, setYo] = useState(null), [clases, setClases] = useState([]);
+  useEffect(() => {
+    SD.api('/api/yo').then(setYo).catch(() => setYo(SD.session()));
+    SD.api('/api/clases').then(setClases).catch(() => setClases([]));
+  }, []);
+  return <>
+    <Hero titulo="Mi perfil" sub="Tus datos y materias asignadas" />
+    {yo && <Card title="Datos del docente"><dl><dt>Nombre</dt><dd>{yo.nombre}</dd><dt>CURP</dt><dd>{yo.curp || yo.id}</dd>{yo.correo && <><dt>Correo</dt><dd>{yo.correo}</dd></>}</dl></Card>}
+    <Card title="Materias y grupos asignados"><ul className="l">{clases.map(c => <li key={c.id}><span>{c.materia} · {c.area}</span><span>{c.semestre} · Grupo {c.grupo}</span></li>)}{!clases.length && <li className="vacio">No tienes materias asignadas todavía.</li>}</ul></Card>
+  </>;
 }
 
 export function AsistenciaVer() {
@@ -260,10 +271,12 @@ export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol, on
   const tamanos = [['pequena', 'Pequeña'], ['normal', 'Normal'], ['grande', 'Grande']];
   const alternar = id => setAbierta(actual => actual === id ? null : id);
   const perfil = rol === 'tutor'
-    ? { resumen: 'Consulta tu perfil y el de tus alumnos vinculados.', descripcion: 'Revisa la información de tus alumnos vinculados y cambia cuál estás consultando.', ruta: '#/perfiles', accion: 'Abrir perfiles' }
+    ? { resumen: 'Consulta tu perfil y el de tus alumnos vinculados.', descripcion: 'Revisa la información de tus alumnos vinculados y cambia cuál estás consultando.', ruta: '#/perfil', accion: 'Abrir perfiles' }
     : rol === 'alumno'
       ? { resumen: 'Consulta tus datos escolares y código QR.', descripcion: 'Revisa tu información académica y muestra tu código QR para registrar asistencia.', ruta: '#/perfil', accion: 'Abrir mi perfil' }
-      : { resumen: 'Consulta los datos de tu cuenta.', descripcion: rol === 'admin' ? 'Revisa la información de tu cuenta de Control Escolar.' : 'Revisa la información de tu cuenta docente.', ruta: '#/cuenta', accion: 'Abrir mi cuenta' };
+      : rol === 'docente'
+        ? { resumen: 'Consulta tus datos y materias asignadas.', descripcion: 'Revisa tu perfil y los grupos y materias que tienes asignados.', ruta: '#/perfil', accion: 'Abrir mi perfil' }
+        : { resumen: 'Consulta los datos de tu cuenta.', descripcion: 'Revisa la información de tu cuenta de Control Escolar.', ruta: '#/perfil', accion: 'Abrir mi cuenta' };
   return <>
     <Hero titulo="Opciones" sub="Personaliza la apariencia de TIBURONES en este dispositivo." />
     <button className="btn sec tutorial-repetir" type="button" onClick={onTutorial}>Ver tutorial interactivo</button>

@@ -3,7 +3,7 @@ import SD from './sd.js';
 import { Card } from './ui.jsx';
 import Logo from './Logo.jsx';
 
-export default function Login({ onOk }) {
+export default function Login({ onOk, onInstall, installMessage }) {
   const controlEscolar = location.pathname.replace(/\/+$/, '') === '/control-escolar';
   const [rol, setRol] = useState(() => {
     if (controlEscolar) { const area = localStorage.getItem('sd_admin_area'); return ['portero', 'sara', 'gabriela', 'control'].includes(area) ? area : 'control'; }
@@ -91,7 +91,9 @@ export default function Login({ onOk }) {
       </Card>
       {controlEscolar
         ? <p className="sub" style={{ textAlign: 'center' }}><a href="/">Volver a TIBURONES</a></p>
-        : <div className="login-pie"><p className="sub">El alumno debe estar dado de alta por Servicios Escolares antes de crear su contraseña.</p><a className="login-control" href="/control-escolar">Acceso de Control Escolar</a></div>}
+        : <div className="login-pie"><p className="sub">El alumno debe estar dado de alta por Servicios Escolares antes de crear su contraseña.</p><a className="login-control" href="/control-escolar">Acceso de Control Escolar</a>
+          {modo === 'login' && etapa === 'curp' && <><button className="btn login-instalar" type="button" onClick={onInstall}>Descargar acceso directo</button>{installMessage && <p className="sub login-instalar-ayuda" role="status">{installMessage}</p>}</>}
+        </div>}
       <span className={'login-estado' + (enLinea ? ' conectado' : '')} role="status"><i aria-hidden="true" />{enLinea ? 'En línea' : 'Sin conexión'}</span>
     </main>
   );

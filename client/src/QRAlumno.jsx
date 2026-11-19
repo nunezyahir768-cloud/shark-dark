@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import SD from './sd.js';
 import { QR } from './ui.jsx';
 
@@ -69,7 +70,7 @@ export default function QRAlumno({ alumno, onSalir }) {
     } catch (e) { setError(e.message || 'No se pudo generar el PDF.'); }
     finally { setDescargando(false); }
   }
-  return <div className="qr-alumno-fondo" onClick={onSalir}>
+  return createPortal(<div className="qr-alumno-fondo" onClick={onSalir}>
     <section className="qr-alumno-modal" role="dialog" aria-modal="true" aria-labelledby="qr-alumno-titulo" onClick={e => e.stopPropagation()}>
       <h2 id="qr-alumno-titulo">Mi código QR</h2>
       <p className="sub">{alumno.nombre}<br />{alumno.curp}</p>
@@ -81,5 +82,5 @@ export default function QRAlumno({ alumno, onSalir }) {
         <button className="btn sec" type="button" onClick={onSalir}>Salir</button>
       </div>
     </section>
-  </div>;
+  </div>, document.body);
 }

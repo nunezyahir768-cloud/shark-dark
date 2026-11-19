@@ -68,7 +68,7 @@ html[data-tamano-fuente="pequena"] .hero .sub{margin-top:2px}
 .bienvenida-accion.qr-acceso svg{fill:currentColor}
 .bienvenida-accion.qr-acceso:hover{filter:brightness(1.06);color:var(--accion-texto)}
 .acceso-directo-ayuda{max-width:620px;margin:10px auto 0}
-.qr-alumno-fondo{position:fixed;inset:0;z-index:600;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.72);backdrop-filter:blur(4px)}
+.qr-alumno-fondo{position:fixed;inset:0;z-index:600;display:grid;place-items:center;overflow-y:auto;overscroll-behavior:contain;padding:16px;background:rgba(0,0,0,.72);backdrop-filter:blur(4px)}
 .qr-alumno-modal{width:min(100%,420px);max-height:calc(100dvh - 32px);overflow:auto;padding:22px 20px 18px;border:1px solid var(--linea);border-top:4px solid var(--rojo);border-radius:20px;background:var(--card);color:var(--text);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4);animation:sd-entrada .24s cubic-bezier(.22,1,.36,1) both}
 .qr-alumno-modal h2{margin:0 0 6px;color:var(--text)}
 .qr-alumno-modal .sub{margin:0;color:var(--muted);overflow-wrap:anywhere}
@@ -302,6 +302,10 @@ select option{background:#fff;color:var(--text)}
 .opciones-chevron{width:18px;height:18px;flex:none;color:var(--rojo);transition:transform .2s ease}
 .opciones-chevron.abierto{transform:rotate(180deg)}
 .opciones-detalle{padding:14px 18px 18px;border-top:1px solid var(--linea);animation:sd-entrada .24s cubic-bezier(.22,1,.36,1) both}
+.import-cuentas-list{display:grid;gap:8px;max-height:440px;overflow:auto;margin:12px 0;padding-right:4px}
+.import-cuenta{padding:12px;border:1px solid var(--linea);border-radius:12px;background:var(--surface)}
+.import-cuenta .sub{margin:4px 0 0;overflow-wrap:anywhere}
+.import-cuenta .msg{margin-top:6px;font-size:.82rem}
 .opciones-detalle .sub{margin:0 0 12px}
 .opciones-elecciones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .opciones-eleccion{min-height:44px;padding:8px 6px;border:1px solid var(--linea);border-radius:8px;background:var(--card);color:var(--text);font:600 .8125rem inherit;font-family:inherit;cursor:pointer;transition:background .18s ease,border-color .18s ease,color .18s ease,transform .18s ease}
@@ -486,6 +490,8 @@ body:has(.centro-login)::before{background:linear-gradient(135deg,transparent 0 
 .centro-login .mini:hover{transform:translateY(-1px);border-color:#F7E7B3;background:rgba(247,231,179,.06)}
 .login-pie{padding:4px 2px 0;text-align:center}
 .login-pie .sub{margin:0 0 16px}
+.login-instalar{display:block;width:min(100%,340px);margin:14px auto 0}
+.login-instalar-ayuda{margin:8px auto 0!important;max-width:380px}
 .login-control{display:inline-block;margin:4px 0 12px;color:#F7E7B3!important;font-weight:650;text-underline-offset:3px;transition:color .2s,transform .2s}
 .login-control:hover{color:#fff!important;transform:translateY(-1px)}
 .login-estado{position:fixed;right:max(16px,calc((100vw - 530px)/2 + 14px));bottom:max(14px,env(safe-area-inset-bottom));z-index:25;display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border:1px solid #D4AF37;border-radius:999px;background:rgba(31,31,31,.94);color:#C6BFB4;font-size:.8125rem;box-shadow:0 5px 16px rgba(0,0,0,.25);animation:sd-entrada .35s .35s both}
@@ -499,6 +505,7 @@ body:has(.centro-login)::before{background:linear-gradient(135deg,transparent 0 
 @keyframes login-step-in{from{opacity:0;transform:translateY(10px);filter:blur(2px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
 @media(max-width:520px){.centro.centro-login{padding:24px 16px 76px}.centro-login .card{padding:20px 18px;border-radius:17px}.centro-login .logo{width:min(135px,50vw)}}
 @media(prefers-reduced-motion:reduce){.centro-login .card,.login-estado,.paso-acceso{animation:none!important}}
+body:has(.centro-login) .estado{display:none}
 
 /* Estados y controles secundarios usan únicamente los tonos de la referencia */
 .tag.ok,.banner.ok{background:rgba(212,175,55,.16);color:#8B0008;border-color:#D4AF37}

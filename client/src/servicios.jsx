@@ -1,27 +1,29 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import SD from './sd.js';
 import * as XL from './excel.js';
+import { descargarPlantillaCuentas, leerCuentasExcel } from './importar-cuentas.js';
 import { Card, Hero, Banner, useBanner, QR, DIAS, SEMESTRES, AREAS, hh, hoyISO, post, msgErr, nombreGrupo, conDescanso, descargar } from './ui.jsx';
 import { Camara } from './docente.jsx';
 import { InicioBienvenida } from './paginas.jsx';
 
-function useServicios() {
+function useServicios(cargarUsuarios = true) {
   const [u, setU] = useState([]), [g, setG] = useState([]), [c, setC] = useState([]), [h, setH] = useState([]);
   const [error, setError] = useState('');
   const cargar = useCallback(async () => {
-    try { const [a, b, d, e] = await Promise.all([SD.cached('admin_usuarios', '/api/admin/usuarios'), SD.cached('admin_grupos', '/api/grupos'), SD.cached('admin_clases', '/api/clases'), SD.cached('admin_horarios', '/api/horarios')]); setU(a); setG(b.sort((x, y) => nombreGrupo(x).localeCompare(nombreGrupo(y)))); setC(d); setH(e); setError(''); }
+    try { const [a, b, d, e] = await Promise.all([cargarUsuarios ? SD.cached('admin_usuarios', '/api/admin/usuarios') : Promise.resolve([]), SD.cached('admin_grupos', '/api/grupos'), SD.cached('admin_clases', '/api/clases'), SD.cached('admin_horarios', '/api/horarios')]); setU(a); setG(b.sort((x, y) => nombreGrupo(x).localeCompare(nombreGrupo(y)))); setC(d); setH(e); setError(''); }
     catch (e) { setError(e.message || 'No se pudieron cargar los datos de administración.'); }
-  }, []);
+  }, [cargarUsuarios]);
   useEffect(() => { cargar(); }, [cargar]);
   return { u, g, c, h, cargar, error };
 }
 
-export function InicioAdmin({ onTutorial, onInstall, installMessage }) {
-  return <InicioBienvenida rol="admin" onTutorial={onTutorial} onInstall={onInstall} installMessage={installMessage} />;
+export function InicioAdmin({ onTutorial }) {
+  return <InicioBienvenida rol="admin" onTutorial={onTutorial} />;
 }
 
 export function Cuentas() {
   const { u, g, cargar, error } = useServicios(), [b, ban] = useBanner(), [q, setQ] = useState(''), [temp, setTemp] = useState(''), [solicitudes, setSolicitudes] = useState([]), [errorSolicitudes, setErrorSolicitudes] = useState('');
+  const [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false);
   const [crearAbierto, setCrearAbierto] = useState(false), [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [filtroRol, setFiltroRol] = useState('todos'), [filtroGrupo, setFiltroGrupo] = useState('todos'), [filtroEstado, setFiltroEstado] = useState('todos');
   const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A' });
@@ -31,6 +33,30 @@ export function Cuentas() {
     e.preventDefault();
     try { await post('/api/admin/usuarios', f); ban('ok', 'Cuenta creada', 'La persona puede entrar con su CURP y crear su contraseña.'); setF({ ...f, nombre: '', id: '' }); cargar(); }
     catch (er) { ban('err', 'No se pudo crear la cuenta', msgErr(er)); }
+  };
+  const leerExcel = async e => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    setLeyendoExcel(true); setImportadas([]);
+    try {
+      const existentes = new Set(u.map(x => x.id || x.curp));
+      const filas = await leerCuentasExcel(file);
+      setImportadas(filas.map(c => existentes.has(c.id) ? { ...c, errores: [...c.errores, 'Ya existe una cuenta con esta CURP'] } : c));
+      ban('ok', 'Excel leído', `Se encontraron ${filas.length} cuentas para revisar.`);
+    } catch (er) { ban('err', 'No se pudo leer el Excel', er.message); }
+    finally { setLeyendoExcel(false); }
+  };
+  const crearDesdeExcel = async () => {
+    const errores = importadas.filter(x => x.errores.length);
+    if (errores.length) return ban('err', 'Corrige el archivo', `Hay ${errores.length} filas con errores. No se creó ninguna cuenta.`);
+    if (!importadas.length || !confirm(`¿Crear las ${importadas.length} cuentas del Excel?`)) return;
+    setCreandoImportadas(true);
+    try {
+      const cuentas = importadas.map(({ rol, nombre, id, semestre, area, grupo }) => ({ rol, nombre, id, semestre, area, grupo }));
+      const r = await post('/api/admin/usuarios/importar', { cuentas });
+      ban('ok', 'Cuentas creadas', `Se crearon ${r.creadas} cuentas correctamente.`); setImportadas([]); cargar();
+    } catch (er) { ban('err', 'No se crearon las cuentas', msgErr(er)); }
+    finally { setCreandoImportadas(false); }
   };
   const acc = async (a, x) => {
     try {
@@ -49,6 +75,20 @@ export function Cuentas() {
   return (<>
     <Hero titulo="Cuentas" sub="Administra altas, accesos, grupos y solicitudes de recuperación." /><Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
+    <Card title="Importar cuentas desde Excel">
+      <p className="sub">Sube un archivo .xlsx o .xls con encabezados <b>rol, nombre y CURP</b>; también se infiere el rol si el encabezado de nombres dice <b>Alumnos, Docentes o Tutores</b>. Para alumnos agrega <b>semestre, área y grupo</b>. Se revisan todas las filas antes de crear.</p>
+      <button className="mini" type="button" onClick={descargarPlantillaCuentas}>Descargar plantilla Excel</button>
+      <label htmlFor="cuentas-excel">Archivo Excel</label><input id="cuentas-excel" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={leerExcel} disabled={leyendoExcel || creandoImportadas} />
+      {leyendoExcel && <p className="sub" role="status">Leyendo el archivo…</p>}
+      {!!importadas.length && <>
+        <p className="sub">{importadas.length} cuentas detectadas · {importadas.filter(x => !x.errores.length).length} listas · {importadas.filter(x => x.errores.length).length} con errores</p>
+        <div className="import-cuentas-list">{importadas.map((x, i) => <div className="import-cuenta" key={`${x.fila}-${i}`}>
+          <div><b>Fila {x.fila} · {x.nombre || 'Sin nombre'}</b><span className="tag">{x.rol}</span><p className="sub">{x.id || 'Sin CURP'}{x.rol === 'alumno' ? ` · ${x.semestre} · ${x.area} · Grupo ${x.grupo}` : ''}</p></div>
+          {x.errores.length > 0 && <p className="msg" role="alert">{x.errores.join(' · ')}</p>}
+        </div>)}</div>
+        <button className="btn" type="button" onClick={crearDesdeExcel} disabled={creandoImportadas || importadas.some(x => x.errores.length)}>{creandoImportadas ? 'CREANDO CUENTAS…' : `CREAR CUENTAS (${importadas.length})`}</button>
+      </>}
+    </Card>
     <button className="btn" type="button" onClick={() => setCrearAbierto(v => !v)}>{crearAbierto ? 'CERRAR CREAR CUENTA' : 'CREAR CUENTA'}</button>
     {crearAbierto && <Card title="Datos para crear cuenta"><form onSubmit={crear}>
       <select value={f.rol} onChange={e => setF({ ...f, rol: e.target.value })}><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select>
@@ -124,27 +164,54 @@ export function Clases() {
 }
 
 export function Horarios() {
-  const { g, c, h, cargar, error } = useServicios(), [b, ban] = useBanner(), [gi, setGi] = useState(0);
+  const { g, c, h, cargar, error } = useServicios(false), [b, ban] = useBanner(), [gi, setGi] = useState(0);
+  const [destino, setDestino] = useState(''), [docenteId, setDocenteId] = useState(''), [docentes, setDocentes] = useState([]);
   const [f, setF] = useState({ dia: 1, inicio: '07:00', fin: '07:50', claseId: '' });
-  const k = g[+gi], cl = k ? c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo) : [], bl = k ? h.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo) : [];
-  const todo = conDescanso(bl);
+  useEffect(() => { SD.api('/api/admin/docentes').then(setDocentes).catch(e => ban('err', 'No se pudieron cargar los docentes', msgErr(e))); }, []);
+  const k = g[+gi], cl = k ? c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo) : [];
+  const docentesOrdenados = [...docentes].sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const docente = docentesOrdenados.find(x => x.id === docenteId) || null;
+  const clasesDocente = docente ? c.filter(x => x.docente === docente.id).sort((a, b) => `${a.semestre}|${a.area}|${a.materia}|${a.grupo}`.localeCompare(`${b.semestre}|${b.area}|${b.materia}|${b.grupo}`)) : [];
+  const bloquesAlumno = k ? conDescanso(h.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo)) : [];
+  const bloquesDocente = docente ? h.filter(x => x.docente === docente.id) : [];
+  const clasesActivas = destino === 'docentes' ? clasesDocente : cl;
+  const claseActiva = clasesActivas.find(x => x.id === f.claseId) || clasesActivas[0] || null;
   const añadir = async e => {
-    e.preventDefault(); if (!k) return ban('err', 'Primero da de alta a un alumno de ese grupo');
-    try { await post('/api/admin/horarios', { area: k.area, semestre: k.semestre, grupo: k.grupo, dia: +f.dia, inicio: f.inicio, fin: f.fin, tipo: 'clase', claseId: f.claseId || (cl[0] && cl[0].id) });
+    e.preventDefault();
+    const grupo = destino === 'alumnos' ? k : claseActiva;
+    if (!grupo) return ban('err', 'Primero registra el grupo y asigna una materia al docente desde Materias.');
+    try { await post('/api/admin/horarios', { area: grupo.area, semestre: grupo.semestre, grupo: grupo.grupo, dia: +f.dia, inicio: f.inicio, fin: f.fin, tipo: 'clase', claseId: claseActiva.id });
       ban('ok', 'Bloque añadido', `${DIAS[f.dia]} ${hh(f.inicio)} a ${hh(f.fin)}`); setF({ ...f, inicio: f.fin, fin: '' }); cargar(); }
     catch (er) { ban('err', 'No se pudo', msgErr(er)); }
   };
   const borrar = async x => { if (!confirm(`¿Quitar ${x.materia} del horario del ${DIAS[x.dia]}?`)) return; try { await post('/api/admin/horarios/borrar', { id: x.id }); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
   return (<>
     <Hero titulo="Horarios" sub="El descanso de 9:30 a 10:00 ya está fijo todos los días." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
-    <Card title="Grupo"><select value={gi} onChange={e => setGi(e.target.value)}>{g.map((x, i) => <option key={x.id} value={i}>{nombreGrupo(x)}</option>)}{!g.length && <option>Aún no hay grupos</option>}</select></Card>
-    <Card title="Añadir una clase al horario"><form onSubmit={añadir}>
-      <select value={f.dia} onChange={e => setF({ ...f, dia: e.target.value })}>{[1, 2, 3, 4, 5, 6].map(d => <option key={d} value={d}>{DIAS[d]}</option>)}</select>
+    <Card title="Crear horarios"><p className="sub">¿De quién vas a crear el horario?</p><div className="fila2">
+      <button className={destino === 'alumnos' ? 'btn' : 'btn sec'} type="button" aria-pressed={destino === 'alumnos'} onClick={() => { setDestino('alumnos'); setF({ ...f, claseId: '' }); }}>Alumnos</button>
+      <button className={destino === 'docentes' ? 'btn' : 'btn sec'} type="button" aria-pressed={destino === 'docentes'} onClick={() => { setDestino('docentes'); setF({ ...f, claseId: '' }); }}>Docentes</button>
+    </div></Card>
+    {destino === 'alumnos' && <Card title="Horario del grupo"><form onSubmit={añadir}>
+      <label>Grupo</label><select value={gi} onChange={e => { setGi(e.target.value); setF({ ...f, claseId: '' }); }}>{g.map((x, i) => <option key={x.id} value={i}>{nombreGrupo(x)}</option>)}{!g.length && <option>Aún no hay grupos</option>}</select>
+      <label>Día</label><select value={f.dia} onChange={e => setF({ ...f, dia: e.target.value })}>{[1, 2, 3, 4, 5, 6].map(d => <option key={d} value={d}>{DIAS[d]}</option>)}</select>
       <div className="fila2"><div><label>De las</label><input type="time" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value })} required /></div><div><label>A las</label><input type="time" value={f.fin} onChange={e => setF({ ...f, fin: e.target.value })} required /></div></div>
-      <select value={f.claseId} onChange={e => setF({ ...f, claseId: e.target.value })}>{cl.map(x => <option key={x.id} value={x.id}>{x.materia} · {x.docenteNombre}</option>)}{!cl.length && <option value="">Primero crea las clases de este grupo</option>}</select>
-      <button className="btn" type="submit">AÑADIR AL HORARIO</button></form></Card>
-    {[1, 2, 3, 4, 5, 6].filter(d => todo.some(x => x.dia === d)).map(d => (
-      <Card key={d} title={DIAS[d]}><ul className="l">{todo.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia}</span><span>{String(x.id).startsWith('desc') ? 'fijo' : <button className="mini rojo" onClick={() => borrar(x)}>Quitar</button>}</span></li>)}</ul></Card>))}
+      <label>Materia y docente</label><select value={claseActiva?.id || ''} onChange={e => setF({ ...f, claseId: e.target.value })}>{cl.map(x => <option key={x.id} value={x.id}>{x.materia} · {x.docenteNombre}</option>)}{!cl.length && <option value="">Primero crea las materias de este grupo</option>}</select>
+      {!cl.length && <p className="sub">Primero agrega las materias y docentes desde la sección Materias.</p>}
+      <button className="btn" type="submit" disabled={!k || !claseActiva}>AÑADIR AL HORARIO</button></form></Card>}
+    {destino === 'docentes' && <Card title="Horario del docente"><label>Docente</label><select value={docenteId} onChange={e => { setDocenteId(e.target.value); setF({ ...f, claseId: '' }); }}><option value="">Selecciona un docente</option>{docentesOrdenados.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
+      {!docentesOrdenados.length && <p className="sub">No hay docentes registrados todavía.</p>}
+      {docente && <form onSubmit={añadir}>
+        <label>Materia, área, semestre y grupo</label><select value={claseActiva?.id || ''} onChange={e => setF({ ...f, claseId: e.target.value })}>{clasesDocente.map(x => <option key={x.id} value={x.id}>{x.semestre} · {x.area} · {x.materia} · Grupo {x.grupo}</option>)}{!clasesDocente.length && <option value="">Sin materias asignadas</option>}</select>
+        {!clasesDocente.length && <p className="sub">Asigna primero las materias de este docente desde la sección Materias.</p>}
+        <label>Día</label><select value={f.dia} onChange={e => setF({ ...f, dia: e.target.value })}>{[1, 2, 3, 4, 5, 6].map(d => <option key={d} value={d}>{DIAS[d]}</option>)}</select>
+        <div className="fila2"><div><label>De las</label><input type="time" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value })} required /></div><div><label>A las</label><input type="time" value={f.fin} onChange={e => setF({ ...f, fin: e.target.value })} required /></div></div>
+        <button className="btn" type="submit" disabled={!claseActiva}>AÑADIR AL HORARIO DEL DOCENTE</button>
+      </form>}
+    </Card>}
+    {destino === 'alumnos' && [1, 2, 3, 4, 5, 6].filter(d => bloquesAlumno.some(x => x.dia === d)).map(d => (
+      <Card key={d} title={DIAS[d]}><ul className="l">{bloquesAlumno.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia}</span><span>{String(x.id).startsWith('desc') ? 'fijo' : <button className="mini rojo" onClick={() => borrar(x)}>Quitar</button>}</span></li>)}</ul></Card>))}
+    {destino === 'docentes' && docente && [1, 2, 3, 4, 5, 6].filter(d => bloquesDocente.some(x => x.dia === d)).map(d => (
+      <Card key={d} title={DIAS[d]}><ul className="l">{bloquesDocente.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia} · {x.area} · {x.semestre} · Grupo {x.grupo}</span><span><button className="mini rojo" onClick={() => borrar(x)}>Quitar</button></span></li>)}</ul></Card>))}
   </>);
 }
 
