@@ -649,7 +649,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
   function qr(text) {
     const m = qrMatrix(text), n = m.length + 8; let d = '';
     m.forEach((r, y) => r.forEach((c, x) => { if (c) d += `M${x + 4} ${y + 4}h1v1h-1z`; }));
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#FFFFFF"/><path d="${d}" fill="#B5122A"/></svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#FFFFFF"/><path d="${d}" fill="#D6000F"/></svg>`;
   }
 
   const datos = async () => ({ alumnos: await all('alumnos'), asistencias: await all('asistencias'), avisos: await all('avisos') });

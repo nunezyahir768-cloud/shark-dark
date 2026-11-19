@@ -119,7 +119,7 @@ El envío push requiere estas variables en el entorno del servidor: `VAPID_PUBLI
 - La marca compartida de la app usa `public/img/logo-oscuro.png` en modo oscuro (PNG con fondo transparente, también usado en la intro) y `public/img/logo-claro.png` solo en modo claro; este último conserva su fondo blanco.
 - Los iconos de `public/icon-192.png`/`public/icon-512.png` y sus variantes `*-claro.png` se usan en las pestañas, notificaciones y accesos de la app según corresponda al tema.
 - SHARK DARK tiene una interfaz moderna, elegante y profesional, con una identidad visual de tonos oscuros y detalles dorados.
-- La paleta oficial combina negro profundo (`#090909`), negro carbón (`#171614`), dorado champagne (`#C9A86A`), dorado claro (`#E4C58A`), crema claro (`#F5F1E6`), beige grisáceo (`#B7AA96`), verde suave (`#8DBB91`) y rojo suave (`#E58A80`).
+- La paleta de marca usa negro principal (`#0B0B0B`), gris oscuro (`#1F1F1F`), rojo principal (`#D6000F`), rojo oscuro (`#8B0008`), dorado principal (`#D4AF37`) y dorado claro (`#F7E7B3`).
 - Las tarjetas oscuras tienen esquinas redondeadas y bordes dorados discretos; los botones usan un degradado dorado; y los menús se adaptan a computadoras, tabletas y celulares. Los formularios usan campos oscuros y bordes discretos.
 - La tipografía sans-serif mantiene una lectura limpia y consistente. El fondo incorpora sutiles formas inspiradas en hojas oscuras.
 - Esta identidad busca transmitir innovación, confianza, organización y modernidad en el entorno educativo.

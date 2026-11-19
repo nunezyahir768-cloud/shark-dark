@@ -177,7 +177,7 @@ export default function App() {
       const temaAplicado = tema === 'predeterminado' ? (preferenciaSistema.matches ? 'oscuro' : 'claro') : tema;
       root.dataset.tema = temaAplicado;
       const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.content = temaAplicado === 'oscuro' ? '#080808' : '#F5F2EC';
+      if (meta) meta.content = temaAplicado === 'oscuro' ? '#0B0B0B' : '#F7F3EB';
       const icono = temaAplicado === 'oscuro' ? '/icon-192.png' : '/icon-192-claro.png';
       document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach(link => { link.href = icono; });
     };
