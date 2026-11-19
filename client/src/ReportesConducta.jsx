@@ -65,8 +65,8 @@ export default function ReportesConducta() {
     {error && <p className="msg" role="alert">{error}</p>}
 
     {puedeCrear && <Card className="reporte-panel" title={rol === 'admin' ? 'Nuevo reporte' : 'Registrar reporte de conducta'}>
-      {rol === 'admin' && !formAbierto && <button className="btn reporte-accion" type="button" onClick={() => setFormAbierto(true)}>HACER UN REPORTE</button>}
-      {formAbierto && <form className="reporte-form" onSubmit={crear}>
+      {rol === 'admin' && <button className="btn reporte-accion desplegable-toggle" type="button" aria-expanded={formAbierto} aria-controls="reporte-form" onClick={() => setFormAbierto(v => !v)}><span>{formAbierto ? 'CERRAR FORMULARIO' : 'HACER UN REPORTE'}</span><span className={'desplegable-flecha' + (formAbierto ? ' abierta' : '')} aria-hidden="true">⌄</span></button>}
+      {puedeCrear && <div id="reporte-form" className={'desplegable-contenido' + (rol !== 'admin' || formAbierto ? ' abierto' : '')} aria-hidden={rol === 'admin' && !formAbierto} inert={rol === 'admin' && !formAbierto}><form className="reporte-form" onSubmit={crear}>
         <label htmlFor="reporte-alumno">Alumno</label>
         <select id="reporte-alumno" value={form.curp} onChange={e => setForm({ ...form, curp: e.target.value })} required>
           <option value="">Selecciona un alumno</option>
@@ -81,7 +81,7 @@ export default function ReportesConducta() {
         <p className="sub">La fecha, hora y nombre de quien registra se guardan automáticamente.</p>
         <button className="btn reporte-accion" type="submit" disabled={guardando || (rol === 'admin' && !formularioCompleto)}>{guardando ? 'GUARDANDO…' : rol === 'admin' ? 'CONFIRMAR REPORTE' : 'GUARDAR REPORTE'}</button>
         {rol === 'admin' && <button className="btn sec reporte-accion" type="button" disabled={guardando} onClick={() => { setForm({ curp: '', lugar: '', descripcion: '', seguimiento: '' }); setFormAbierto(false); }}>CANCELAR</button>}
-      </form>}
+      </form></div>}
     </Card>}
 
     {rol === 'admin' && pendientes.length > 0 && (

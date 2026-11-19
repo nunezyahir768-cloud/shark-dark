@@ -18,7 +18,7 @@ export function Camara({ onTexto, onError }) {
     }, onError); }
     catch (e) { setOn(false); onError('No se pudo abrir la cámara (permiso o HTTPS).'); }
   };
-  return (<><button className="btn" type="button" onClick={alternar}>{on ? 'DETENER CÁMARA' : 'ACTIVAR CÁMARA'}</button><video ref={v} playsInline muted style={{ display: on ? 'block' : 'none' }} /></>);
+  return (<><button className="btn desplegable-toggle" type="button" aria-expanded={on} aria-controls="camara-preview" onClick={alternar}><span>{on ? 'DETENER CÁMARA' : 'ACTIVAR CÁMARA'}</span><span className={'desplegable-flecha' + (on ? ' abierta' : '')} aria-hidden="true">⌄</span></button><div id="camara-preview" className={'desplegable-contenido' + (on ? ' abierto' : '')} aria-hidden={!on} inert={!on}><video ref={v} playsInline muted /></div></>);
 }
 
 export function AsistenciaDocente() {
@@ -69,8 +69,8 @@ export function AsistenciaDocente() {
     <Hero titulo="Asistencia" sub="Elige tu clase y escanea el QR de cada alumno." /><Banner b={b} />
     <Card title="Clase de ahora">
       <select value={cid} onChange={e => { setCid(e.target.value); setQr(false); }}>{lc.map(x => <option key={x.id} value={x.id}>{nombre(x)}</option>)}{!lc.length && <option value="">No tienes clases asignadas</option>}</select>
-      {c && <button className="mini" style={{ marginLeft: 0, marginTop: 10 }} onClick={() => setQr(!qr)}>{qr ? 'Ocultar QR de la clase' : 'Ver QR de esta clase'}</button>}
-      {qr && c && <><QR texto={'CLASE:' + c.id} /><p className="sub" style={{ textAlign: 'center' }}>Al escanearlo se abre esta clase.</p></>}
+      {c && <button className="mini desplegable-toggle" style={{ marginLeft: 0, marginTop: 10 }} aria-expanded={qr} aria-controls="asistencia-qr" onClick={() => setQr(!qr)}><span>{qr ? 'Ocultar QR de la clase' : 'Ver QR de esta clase'}</span><span className={'desplegable-flecha' + (qr ? ' abierta' : '')} aria-hidden="true">⌄</span></button>}
+      <div id="asistencia-qr" className={'desplegable-contenido' + (qr && c ? ' abierto' : '')} aria-hidden={!qr || !c} inert={!qr || !c}>{c && <div><QR texto={'CLASE:' + c.id} /><p className="sub" style={{ textAlign: 'center' }}>Al escanearlo se abre esta clase.</p></div>}</div>
     </Card>
     <Card title="Escanear"><Camara onTexto={procesar} onError={m => ban('err', 'Cámara', m)} />
       <div className="fila2" style={{ marginTop: 12 }}><input value={curp} maxLength="24" placeholder="o escribe la CURP" onChange={e => setCurp(e.target.value.toUpperCase())} onKeyDown={e => e.key === 'Enter' && procesar(curp)} style={{ marginTop: 0 }} />

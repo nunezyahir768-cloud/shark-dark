@@ -28,6 +28,11 @@ export function Cuentas() {
   const [filtroRol, setFiltroRol] = useState('todos'), [filtroGrupo, setFiltroGrupo] = useState('todos'), [filtroEstado, setFiltroEstado] = useState('todos');
   const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A' });
   const cargarSolicitudes = async () => { try { setSolicitudes(await SD.cached('admin_recuperaciones', '/api/admin/recuperaciones')); setErrorSolicitudes(''); } catch (e) { setErrorSolicitudes(e.message || 'No se pudieron cargar las solicitudes.'); } };
+  const borrarSolicitudes = async () => {
+    if (!solicitudes.length || !confirm('¿Quieres borrar todas las solicitudes de restablecimiento pendientes? Esta acción no se puede deshacer.')) return;
+    try { const r = await SD.api('/api/admin/recuperaciones', { method: 'DELETE' }); setSolicitudes([]); ban('ok', 'Solicitudes borradas', `Se borraron ${r.eliminadas} solicitudes pendientes.`); }
+    catch (er) { ban('err', 'No se pudieron borrar las solicitudes', msgErr(er)); }
+  };
   useEffect(() => { cargarSolicitudes(); }, []);
   const crear = async e => {
     e.preventDefault();
@@ -89,8 +94,8 @@ export function Cuentas() {
         <button className="btn" type="button" onClick={crearDesdeExcel} disabled={creandoImportadas || importadas.some(x => x.errores.length)}>{creandoImportadas ? 'CREANDO CUENTAS…' : `CREAR CUENTAS (${importadas.length})`}</button>
       </>}
     </Card>
-    <button className="btn" type="button" onClick={() => setCrearAbierto(v => !v)}>{crearAbierto ? 'CERRAR CREAR CUENTA' : 'CREAR CUENTA'}</button>
-    {crearAbierto && <Card title="Datos para crear cuenta"><form onSubmit={crear}>
+    <button className="btn desplegable-toggle" type="button" aria-expanded={crearAbierto} aria-controls="cuentas-crear" onClick={() => setCrearAbierto(v => !v)}><span>{crearAbierto ? 'CERRAR CREAR CUENTA' : 'CREAR CUENTA'}</span><span className={'desplegable-flecha' + (crearAbierto ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
+    <div id="cuentas-crear" className={'desplegable-contenido' + (crearAbierto ? ' abierto' : '')} aria-hidden={!crearAbierto} inert={!crearAbierto}><Card title="Datos para crear cuenta"><form onSubmit={crear}>
       <select value={f.rol} onChange={e => setF({ ...f, rol: e.target.value })}><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select>
       <input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Nombre completo" required />
       <input value={f.id} onChange={e => setF({ ...f, id: e.target.value.toUpperCase() })} placeholder="CURP (18 caracteres)" maxLength="18" required />
@@ -98,16 +103,17 @@ export function Cuentas() {
         <label>Semestre</label><select value={f.semestre} onChange={e => setF({ ...f, semestre: e.target.value })}>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select>
         <label>Área</label><select value={f.area} onChange={e => setF({ ...f, area: e.target.value })}>{AREAS.map(s => <option key={s}>{s}</option>)}</select>
         <label>Grupo</label><select value={f.grupo} onChange={e => setF({ ...f, grupo: e.target.value })}>{['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}</select></>}
-      <button className="btn" type="submit">CREAR CUENTA</button></form></Card>}
-    <Card title={`Solicitudes de restablecimiento · ${solicitudes.length}`}>
+      <button className="btn" type="submit">CREAR CUENTA</button></form></Card></div>
+    <Card className="solicitudes-card" title={`Solicitudes de restablecimiento · ${solicitudes.length}`}>
+      <button className="mini rojo solicitudes-borrar" type="button" onClick={borrarSolicitudes} disabled={!solicitudes.length}>Borrar solicitudes</button>
       <p className="sub">Revisa la identidad del usuario antes de autorizar. Al aceptar, se elimina la contraseña y la persona tendrá que crear una nueva al entrar con su CURP.</p>
       <button className="mini" onClick={cargarSolicitudes}>Actualizar solicitudes</button>
-      {solicitudes.map(x => <div key={x.id} style={{ borderTop: '1px solid var(--linea)', paddingTop: 10, marginTop: 10 }}><b>{x.nombre || 'Cuenta'}</b><span className="tag">Pendiente</span><p className="sub">{x.rol} · {x.curp} · {new Date(x.creado).toLocaleString()}</p><button className="mini" onClick={async () => { if (!confirm('Confirma que verificaste la identidad del usuario.')) return; try { const r = await post('/api/admin/recuperaciones/' + x.id + '/resolver', { accion: 'restablecer' }); ban('ok', 'Ya se eliminó la contraseña', 'La persona recibirá un aviso para entrar con su CURP y crear una contraseña nueva.'); cargarSolicitudes(); } catch (er) { ban('err', 'No se pudo restablecer', msgErr(er)); } }}>Verificar y restablecer</button><button className="mini rojo" onClick={async () => { try { if (!confirm('¿Rechazar esta solicitud?')) return; await post('/api/admin/recuperaciones/' + x.id + '/resolver', { accion: 'rechazar' }); cargarSolicitudes(); } catch (er) { ban('err', 'No se pudo rechazar', msgErr(er)); } }}>Rechazar</button></div>)}
+      {solicitudes.map(x => <div key={x.id} style={{ borderTop: '1px solid var(--linea)', paddingTop: 10, marginTop: 10 }}><b>{x.nombre || 'Cuenta'}</b><span className="tag">Pendiente</span><p className="sub">{x.rol} · {x.curp} · {new Date(x.creado).toLocaleString()}</p><button className="mini" onClick={async () => { if (!confirm('Confirma que verificaste la identidad del usuario.')) return; try { await post('/api/admin/recuperaciones/' + x.id + '/resolver', { accion: 'restablecer' }); setSolicitudes(v => v.filter(s => s.id !== x.id)); ban('ok', 'Ya se eliminó la contraseña', 'La solicitud se eliminó. La persona puede entrar con su CURP y crear una contraseña nueva.'); } catch (er) { ban('err', 'No se pudo restablecer', msgErr(er)); } }}>Verificar y restablecer</button><button className="mini rojo" onClick={async () => { try { if (!confirm('¿Rechazar esta solicitud?')) return; await post('/api/admin/recuperaciones/' + x.id + '/resolver', { accion: 'rechazar' }); setSolicitudes(v => v.filter(s => s.id !== x.id)); } catch (er) { ban('err', 'No se pudo rechazar', msgErr(er)); } }}>Rechazar</button></div>)}
       {errorSolicitudes && <p className="msg" role="alert">{errorSolicitudes}</p>}
       {!solicitudes.length && !errorSolicitudes && <p className="vacio">No hay solicitudes pendientes.</p>}
     </Card>
-    <button className="btn rojo" type="button" onClick={() => setFiltrosAbiertos(v => !v)}>{filtrosAbiertos ? 'CERRAR FILTROS' : 'BUSCAR Y FILTRAR CUENTAS'}</button>
-    {filtrosAbiertos && <Card title="Buscar y filtrar cuentas">
+    <button className="btn rojo desplegable-toggle" type="button" aria-expanded={filtrosAbiertos} aria-controls="cuentas-filtros" onClick={() => setFiltrosAbiertos(v => !v)}><span>{filtrosAbiertos ? 'CERRAR FILTROS' : 'BUSCAR Y FILTRAR CUENTAS'}</span><span className={'desplegable-flecha' + (filtrosAbiertos ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
+    <div id="cuentas-filtros" className={'desplegable-contenido' + (filtrosAbiertos ? ' abierto' : '')} aria-hidden={!filtrosAbiertos} inert={!filtrosAbiertos}><div className="desplegable-inner"><Card title="Buscar y filtrar cuentas">
       <label htmlFor="cuentas-buscar">Nombre o CURP</label><input id="cuentas-buscar" value={q} onChange={e => setQ(e.target.value)} placeholder="Escribe nombre o CURP" />
       <div className="fila2">
         <div><label htmlFor="cuentas-rol">Perfil</label><select id="cuentas-rol" value={filtroRol} onChange={e => setFiltroRol(e.target.value)}><option value="todos">Todos</option><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select></div>
@@ -115,14 +121,14 @@ export function Cuentas() {
       </div>
       <label htmlFor="cuentas-grupo">Grupo</label><select id="cuentas-grupo" value={filtroGrupo} onChange={e => setFiltroGrupo(e.target.value)}><option value="todos">Todos los grupos</option>{g.map(k => <option key={k.id} value={`${k.semestre}|${k.area}|${k.grupo}`}>{nombreGrupo(k)}</option>)}</select>
       <p className="sub" style={{ marginBottom: 0 }}>Se muestran hasta 100 resultados.</p>
-    </Card>}
-    {filtrosAbiertos && l.map(x => (
+    </Card>
+    {l.map(x => (
       <Card key={x.rol + x.id}><b>{x.nombre}</b><span className="tag">{x.rol}</span><span className={'tag ' + (x.debeCambiarPassword ? '' : 'ok')}>{x.debeCambiarPassword ? 'Primer acceso pendiente' : 'Activa'}</span>
         <p className="sub" style={{ margin: '4px 0 8px' }}>{x.curp || x.id}{x.rol === 'alumno' ? ` · ${x.semestre} ${x.area} ${x.grupo}` : ''}{x.hijos && x.hijos.length ? ` · alumnos: ${x.hijos.join(', ')}` : ''}{x.tutores && x.tutores.length ? ` · tutores: ${x.tutores.join(', ')}` : ''}</p>
         {x.rol === 'alumno' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('grupo', x)}>Cambiar grupo</button>}
         {x.rol === 'tutor' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('vincular', x)}>Vincular alumno</button>}
         <button className={'mini rojo'} style={x.rol === 'docente' ? { marginLeft: 0 } : {}} onClick={() => acc('borrar', x)}>Borrar</button></Card>))}
-    {filtrosAbiertos && !l.length && <Card><p className="vacio">Sin resultados.</p></Card>}
+    {!l.length && <Card><p className="vacio">Sin resultados.</p></Card>}</div></div>
   </>);
 }
 
@@ -137,8 +143,8 @@ export function Grupos() {
   return (<>
     <Hero titulo="Grupos" sub="Consulta las cuentas y administra alumnos sin eliminar la estructura del grupo." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
     {g.map(k => { const alumnos = u.filter(x => x.rol === 'alumno' && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo); return <Card key={k.id}><b>{nombreGrupo(k)}</b><p className="sub" style={{ margin: '4px 0 8px' }}>{alumnos.length} alumnos · {c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length} materias</p>
-      <button className="mini" style={{ marginLeft: 0 }} onClick={() => setVer(ver === k.id ? '' : k.id)}>{ver === k.id ? 'Ocultar cuentas' : 'Ver cuentas'}</button><button className="mini rojo" onClick={() => borrar(k)}>Eliminar cuentas</button>
-      {ver === k.id && <div className="grupo-cuentas" aria-live="polite">{alumnos.length ? alumnos.sort((a,b) => a.nombre.localeCompare(b.nombre)).map(x => <div className="grupo-cuenta" key={x.id}><b>{x.nombre}</b><span>{x.curp || x.id}</span></div>) : <p className="vacio">Este grupo todavía no tiene cuentas.</p>}</div>}
+      <button className="mini desplegable-toggle" style={{ marginLeft: 0 }} aria-expanded={ver === k.id} aria-controls={'grupo-cuentas-' + k.id} onClick={() => setVer(ver === k.id ? '' : k.id)}><span>{ver === k.id ? 'Ocultar cuentas' : 'Ver cuentas'}</span><span className={'desplegable-flecha' + (ver === k.id ? ' abierta' : '')} aria-hidden="true">⌄</span></button><button className="mini rojo" onClick={() => borrar(k)}>Eliminar cuentas</button>
+      <div id={'grupo-cuentas-' + k.id} className={'desplegable-contenido' + (ver === k.id ? ' abierto' : '')} aria-hidden={ver !== k.id} inert={ver !== k.id}><div className="grupo-cuentas" aria-live="polite">{alumnos.length ? alumnos.sort((a,b) => a.nombre.localeCompare(b.nombre)).map(x => <div className="grupo-cuenta" key={x.id}><b>{x.nombre}</b><span>{x.curp || x.id}</span></div>) : <p className="vacio">Este grupo todavía no tiene cuentas.</p>}</div></div>
     </Card>; })}
     {!g.length && <Card><p className="vacio">Todavía no hay grupos. Crea la cuenta de un alumno y su grupo aparecerá aquí.</p></Card>}
   </>);
@@ -156,10 +162,10 @@ export function Clases() {
       <input value={f.materia} onChange={e => setF({ ...f, materia: e.target.value })} placeholder="Materia (ej. Matemáticas)" maxLength="60" required />
       <select value={f.docente} onChange={e => setF({ ...f, docente: e.target.value })}>{docs.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}{!docs.length && <option value="">Primero crea un docente</option>}</select>
       <button className="btn" type="submit">AÑADIR CLASE</button></form></Card>
-    {qr && <Card title="QR de la clase" style={{ textAlign: 'center' }}><QR texto={'CLASE:' + qr.id} /><p><b>{qr.materia}</b><br />{qr.semestre} {qr.area} {qr.grupo}</p><p className="sub">Imprímelo: el docente lo escanea y se abre esta clase.</p></Card>}
+    <div id="clases-qr" className={'desplegable-contenido' + (qr ? ' abierto' : '')} aria-hidden={!qr} inert={!qr}><Card title="QR de la clase" style={{ textAlign: 'center' }}>{qr && <><QR texto={'CLASE:' + qr.id} /><p><b>{qr.materia}</b><br />{qr.semestre} {qr.area} {qr.grupo}</p><p className="sub">Imprímelo: el docente lo escanea y se abre esta clase.</p></>}</Card></div>
     {c.slice().sort((a, b) => (a.semestre + a.area + a.grupo + a.materia).localeCompare(b.semestre + b.area + b.grupo + b.materia)).map(k => (
       <Card key={k.id}><b>{k.materia}</b><p className="sub" style={{ margin: '2px 0 8px' }}>{k.semestre} {k.area} {k.grupo} · Prof. {k.docenteNombre || k.docente}</p>
-        <button className="mini" style={{ marginLeft: 0 }} onClick={() => { setQr(k); scrollTo(0, 0); }}>Ver QR</button><button className="mini rojo" onClick={() => borrar(k)}>Borrar</button></Card>))}
+        <button className="mini desplegable-toggle" style={{ marginLeft: 0 }} aria-expanded={qr?.id === k.id} aria-controls="clases-qr" onClick={() => { setQr(qr?.id === k.id ? null : k); scrollTo(0, 0); }}><span>{qr?.id === k.id ? 'Ocultar QR' : 'Ver QR'}</span><span className={'desplegable-flecha' + (qr?.id === k.id ? ' abierta' : '')} aria-hidden="true">⌄</span></button><button className="mini rojo" onClick={() => borrar(k)}>Borrar</button></Card>))}
   </>);
 }
 
@@ -188,17 +194,17 @@ export function Horarios() {
   return (<>
     <Hero titulo="Horarios" sub="El descanso de 9:30 a 10:00 ya está fijo todos los días." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
     <Card title="Crear horarios"><p className="sub">¿De quién vas a crear el horario?</p><div className="fila2">
-      <button className={destino === 'alumnos' ? 'btn' : 'btn sec'} type="button" aria-pressed={destino === 'alumnos'} onClick={() => { setDestino('alumnos'); setF({ ...f, claseId: '' }); }}>Alumnos</button>
-      <button className={destino === 'docentes' ? 'btn' : 'btn sec'} type="button" aria-pressed={destino === 'docentes'} onClick={() => { setDestino('docentes'); setF({ ...f, claseId: '' }); }}>Docentes</button>
+      <button className={(destino === 'alumnos' ? 'btn' : 'btn sec') + ' desplegable-toggle'} type="button" aria-expanded={destino === 'alumnos'} aria-controls="horario-alumnos" onClick={() => { setDestino('alumnos'); setF({ ...f, claseId: '' }); }}><span>Alumnos</span><span className={'desplegable-flecha' + (destino === 'alumnos' ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
+      <button className={(destino === 'docentes' ? 'btn' : 'btn sec') + ' desplegable-toggle'} type="button" aria-expanded={destino === 'docentes'} aria-controls="horario-docentes" onClick={() => { setDestino('docentes'); setF({ ...f, claseId: '' }); }}><span>Docentes</span><span className={'desplegable-flecha' + (destino === 'docentes' ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
     </div></Card>
-    {destino === 'alumnos' && <Card title="Horario del grupo"><form onSubmit={añadir}>
+    <div id="horario-alumnos" className={'desplegable-contenido' + (destino === 'alumnos' ? ' abierto' : '')} aria-hidden={destino !== 'alumnos'} inert={destino !== 'alumnos'}><Card title="Horario del grupo"><form onSubmit={añadir}>
       <label>Grupo</label><select value={gi} onChange={e => { setGi(e.target.value); setF({ ...f, claseId: '' }); }}>{g.map((x, i) => <option key={x.id} value={i}>{nombreGrupo(x)}</option>)}{!g.length && <option>Aún no hay grupos</option>}</select>
       <label>Día</label><select value={f.dia} onChange={e => setF({ ...f, dia: e.target.value })}>{[1, 2, 3, 4, 5, 6].map(d => <option key={d} value={d}>{DIAS[d]}</option>)}</select>
       <div className="fila2"><div><label>De las</label><input type="time" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value })} required /></div><div><label>A las</label><input type="time" value={f.fin} onChange={e => setF({ ...f, fin: e.target.value })} required /></div></div>
       <label>Materia y docente</label><select value={claseActiva?.id || ''} onChange={e => setF({ ...f, claseId: e.target.value })}>{cl.map(x => <option key={x.id} value={x.id}>{x.materia} · {x.docenteNombre}</option>)}{!cl.length && <option value="">Primero crea las materias de este grupo</option>}</select>
       {!cl.length && <p className="sub">Primero agrega las materias y docentes desde la sección Materias.</p>}
-      <button className="btn" type="submit" disabled={!k || !claseActiva}>AÑADIR AL HORARIO</button></form></Card>}
-    {destino === 'docentes' && <Card title="Horario del docente"><label>Docente</label><select value={docenteId} onChange={e => { setDocenteId(e.target.value); setF({ ...f, claseId: '' }); }}><option value="">Selecciona un docente</option>{docentesOrdenados.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
+      <button className="btn" type="submit" disabled={!k || !claseActiva}>AÑADIR AL HORARIO</button></form></Card></div>
+    <div id="horario-docentes" className={'desplegable-contenido' + (destino === 'docentes' ? ' abierto' : '')} aria-hidden={destino !== 'docentes'} inert={destino !== 'docentes'}><Card title="Horario del docente"><label>Docente</label><select value={docenteId} onChange={e => { setDocenteId(e.target.value); setF({ ...f, claseId: '' }); }}><option value="">Selecciona un docente</option>{docentesOrdenados.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
       {!docentesOrdenados.length && <p className="sub">No hay docentes registrados todavía.</p>}
       {docente && <form onSubmit={añadir}>
         <label>Materia, área, semestre y grupo</label><select value={claseActiva?.id || ''} onChange={e => setF({ ...f, claseId: e.target.value })}>{clasesDocente.map(x => <option key={x.id} value={x.id}>{x.semestre} · {x.area} · {x.materia} · Grupo {x.grupo}</option>)}{!clasesDocente.length && <option value="">Sin materias asignadas</option>}</select>
@@ -207,7 +213,7 @@ export function Horarios() {
         <div className="fila2"><div><label>De las</label><input type="time" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value })} required /></div><div><label>A las</label><input type="time" value={f.fin} onChange={e => setF({ ...f, fin: e.target.value })} required /></div></div>
         <button className="btn" type="submit" disabled={!claseActiva}>AÑADIR AL HORARIO DEL DOCENTE</button>
       </form>}
-    </Card>}
+    </Card></div>
     {destino === 'alumnos' && [1, 2, 3, 4, 5, 6].filter(d => bloquesAlumno.some(x => x.dia === d)).map(d => (
       <Card key={d} title={DIAS[d]}><ul className="l">{bloquesAlumno.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia}</span><span>{String(x.id).startsWith('desc') ? 'fijo' : <button className="mini rojo" onClick={() => borrar(x)}>Quitar</button>}</span></li>)}</ul></Card>))}
     {destino === 'docentes' && docente && [1, 2, 3, 4, 5, 6].filter(d => bloquesDocente.some(x => x.dia === d)).map(d => (
@@ -360,22 +366,27 @@ export function Escaner() {
 export function Citatorios() {
   const { u } = useServicios();
   const [lista, setLista] = useState([]), [error, setError] = useState(''), [b, ban] = useBanner();
-  const [f, setF] = useState({ curp: '', fecha: hoyISO(), motivo: '' });
+  const [f, setF] = useState({ curp: '', fecha: hoyISO(), motivo: '' }), [formAbierto, setFormAbierto] = useState(false);
+  const curp = f.curp.trim().toUpperCase();
+  const alumno = u.find(x => x.rol === 'alumno' && x.id === curp);
   const cargar = useCallback(() => SD.cached('admin_citatorios', '/api/admin/citatorios').then(setLista).catch(e => setError(e.message || 'No se pudieron cargar los citatorios.')), []);
   useEffect(() => { cargar(); }, [cargar]);
   const crear = async e => {
     e.preventDefault();
-    try { await post('/api/admin/citatorios', f); setF({ ...f, motivo: '' }); ban('ok', 'Citatorio creado', 'Quedó registrado para el alumno.'); cargar(); }
+    try { await post('/api/admin/citatorios', { ...f, curp }); setF({ ...f, curp: '', motivo: '' }); setFormAbierto(false); ban('ok', 'Citatorio creado', 'Quedó registrado para el alumno.'); cargar(); }
     catch (e) { ban('err', 'No se pudo crear', msgErr(e)); }
   };
   return <>
     <Hero titulo="Citatorios" sub="Registra citatorios para alumnos y consulta los anteriores." /><Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
-    <Card title="Nuevo citatorio"><form onSubmit={crear}>
-      <label htmlFor="citatorio-alumno">Alumno</label><select id="citatorio-alumno" value={f.curp} onChange={e => setF({ ...f, curp: e.target.value })} required><option value="">Selecciona un alumno</option>{u.filter(x => x.rol === 'alumno').map(x => <option key={x.id} value={x.id}>{x.nombre} · {x.semestre} {x.area} {x.grupo}</option>)}</select>
+    <Card title="Nuevo citatorio">
+      <button className="btn sec desplegable-toggle" type="button" aria-expanded={formAbierto} aria-controls="citatorio-form" onClick={() => setFormAbierto(v => !v)}><span>{formAbierto ? 'CERRAR FORMULARIO' : 'CREAR CITATORIO'}</span><span className={'desplegable-flecha' + (formAbierto ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
+      <div id="citatorio-form" className={'desplegable-contenido' + (formAbierto ? ' abierto' : '')} aria-hidden={!formAbierto} inert={!formAbierto}><form onSubmit={crear}>
+      <label htmlFor="citatorio-curp">CURP del alumno</label><input id="citatorio-curp" value={f.curp} maxLength="18" autoCapitalize="characters" placeholder="Escribe la CURP (18 caracteres)" onChange={e => setF({ ...f, curp: e.target.value.toUpperCase() })} required />
+      {curp.length === 18 && <p className={'sub citatorio-validacion' + (alumno ? ' valido' : ' invalido')}>{alumno ? `Cuenta encontrada: ${alumno.nombre} · ${alumno.semestre || ''} ${alumno.area || ''} ${alumno.grupo || ''}` : 'No encontramos una cuenta de alumno con esa CURP.'}</p>}
       <label htmlFor="citatorio-fecha">Fecha de cita</label><input id="citatorio-fecha" type="date" value={f.fecha} onChange={e => setF({ ...f, fecha: e.target.value })} required />
       <label htmlFor="citatorio-motivo">Motivo</label><textarea id="citatorio-motivo" rows="4" maxLength="1000" value={f.motivo} onChange={e => setF({ ...f, motivo: e.target.value })} required />
-      <button className="btn">REGISTRAR CITATORIO</button></form></Card>
+      <button className="btn" disabled={!alumno}>REGISTRAR CITATORIO</button></form></div></Card>
     {lista.map(x => <Card key={x.id} title={`${x.alumno} · ${x.fecha}`}><p>{x.motivo}</p><p className="sub">{x.semestre} {x.area} {x.grupo} · Registrado por {x.creadoPor}</p></Card>)}
     {!lista.length && <Card><p className="vacio">Aún no hay citatorios registrados.</p></Card>}
   </>;

@@ -25,7 +25,8 @@ const ICONOS_MENU = {
   clases: <><path d="M3 5.5A3.5 3.5 0 0 1 6.5 2H21v17H6.5A3.5 3.5 0 0 0 3 22z" /><path d="M3 5.5v13A3.5 3.5 0 0 1 6.5 15H21M8 6h8" /></>,
   horarios: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
   escaner: <><path d="M4 8V4h4m8 0h4v4M20 16v4h-4M8 20H4v-4M4 12h16" /></>,
-  historial: <><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5m4-1v5l3 2" /></>
+  historial: <><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5m4-1v5l3 2" /></>,
+  citatorios: <><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 12h7M9 16h5" /><path d="M4 7H3v14h12v-1" /></>
 };
 const IconoMenu = ({ nombre }) => <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONOS_MENU[nombre]}</svg>;
 
@@ -114,7 +115,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
             <div className="pie">
               <div className="quien"><b>{ses.nombre}</b><small>{ROL[rol]}</small></div>
               <a href="#/cuenta">Mi cuenta</a>
-              <button className="salir" onClick={SD.logout}>Salir</button>
+              <button className="salir" onClick={() => { if (confirm('¿Quieres cerrar sesión?')) SD.logout(); }}>Salir</button>
             </div>
           </aside>
           <div className={'velo' + (abre ? ' abre' : '')} onClick={() => setAbre(false)} />

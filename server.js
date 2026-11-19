@@ -450,6 +450,11 @@ app.get('/api/admin/recuperaciones', auth, soloAdmin, h(async (req, res) => {
     const l = await solicitudesRecuperacion.find({ estado: 'pendiente' }).sort({ creado: 1 }).limit(200).toArray();
     res.json(l.map(({ _id, ipHash, ...r }) => ({ id: _id, ...r })));
 }));
+app.delete('/api/admin/recuperaciones', auth, soloAdmin, h(async (req, res) => {
+    const resultado = await solicitudesRecuperacion.deleteMany({ estado: 'pendiente' });
+    await registrarCambio(req, 'Solicitudes de recuperación eliminadas', `${resultado.deletedCount} solicitudes`);
+    res.json({ ok: true, eliminadas: resultado.deletedCount });
+}));
 app.post('/api/admin/recuperaciones/:id/resolver', auth, soloAdmin, h(async (req, res) => {
     const solicitud = await solicitudesRecuperacion.findOne({ _id: s(req.params.id), estado: 'pendiente' });
     if (!solicitud) return bad(res, 'La solicitud ya fue atendida o no existe', 404);
@@ -462,11 +467,13 @@ app.post('/api/admin/recuperaciones/:id/resolver', auth, soloAdmin, h(async (req
     if (accion !== 'restablecer') return bad(res, 'Acción inválida');
     const cuenta = await usuarios.findOne({ _id: `${solicitud.rol}:${solicitud.curp}` });
     if (!cuenta) return bad(res, 'La cuenta ya no existe', 404);
-    await usuarios.updateOne({ _id: cuenta._id }, { $set: { debeCambiarPassword: true, passwordActualizada: new Date(), sessionId: null }, $unset: { salt: '', hash: '' } });
-    await solicitudesRecuperacion.updateOne({ _id: solicitud._id }, { $set: { estado: 'restablecida', resuelta: new Date(), resueltaPor: req.u.id } });
+    const cambioPassword = await usuarios.updateOne({ _id: cuenta._id }, { $set: { debeCambiarPassword: true, passwordActualizada: new Date(), sessionId: null }, $unset: { salt: '', hash: '' } });
+    if (!cambioPassword.matchedCount) return bad(res, 'No se pudo restablecer la contraseña de esa cuenta', 409);
+    await solicitudesRecuperacion.deleteOne({ _id: solicitud._id, estado: 'pendiente' });
     await registrarCambio(req, 'Restablecimiento de contraseña', `${solicitud.rol} · ${solicitud.curp}`);
-    await avisos.insertOne({ _id: 'password:' + solicitud.curp + ':' + Date.now(), para: solicitud.curp, curp: solicitud.curp, tipo: 'password', texto: 'Tu contrase\u00f1a fue eliminada. Entra con tu CURP y crea una contrase\u00f1a nueva.', fecha: new Date().toISOString().slice(0,10), creado: new Date() });
-    await enviarPush(solicitud.rol, solicitud.curp, 'Contrase?a restablecida', 'Tu contrase\u00f1a fue eliminada. Entra con tu CURP y crea una nueva.', '/');
+    const mensajeAviso = 'Servicios Escolares restableció tu contraseña. Entra con tu CURP y crea una nueva.';
+    await avisos.insertOne({ _id: 'password:' + solicitud.curp + ':' + Date.now(), para: solicitud.curp, curp: solicitud.curp, tipo: 'password', texto: mensajeAviso, fecha: new Date().toISOString().slice(0,10), creado: new Date() });
+    await enviarPush(solicitud.rol, solicitud.curp, 'Contraseña restablecida', mensajeAviso, '/');
     res.json({ ok: true });
 }));
 app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {

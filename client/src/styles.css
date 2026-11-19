@@ -75,7 +75,7 @@ html[data-tamano-fuente="pequena"] .hero .sub{margin-top:2px}
 .qr-alumno-modal .qr{width:min(220px,70vw);margin:14px auto 10px}
 .qr-alumno-ayuda{font-size:.88rem}
 .qr-alumno-acciones{display:flex;gap:10px;margin-top:16px}
-.qr-alumno-acciones .btn{margin:0;flex:1}
+.qr-alumno-acciones .btn{min-width:0;width:auto;margin:0;flex:1}
 @media(max-width:480px){.bienvenida-acciones{gap:6px}.bienvenida-accion{min-height:38px;padding:7px clamp(5px,2vw,10px);gap:5px}.bienvenida-accion svg{width:13px;height:13px;flex:none}.qr-alumno-modal{padding:18px 16px 14px}.qr-alumno-acciones{gap:8px}}
 
 /* Tutorial */
@@ -95,7 +95,7 @@ html[data-tamano-fuente="pequena"] .hero .sub{margin-top:2px}
 .tutorial-counter{font-size:1rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--cafe);margin-bottom:9px}
 .tutorial-body .sub{margin:0;color:var(--muted);font-size:1.3125rem;line-height:1.65}
 .tutorial-controles{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 30px 24px}
-.tutorial-controles .btn{width:auto;min-height:54px;margin:0;padding:12px 20px;font-size:1rem;background:transparent;color:var(--text);border:1px solid var(--linea);border-radius:12px;box-shadow:none}
+.tutorial-controles .btn{width:auto;min-width:0;min-height:54px;margin:0;padding:12px 20px;font-size:1rem;background:transparent;color:var(--text);border:1px solid var(--linea);border-radius:12px;box-shadow:none}
 .tutorial-controles .btn:hover{background:var(--plomo-2);border-color:var(--cafe)}
 .tutorial-nav{min-width:110px}
 .tutorial-puntos{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap}
@@ -105,7 +105,9 @@ html[data-tamano-fuente="pequena"] .hero .sub{margin-top:2px}
 @media(max-width:600px){.tutorial-cta{flex-direction:column;align-items:stretch}.tutorial-btn{width:100%}.tutorial-overlay{padding:8px;place-items:start center}.tutorial-modal{max-height:calc(100dvh - 16px);border-radius:22px}.tutorial-header{padding:18px 16px 0}.tutorial-header h3{font-size:1.6875rem}.tutorial-visual{padding:14px 14px 0}.tutorial-visual .tutorial-imagen{height:min(52vh,400px);border-radius:16px}.tutorial-callout{left:24px;bottom:12px;font-size:.875rem;padding:8px 12px}.tutorial-body{padding:16px 16px 2px}.tutorial-body .sub{font-size:1.1875rem;line-height:1.55}.tutorial-controles{flex-wrap:wrap;padding:16px}.tutorial-nav{flex:1;min-width:0}.tutorial-puntos{order:1;flex-basis:100%;width:100%}}
 
 /* Botones */
-.btn{display:block;width:100%;min-height:46px;padding:11px 18px;border:1px solid rgba(147,104,23,.3);border-radius:12px;background:var(--accion);color:var(--accion-texto);font:650 .875rem inherit;font-family:inherit;text-align:center;text-decoration:none;cursor:pointer;margin-top:12px;letter-spacing:.025em;transition:transform .18s ease,filter .18s ease,box-shadow .18s ease,border-color .18s ease;box-shadow:0 6px 16px var(--accion-sombra)}
+.btn{display:flex;align-items:center;justify-content:center;width:fit-content;min-width:min(100%,220px);max-width:100%;min-height:46px;padding:11px 18px;border:1px solid rgba(147,104,23,.3);border-radius:12px;background:var(--accion);color:var(--accion-texto);font:650 .875rem inherit;font-family:inherit;text-align:center;text-decoration:none;cursor:pointer;margin:12px auto;letter-spacing:.025em;transition:transform .18s ease,filter .18s ease,box-shadow .18s ease,border-color .18s ease;box-shadow:0 6px 16px var(--accion-sombra)}
+.btn.bienvenida-accion{min-width:0;width:auto;margin:0}
+.fila2>.desplegable-toggle{min-width:0}
 .btn:hover{transform:translateY(-1px);filter:brightness(1.055);box-shadow:0 9px 22px var(--accion-sombra)}
 .btn:active{transform:translateY(0);filter:brightness(.97)}
 .btn:focus-visible,.mini:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--caramelo);outline-offset:3px}
@@ -295,7 +297,7 @@ select option{background:#fff;color:var(--text)}
 .aviso-nuevo{border-left:4px solid var(--cafe)!important}
 .tag{margin-bottom:4px}
 .opciones-item{padding:0;overflow:hidden}
-.opciones-campo{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:16px 18px;border:0;background:transparent;color:var(--text);text-align:left;cursor:pointer}
+.opciones-campo{display:flex;align-items:center;justify-content:space-between;gap:14px;width:fit-content;max-width:100%;margin:0 auto;padding:16px 18px;border:0;background:transparent;color:var(--text);text-align:left;cursor:pointer}
 .opciones-campo-texto{display:grid;gap:3px}
 .opciones-campo-texto b{font-size:.9375rem}
 .opciones-campo-texto small{color:var(--muted);font-size:.8125rem}
@@ -371,6 +373,19 @@ html[data-tema="oscuro"] .btn.sec:hover,html[data-tema="oscuro"] .tutorial-contr
 .reporte-accion{transition:transform .18s cubic-bezier(.22,1,.36,1),box-shadow .18s ease,filter .18s ease}
 @media(hover:hover){.reporte-accion:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(209,15,36,.16);filter:brightness(1.03)}}
 .reporte-accion:focus-visible{outline:2px solid var(--caramelo);outline-offset:3px}
+.desplegable-toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;width:fit-content;min-width:min(100%,200px);max-width:100%;margin:12px auto;flex:0 1 auto;text-align:left}
+.desplegable-toggle>span:first-child{min-width:0;flex:1}
+.desplegable-flecha{display:inline-block;font-size:1.35em;line-height:1;transition:transform .24s cubic-bezier(.22,1,.36,1)}
+.desplegable-flecha.abierta{transform:rotate(180deg)}
+.desplegable-contenido{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .3s cubic-bezier(.22,1,.36,1),opacity .2s ease}
+.desplegable-contenido.abierto{grid-template-rows:1fr;opacity:1}
+.desplegable-contenido>*{min-height:0;overflow:hidden}
+.desplegable-contenido>.card{margin-top:10px;margin-bottom:0}
+.desplegable-contenido>video{width:100%;border-radius:12px}
+.solicitudes-card{position:relative}
+.solicitudes-card h2{min-height:32px;padding-right:150px}
+.solicitudes-borrar{position:absolute;top:12px;right:16px;margin:0}
+.citatorio-validacion{margin:4px 0 10px}.citatorio-validacion.valido{color:var(--ok)}.citatorio-validacion.invalido{color:var(--err)}
 
 html[data-tema="oscuro"]{
   color-scheme:dark;
