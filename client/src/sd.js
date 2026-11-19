@@ -160,6 +160,20 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
   }
 
   /* ---------- Inicio de sesión con contraseña ---------- */
+  async function identificarCuenta(curp) {
+    curp = String(curp || '').trim().toUpperCase();
+    if (navigator.onLine) {
+      const r = await fetch('/api/cuenta/identificar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ curp }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { const e = new Error(j.error || 'No se pudo identificar la cuenta.'); e.status = r.status; throw e; }
+      return j;
+    }
+    const candidatas = (await rawAll('credenciales')).map(x => x.id).filter(id => id.endsWith(':' + curp)).map(id => id.slice(0, id.indexOf(':'))).filter(rol => ['alumno', 'docente', 'tutor'].includes(rol));
+    const roles = [...new Set(candidatas)];
+    if (roles.length !== 1) throw new Error(roles.length ? 'La CURP tiene más de una cuenta en este dispositivo. Conéctate para continuar.' : 'Sin conexión: inicia sesión en línea en este dispositivo al menos una vez.');
+    return { rol: roles[0], tienePassword: true };
+  }
+
   async function login(rol, id, password, adminArea = 'control') {
     id = String(id || (rol === 'admin' ? localStorage.getItem('sd_admin_id') : '') || '').trim().toUpperCase();
     if (!navigator.onLine) return loginOffline(rol, id, password);
@@ -237,11 +251,11 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     }
   }
 
-  async function activarCuenta(rol, curp, nombre, password, confirmar) {
+  async function activarCuenta(rol, curp, password, confirmar) {
     if (!navigator.onLine) throw new Error('Necesitas conexión a internet para crear tu contraseña.');
-    return api('/api/cuenta/activar', { method: 'POST', body: { rol, curp: String(curp).trim().toUpperCase(), nombre, password, confirmar } });
+    return api('/api/cuenta/activar', { method: 'POST', body: { rol, curp: String(curp).trim().toUpperCase(), password, confirmar } });
   }
-  const activarAlumno = (curp, nombre, password, confirmar) => activarCuenta('alumno', curp, nombre, password, confirmar);
+  const activarAlumno = (curp, password, confirmar) => activarCuenta('alumno', curp, password, confirmar);
 
   async function solicitarRecuperacion(rol, id) {
     return api('/api/recuperacion', { method: 'POST', body: { rol, id: String(id).trim().toUpperCase() } });
@@ -654,5 +668,5 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     try { const r = await api(path); await cacheGuardar(key, r); return r; }
     catch (e) { return cacheLeer(key, []); }
   }
-  const SD = { init, login, activarCuenta, activarAlumno, solicitarRecuperacion, cambiarPassword, logout, session: ses, asistencia, consultar, sync, scan, qr, datos, cierre, corregir, permisoAvisos, registrarPush, api, vinculos, alumnoActivo, notificar, cached, offlineHabilitado: offlineDisponible };
+  const SD = { init, login, identificarCuenta, activarCuenta, activarAlumno, solicitarRecuperacion, cambiarPassword, logout, session: ses, asistencia, consultar, sync, scan, qr, datos, cierre, corregir, permisoAvisos, registrarPush, api, vinculos, alumnoActivo, notificar, cached, offlineHabilitado: offlineDisponible };
   export default SD;

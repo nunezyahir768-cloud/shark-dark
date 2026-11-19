@@ -76,9 +76,9 @@ Render detecta el cambio solo y publica la nueva versión en unos minutos.
 
 ## Inicio de sesión y contraseñas
 
-- Alumnos, tutores y docentes entran con **tipo de cuenta + CURP + contraseña**.
+- Alumnos, tutores y docentes escriben su **CURP**; el sistema identifica el tipo de cuenta y después pide la contraseña si ya existe.
 - Control Escolar entra en `/control-escolar` solo con la variable secreta `ADMIN_ACCESS_PASSWORD`, configurada en Render Environment.
-- El administrador da de alta primero al alumno. El alumno activa su cuenta en el inicio con CURP, nombre registrado y una contraseña propia (mínimo 10 caracteres). Solo puede hacerlo una vez mientras la cuenta esté pendiente de activación.
+- El administrador da de alta primero la cuenta. La persona activa su cuenta con su CURP y crea una contraseña propia (mínimo 4 caracteres). Solo puede hacerlo una vez mientras la cuenta esté pendiente de activación.
 - La contraseña se guarda protegida con `scrypt`, nunca en texto plano. Alumnos pueden usar la misma CURP y contraseña en otros dispositivos conectados a internet.
 - Configura `ADMIN_ACCESS_PASSWORD` en Render con el password elegido para Control Escolar. Al cambiarla, reinicia o vuelve a desplegar el servicio.
 - Si alguien olvida su contraseña, envía una solicitud desde el inicio de sesión. Administración la revisa en **Cuentas → Solicitudes de restablecimiento**, verifica la identidad y genera una contraseña temporal.
@@ -130,7 +130,7 @@ El envío push requiere estas variables en el entorno del servidor: `VAPID_PUBLI
 ### Acceso actualizado de alumnos y administrador
 
 - Servicios Escolares primero da de alta al alumno con su nombre y CURP.
-- En la pantalla de entrada, el alumno elige **¿Primera vez? Crea tu contraseña**, escribe CURP, nombre exactamente como quedó registrado y crea una contraseña de al menos 10 caracteres.
+- En la pantalla de entrada, el alumno elige **¿Primera vez? Crea tu contraseña**, escribe su CURP y crea una contraseña de al menos 4 caracteres.
 - La contraseña se guarda en MongoDB como hash con salt; no se almacena en texto plano. Después puede entrar en cualquier dispositivo con CURP y contraseña.
 - Control Escolar entra en `/control-escolar` solo con la variable secreta `ADMIN_ACCESS_PASSWORD`, configurada en Render Environment.
 

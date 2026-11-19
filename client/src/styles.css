@@ -481,5 +481,7 @@ body:has(.centro-login)::before{background:radial-gradient(ellipse at 50% 0%,rgb
 .intro-logo .logo-original-claro{display:none!important}
 .intro-logo .logo-original-oscuro{display:block!important}
 @keyframes login-card-in{from{opacity:0;transform:translateY(16px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+.paso-acceso{animation:login-step-in .34s cubic-bezier(.22,1,.36,1) both;transform-origin:top center}
+@keyframes login-step-in{from{opacity:0;transform:translateY(10px);filter:blur(2px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
 @media(max-width:520px){.centro.centro-login{padding:24px 16px 76px}.centro-login .card{padding:20px 18px;border-radius:17px}.centro-login .logo{width:min(135px,50vw)}}
-@media(prefers-reduced-motion:reduce){.centro-login .card,.login-estado{animation:none!important}}
+@media(prefers-reduced-motion:reduce){.centro-login .card,.login-estado,.paso-acceso{animation:none!important}}

@@ -164,6 +164,20 @@ const ADMIN_ACCESS_PASSWORDS = {
     gabriela: process.env.ADMIN_ACCESS_PASSWORD_GABRIELA || '',
     portero: process.env.ADMIN_ACCESS_PASSWORD_PORTERO || ''
 };
+app.post('/api/cuenta/identificar', h(async (req, res) => {
+    const curp = s(req.body.curp).toUpperCase(), llave = 'ip:' + req.ip;
+    if (bloqueado(llave, 40)) return bad(res, 'Demasiados intentos. Espera 15 minutos e inténtalo de nuevo.', 429);
+    if (!RX.curp.test(curp)) { fallo(llave); return bad(res, 'Escribe una CURP válida de 18 caracteres.', 400); }
+    const cuentas = await Promise.all(['alumno', 'docente', 'tutor'].map(rol => usuarios.findOne({ _id: `${rol}:${curp}`, rol }, { projection: { hash: 1, debeCambiarPassword: 1 } }).then(cuenta => cuenta && ({ rol, cuenta }))));
+    const encontradas = cuentas.filter(Boolean);
+    if (encontradas.length !== 1) {
+        fallo(llave);
+        return bad(res, encontradas.length ? 'La CURP está asociada a más de un tipo de cuenta. Contacta a Servicios Escolares.' : 'No encontramos una cuenta con esa CURP. Revisa el dato con Servicios Escolares.', 404);
+    }
+    fallos.delete(llave);
+    const { rol, cuenta } = encontradas[0];
+    res.json({ rol, tienePassword: !!cuenta.hash && !cuenta.debeCambiarPassword });
+}));
 app.post('/api/login', h(async (req, res) => {
     const id = s(req.body.id).toUpperCase(), rol = s(req.body.rol), password = String(req.body.password || '');
     const llave = 'ip:' + req.ip;
@@ -229,9 +243,8 @@ const activarCuenta = h(async (req, res) => {
     const llave = 'activar:' + req.ip;
     if (bloqueado(llave, 8)) return bad(res, 'Demasiados intentos. Espera 15 minutos.', 429);
     const cuenta = await usuarios.findOne({ _id: `${rol}:${curp}`, rol });
-    const nombreGuardado = s(cuenta?.nombre).replace(/\s+/g, ' ').toLocaleLowerCase('es-MX');
     if (!cuenta || !cuenta.debeCambiarPassword) {
-        fallo(llave); return bad(res, 'No se pudo validar la cuenta. Revisa tu CURP y nombre o solicita ayuda a Servicios Escolares.', 401);
+        fallo(llave); return bad(res, 'No se pudo validar la cuenta. Revisa tu CURP o solicita ayuda a Servicios Escolares.', 401);
     }
     const hp = hashPw(password);
     await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date(), activadaPorUsuario: true } });
@@ -407,13 +420,15 @@ app.post('/api/asistencias/:uid/:accion', auth, h(async (req, res) => {
     if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
     const reg = await asistencias.findOne({ _id: req.params.uid });
     if (!reg) return bad(res, 'Registro no encontrado', 404);
+    const al = await usuarios.findOne({ _id: 'alumno:' + reg.curp });
+    const cl = al && await miClase(req.u.id, al.area, al.semestre, al.grupo, reg.materia);
+    if (!al || !cl) return bad(res, 'Solo puedes modificar asistencias de tus materias y grupos', 403);
     if (req.params.accion === 'quitar') {
         await asistencias.deleteOne({ _id: reg._id });
     } else if (req.params.accion === 'justificar' && reg.estado === 'falta') {
         const motivo = s((req.body || {}).motivo).slice(0, 200);
         await asistencias.updateOne({ _id: reg._id }, { $set: { estado: 'justificada', motivo } });
-        const al = await usuarios.findOne({ _id: 'alumno:' + reg.curp });
-        if (al) await avisar(al, 'justificada', reg.hora, reg.fecha, `${reg._id}`, reg.materia, `Falta de ${al.nombre} en ${reg.materia} justificada${motivo ? ' (' + motivo + ')' : ''}`);
+        await avisar(al, 'justificada', reg.hora, reg.fecha, `${reg._id}`, reg.materia, `Falta de ${al.nombre} en ${reg.materia} justificada${motivo ? ' (' + motivo + ')' : ''}`);
     } else return bad(res, 'Acción inválida');
     res.json({ ok: true });
 }));
@@ -666,7 +681,10 @@ app.post('/api/calificaciones', auth, h(async (req, res) => {
     for (const x of notas.slice(0, 200)) {
         const curp = s(x.curp).toUpperCase(), nota = Number(x.nota);
         if (!RX.curp.test(curp) || !(nota >= 0 && nota <= 10)) continue;
-        const al = await usuarios.findOne({ _id: 'alumno:' + curp }); if (!al || (req.u.rol === 'admin' && (al.area !== req.body.area || al.semestre !== req.body.semestre || al.grupo !== req.body.grupo))) continue;
+        const al = await usuarios.findOne({ _id: 'alumno:' + curp });
+        if (!al) continue;
+        if (req.u.rol === 'docente' && !await miClase(req.u.id, al.area, al.semestre, al.grupo, m)) continue;
+        if (req.u.rol === 'admin' && (al.area !== req.body.area || al.semestre !== req.body.semestre || al.grupo !== req.body.grupo)) continue;
         await calificaciones.updateOne({ _id: `C:${curp}:${key}:${p}` }, { $set: { curp, materia: m, materiaKey: key, parcial: p, nota, docente: req.u.id } }, { upsert: true });
         const texto = `Ya subieron tu calificaci?n de ${m}, parcial ${p}: ${nota}.`;
         await avisos.insertOne({ _id: `calif:${curp}:${key}:${p}:${Date.now()}`, para: curp, curp, tipo: 'calif', texto, materia: m, fecha: hoy, creado: new Date() });
