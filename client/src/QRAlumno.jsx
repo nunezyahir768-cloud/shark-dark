@@ -62,7 +62,7 @@ export default function QRAlumno({ alumno, onSalir }) {
       const svg = new Blob([SD.qr(alumno.curp)], { type: 'image/svg+xml' });
       const qrUrl = URL.createObjectURL(svg);
       try {
-        const [logo, qr] = await Promise.all([imagenJpeg('/img/logo-tiburones-claro.jpeg', 600, 420), imagenJpeg(qrUrl, 640, 640)]);
+        const [logo, qr] = await Promise.all([imagenJpeg('/img/logo-claro.png', 600, 420), imagenJpeg(qrUrl, 640, 640)]);
         const blob = pdfQR(alumno, logo, qr), url = URL.createObjectURL(blob), a = document.createElement('a');
         a.href = url; a.download = `QR-${alumno.curp}.pdf`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 3000);
       } finally { URL.revokeObjectURL(qrUrl); }

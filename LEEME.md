@@ -116,7 +116,7 @@ El envío push requiere estas variables en el entorno del servidor: `VAPID_PUBLI
 
 ## Identidad visual, tutorial y horario
 
-- La marca compartida de la app usa `public/img/tiburon.png` en modo oscuro y `public/img/tiburon-claro.png` en modo claro; ambas versiones tienen el fondo transparente.
+- La marca compartida de la app usa `public/img/logo-oscuro.png` en modo oscuro (PNG con fondo transparente, también usado en la intro) y `public/img/logo-claro.png` solo en modo claro; este último conserva su fondo blanco.
 - Los iconos de `public/icon-192.png`/`public/icon-512.png` y sus variantes `*-claro.png` se usan en las pestañas, notificaciones y accesos de la app según corresponda al tema.
 - SHARK DARK tiene una interfaz moderna, elegante y profesional, con una identidad visual de tonos oscuros y detalles dorados.
 - La paleta oficial combina negro profundo (`#090909`), negro carbón (`#171614`), dorado champagne (`#C9A86A`), dorado claro (`#E4C58A`), crema claro (`#F5F1E6`), beige grisáceo (`#B7AA96`), verde suave (`#8DBB91`) y rojo suave (`#E58A80`).
