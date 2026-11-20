@@ -380,8 +380,8 @@ app.get('/api/reportes-conducta', auth, h(async (req, res) => {
     let filtro;
     if (req.u.rol === 'admin') filtro = {};
     else if (req.u.rol === 'docente') filtro = { reportanteId: req.u.id };
-    else if (req.u.rol === 'alumno') filtro = { curp: req.u.id };
-    else if (req.u.rol === 'tutor') filtro = { curp: { $in: await permitidas(req.u) } };
+    else if (req.u.rol === 'alumno') filtro = { curp: req.u.id, estado: { $ne: 'anulado' } };
+    else if (req.u.rol === 'tutor') filtro = { curp: { $in: await permitidas(req.u) }, estado: { $ne: 'anulado' } };
     else return bad(res, 'No tienes permiso para ver reportes', 403);
     const lista = await reportesConducta.find(filtro).sort({ creado: -1 }).limit(500).toArray();
     res.json(lista.map(({ _id, ...r }) => ({ id: _id, ...r })));
@@ -842,7 +842,7 @@ app.get('/api/admin/citatorios/alumnos', auth, adminDe('sara', 'control'), h(asy
 }));
 app.get('/api/citatorios', auth, h(async (req, res) => {
     if (req.u.rol !== 'alumno') return bad(res, 'Solo alumnos pueden consultar sus citatorios', 403);
-    const l = await citatorios.find({ curp: req.u.id }).sort({ creado: -1 }).limit(100).toArray();
+    const l = await citatorios.find({ curp: req.u.id, estado: { $ne: 'anulado' } }).sort({ creado: -1 }).limit(100).toArray();
     res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
 app.post('/api/admin/citatorios', auth, adminDe('sara', 'control'), h(async (req, res) => {
@@ -928,6 +928,22 @@ async function iniciarServidor() {
         avisosLeidos = db.collection('avisosLeidos');
         reportesConducta = db.collection('reportesConducta');
         citatorios = db.collection('citatorios');
+        const [reportesAnulados, citatoriosAnulados] = await Promise.all([
+            reportesConducta.find({ estado: 'anulado' }).project({ _id: 1 }).toArray(),
+            citatorios.find({ estado: 'anulado' }).project({ _id: 1 }).toArray()
+        ]);
+        if (reportesAnulados.length || citatoriosAnulados.length) {
+            await Promise.all([
+                reportesConducta.deleteMany({ estado: 'anulado' }),
+                citatorios.deleteMany({ estado: 'anulado' })
+            ]);
+            const origenes = [
+                ...reportesAnulados.flatMap(x => [`reporte:${x._id}`, `reporte-confirmado:${x._id}`]),
+                ...citatoriosAnulados.map(x => `citatorio:${x._id}`)
+            ];
+            if (origenes.length) await avisos.deleteMany({ $or: [{ origenId: { $in: origenes } }, { _id: { $in: origenes } }] });
+            console.log(`Se eliminaron ${reportesAnulados.length} reportes y ${citatoriosAnulados.length} citatorios anulados antiguos.`);
+        }
         await solicitudesRecuperacion.createIndex({ curp: 1, rol: 1, estado: 1 });
         await asistencias.createIndex({ curp: 1, fecha: -1 });
         await reportesConducta.createIndex({ curp: 1, creado: -1 });

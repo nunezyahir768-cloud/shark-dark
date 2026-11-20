@@ -69,6 +69,7 @@ export default function ReportesConducta() {
   }
 
   const pendientes = (reportes || []).filter(r => r.estado === 'pendiente');
+  const reportesVisibles = (reportes || []).filter(r => rol === 'admin' || r.estado !== 'anulado');
   const titulo = rol === 'alumno' ? 'Reportes sobre ti' : rol === 'tutor' ? 'Reportes de tus alumnos' : 'Reportes de conducta';
   const vacio = rol === 'alumno' ? 'No hay reportes sobre ti.' : rol === 'tutor' ? 'No hay reportes de tus alumnos vinculados.' : 'Aún no hay reportes de conducta.';
 
@@ -102,7 +103,7 @@ export default function ReportesConducta() {
       </div>
     )}
 
-    {reportes && reportes.map(r => {
+    {reportes && reportesVisibles.map(r => {
       const pendiente = r.estado === 'pendiente';
       return <Card className="reporte-item" key={r.id} title={rol === 'admin' && pendiente ? 'Solicitud de reporte' : `Reporte de conducta · ${r.alumno}`}>
         <p><b>Alumno:</b> {r.alumno} · {grupoAlumno(r)}</p>
@@ -117,6 +118,6 @@ export default function ReportesConducta() {
         {rol === 'admin' && <button className="btn sec reporte-accion" type="button" onClick={() => eliminar(r)}>ELIMINAR REPORTE</button>}
       </Card>;
     })}
-    {reportes && !reportes.length && <Card><p className="vacio">{vacio}</p></Card>}
+    {reportes && !reportesVisibles.length && <Card><p className="vacio">{vacio}</p></Card>}
   </>;
 }

@@ -404,7 +404,7 @@ export function CitatoriosAlumno() {
   const [lista, setLista] = useState(null), [error, setError] = useState('');
   useEffect(() => { SD.cached('mis_citatorios', '/api/citatorios').then(setLista).catch(e => setError(e.message || 'No se pudieron cargar tus citatorios.')); }, []);
   return <><Hero titulo="Mis citatorios" sub="Consulta los citatorios registrados para ti." />{error && <p className="msg" role="alert">{error}</p>}
-    {lista && lista.map(x => <Card key={x.id} title={`Citatorio · ${x.fecha}`}><p>{x.motivo}</p><p className="sub">Registrado por {x.creadoPor}</p><p><span className={'tag ' + (x.estado === 'anulado' ? '' : 'ok')}>{x.estado === 'anulado' ? 'Anulado' : 'Vigente'}</span></p></Card>)}
-    {lista && !lista.length && <Card><p className="vacio">No tienes citatorios registrados.</p></Card>}</>;
+    {lista && lista.filter(x => x.estado !== 'anulado').map(x => <Card key={x.id} title={`Citatorio · ${x.fecha}`}><p>{x.motivo}</p><p className="sub">Registrado por {x.creadoPor}</p><p><span className="tag ok">Vigente</span></p></Card>)}
+    {lista && !lista.some(x => x.estado !== 'anulado') && <Card><p className="vacio">No tienes citatorios registrados.</p></Card>}</>;
 }
 
