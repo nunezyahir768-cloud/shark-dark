@@ -374,6 +374,16 @@ app.post('/api/reportes-conducta/:id/aceptar', auth, adminDe('sara', 'control'),
     await registrarCambio(req, 'Reporte de conducta confirmado', `${reporte.alumno} · ${reporte.lugar}`);
     res.json({ ok: true });
 }));
+app.post('/api/reportes-conducta/:id/anular', auth, adminDe('sara', 'control'), h(async (req, res) => {
+    const id = s(req.params.id);
+    const actualizacion = await reportesConducta.updateOne(
+        { _id: id, estado: { $ne: 'anulado' } },
+        { $set: { estado: 'anulado', anuladoPor: req.u.nombre || req.u.id, anuladoEn: new Date() } }
+    );
+    if (!actualizacion.modifiedCount) return bad(res, 'El reporte ya estaba anulado o no existe', 404);
+    await registrarCambio(req, 'Reporte de conducta anulado', id);
+    res.json({ ok: true });
+}));
 
 /* ---------- Asistencias (idempotentes por uid) ---------- */
 app.post('/api/asistencias', auth, h(async (req, res) => {
@@ -382,7 +392,7 @@ app.post('/api/asistencias', auth, h(async (req, res) => {
     if (!RX.curp.test(curp) || !/^[\w-]{8,64}$/.test(s(a.uid)) || !/^\d{4}-\d{2}-\d{2}$/.test(s(a.fecha)) || !/^\d{2}:\d{2}$/.test(s(a.hora)) || !limpiaMat(a.materia))
         return bad(res, 'Datos de asistencia inválidos');
     const materia = limpiaMat(a.materia), key = materia.toLowerCase();
-    const alumno = await usuarios.findOne({ _id: 'alumno:' + curp });
+    const alumno = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
     if (!alumno) return bad(res, 'Alumno no encontrado', 404);
     const cl = await miClase(req.u.id, alumno.area, alumno.semestre, alumno.grupo, materia);
     if (!cl) return bad(res, 'Esa materia no es tuya o el alumno no es de ese grupo', 403);
@@ -800,16 +810,31 @@ app.get('/api/admin/citatorios', auth, adminDe('sara', 'control'), h(async (_req
     const l = await citatorios.find({}).sort({ creado: -1 }).limit(500).toArray();
     res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
+app.get('/api/citatorios', auth, h(async (req, res) => {
+    if (req.u.rol !== 'alumno') return bad(res, 'Solo alumnos pueden consultar sus citatorios', 403);
+    const l = await citatorios.find({ curp: req.u.id }).sort({ creado: -1 }).limit(100).toArray();
+    res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
+}));
 app.post('/api/admin/citatorios', auth, adminDe('sara', 'control'), h(async (req, res) => {
     const curp = s(req.body.curp).toUpperCase(), fecha = s(req.body.fecha), motivo = s(req.body.motivo).trim().slice(0, 1000);
     if (!RX.curp.test(curp) || !FECHA.test(fecha) || !motivo) return bad(res, 'Elige alumno, fecha y motivo del citatorio');
-    const alumno = await usuarios.findOne({ _id: 'alumno:' + curp });
+    const alumno = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
     if (!alumno) return bad(res, 'No se encontró ese alumno', 404);
     const id = crypto.randomBytes(6).toString('hex').toUpperCase();
     const doc = { _id: id, curp, alumno: alumno.nombre, area: alumno.area, semestre: alumno.semestre, grupo: alumno.grupo, fecha, motivo, creado: new Date(), creadoPor: req.u.nombre || req.u.id };
     await citatorios.insertOne(doc);
     await registrarCambio(req, 'Citatorio creado', `${alumno.nombre} · ${fecha}`);
     res.status(201).json({ ok: true, id });
+}));
+app.post('/api/admin/citatorios/:id/anular', auth, adminDe('sara', 'control'), h(async (req, res) => {
+    const id = s(req.params.id);
+    const actualizacion = await citatorios.updateOne(
+        { _id: id, estado: { $ne: 'anulado' } },
+        { $set: { estado: 'anulado', anuladoPor: req.u.nombre || req.u.id, anuladoEn: new Date() } }
+    );
+    if (!actualizacion.modifiedCount) return bad(res, 'El citatorio ya estaba anulado o no existe', 404);
+    await registrarCambio(req, 'Citatorio anulado', id);
+    res.json({ ok: true });
 }));
 
 app.get('/api/avisos', auth, h(async (req, res) => {

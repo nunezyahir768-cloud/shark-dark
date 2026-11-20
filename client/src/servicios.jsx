@@ -376,6 +376,11 @@ export function Citatorios() {
     try { await post('/api/admin/citatorios', { ...f, curp }); setF({ ...f, curp: '', motivo: '' }); setFormAbierto(false); ban('ok', 'Citatorio creado', 'Quedó registrado para el alumno.'); cargar(); }
     catch (e) { ban('err', 'No se pudo crear', msgErr(e)); }
   };
+  const anular = async id => {
+    if (!window.confirm('¿Anular este citatorio? Se conservará en el historial como anulado.')) return;
+    try { await post(`/api/admin/citatorios/${encodeURIComponent(id)}/anular`); ban('ok', 'Citatorio anulado', 'Se conservó en el historial.'); cargar(); }
+    catch (e) { ban('err', 'No se pudo anular', msgErr(e)); }
+  };
   return <>
     <Hero titulo="Citatorios" sub="Registra citatorios para alumnos y consulta los anteriores." /><Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
@@ -387,8 +392,16 @@ export function Citatorios() {
       <label htmlFor="citatorio-fecha">Fecha de cita</label><input id="citatorio-fecha" type="date" value={f.fecha} onChange={e => setF({ ...f, fecha: e.target.value })} required />
       <label htmlFor="citatorio-motivo">Motivo</label><textarea id="citatorio-motivo" rows="4" maxLength="1000" value={f.motivo} onChange={e => setF({ ...f, motivo: e.target.value })} required />
       <button className="btn" disabled={!alumno}>REGISTRAR CITATORIO</button></form></div></Card>
-    {lista.map(x => <Card key={x.id} title={`${x.alumno} · ${x.fecha}`}><p>{x.motivo}</p><p className="sub">{x.semestre} {x.area} {x.grupo} · Registrado por {x.creadoPor}</p></Card>)}
+    {lista.map(x => <Card key={x.id} title={`${x.alumno} · ${x.fecha}`}><p>{x.motivo}</p><p className="sub">{x.semestre} {x.area} {x.grupo} · Registrado por {x.creadoPor}</p><p><span className={'tag ' + (x.estado === 'anulado' ? '' : 'ok')}>{x.estado === 'anulado' ? 'Anulado' : 'Vigente'}</span></p>{x.estado !== 'anulado' && <button className="btn sec" type="button" onClick={() => anular(x.id)}>ANULAR CITATORIO</button>}</Card>)}
     {!lista.length && <Card><p className="vacio">Aún no hay citatorios registrados.</p></Card>}
   </>;
+}
+
+export function CitatoriosAlumno() {
+  const [lista, setLista] = useState(null), [error, setError] = useState('');
+  useEffect(() => { SD.cached('mis_citatorios', '/api/citatorios').then(setLista).catch(e => setError(e.message || 'No se pudieron cargar tus citatorios.')); }, []);
+  return <><Hero titulo="Mis citatorios" sub="Consulta los citatorios registrados para ti." />{error && <p className="msg" role="alert">{error}</p>}
+    {lista && lista.map(x => <Card key={x.id} title={`Citatorio · ${x.fecha}`}><p>{x.motivo}</p><p className="sub">Registrado por {x.creadoPor}</p><p><span className={'tag ' + (x.estado === 'anulado' ? '' : 'ok')}>{x.estado === 'anulado' ? 'Anulado' : 'Vigente'}</span></p></Card>)}
+    {lista && !lista.length && <Card><p className="vacio">No tienes citatorios registrados.</p></Card>}</>;
 }
 

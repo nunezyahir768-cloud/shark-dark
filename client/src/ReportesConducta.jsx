@@ -14,6 +14,8 @@ export default function ReportesConducta() {
   const [form, setForm] = useState({ curp: '', lugar: '', descripcion: '', seguimiento: '' });
   const [formAbierto, setFormAbierto] = useState(rol !== 'admin');
   const [guardando, setGuardando] = useState(false);
+  const curp = form.curp.trim().toUpperCase();
+  const alumnoSeleccionado = alumnos.find(a => a.curp === curp);
   const formularioCompleto = Boolean(form.curp && form.lugar.trim() && form.descripcion.trim());
 
   const cargar = useCallback(async () => {
@@ -55,6 +57,17 @@ export default function ReportesConducta() {
     }
   }
 
+  async function anular(id) {
+    if (!window.confirm('¿Anular este reporte? Se conservará en el historial como anulado.')) return;
+    try {
+      await post(`/api/reportes-conducta/${encodeURIComponent(id)}/anular`);
+      ban('ok', 'Reporte anulado', 'Se conservó en el historial con estado anulado.');
+      await cargar();
+    } catch (er) {
+      ban('err', 'No se pudo anular el reporte', msgErr(er));
+    }
+  }
+
   const pendientes = (reportes || []).filter(r => r.estado === 'pendiente');
   const titulo = rol === 'alumno' ? 'Reportes sobre ti' : rol === 'tutor' ? 'Reportes de tus alumnos' : 'Reportes de conducta';
   const vacio = rol === 'alumno' ? 'No hay reportes sobre ti.' : rol === 'tutor' ? 'No hay reportes de tus alumnos vinculados.' : 'Aún no hay reportes de conducta.';
@@ -67,11 +80,9 @@ export default function ReportesConducta() {
     {puedeCrear && <Card className="reporte-panel" title={rol === 'admin' ? 'Nuevo reporte' : 'Registrar reporte de conducta'}>
       {rol === 'admin' && <button className="btn reporte-accion desplegable-toggle" type="button" aria-expanded={formAbierto} aria-controls="reporte-form" onClick={() => setFormAbierto(v => !v)}><span>{formAbierto ? 'CERRAR FORMULARIO' : 'HACER UN REPORTE'}</span><span className={'desplegable-flecha' + (formAbierto ? ' abierta' : '')} aria-hidden="true">⌄</span></button>}
       {puedeCrear && <div id="reporte-form" className={'desplegable-contenido' + (rol !== 'admin' || formAbierto ? ' abierto' : '')} aria-hidden={rol === 'admin' && !formAbierto} inert={rol === 'admin' && !formAbierto}><form className="reporte-form" onSubmit={crear}>
-        <label htmlFor="reporte-alumno">Alumno</label>
-        <select id="reporte-alumno" value={form.curp} onChange={e => setForm({ ...form, curp: e.target.value })} required>
-          <option value="">Selecciona un alumno</option>
-          {alumnos.map(a => <option key={a.curp} value={a.curp}>{a.nombre} · {grupoAlumno(a)}</option>)}
-        </select>
+        <label htmlFor="reporte-curp">CURP del alumno</label>
+        <input id="reporte-curp" value={form.curp} maxLength="18" autoCapitalize="characters" placeholder="Escribe la CURP (18 caracteres)" onChange={e => setForm({ ...form, curp: e.target.value.toUpperCase() })} required />
+        {curp.length === 18 && <p className={'sub citatorio-validacion' + (alumnoSeleccionado ? ' valido' : ' invalido')}>{alumnoSeleccionado ? `Alumno encontrado: ${alumnoSeleccionado.nombre} · ${grupoAlumno(alumnoSeleccionado)}` : 'No encontramos un alumno con esa CURP en tus grupos.'}</p>}
         <label htmlFor="reporte-lugar">Lugar donde ocurrió</label>
         <input id="reporte-lugar" value={form.lugar} onChange={e => setForm({ ...form, lugar: e.target.value })} maxLength="120" required />
         <label htmlFor="reporte-descripcion">Descripción de lo ocurrido</label>
@@ -79,7 +90,7 @@ export default function ReportesConducta() {
         <label htmlFor="reporte-seguimiento">Acción o seguimiento (opcional)</label>
         <textarea id="reporte-seguimiento" rows="3" value={form.seguimiento} onChange={e => setForm({ ...form, seguimiento: e.target.value })} maxLength="500" />
         <p className="sub">La fecha, hora y nombre de quien registra se guardan automáticamente.</p>
-        <button className="btn reporte-accion" type="submit" disabled={guardando || (rol === 'admin' && !formularioCompleto)}>{guardando ? 'GUARDANDO…' : rol === 'admin' ? 'CONFIRMAR REPORTE' : 'GUARDAR REPORTE'}</button>
+        <button className="btn reporte-accion" type="submit" disabled={guardando || !alumnoSeleccionado || (rol === 'admin' && !formularioCompleto)}>{guardando ? 'GUARDANDO…' : rol === 'admin' ? 'CONFIRMAR REPORTE' : 'GUARDAR REPORTE'}</button>
         {rol === 'admin' && <button className="btn sec reporte-accion" type="button" disabled={guardando} onClick={() => { setForm({ curp: '', lugar: '', descripcion: '', seguimiento: '' }); setFormAbierto(false); }}>CANCELAR</button>}
       </form></div>}
     </Card>}
@@ -101,7 +112,9 @@ export default function ReportesConducta() {
         <p className="sub">Registrado por {r.reportante} · {new Date(r.creado).toLocaleString('es-MX')}</p>
         <p><span className={'tag ' + (pendiente ? '' : 'ok')}>{pendiente ? 'Pendiente de confirmación' : 'Recepción confirmada'}</span></p>
         {r.confirmadoEn && <p className="sub">Recibido por {r.confirmadoNombre} · {new Date(r.confirmadoEn).toLocaleString('es-MX')}</p>}
+        {r.estado === 'anulado' && <p><span className="tag">Anulado</span></p>}
         {rol === 'admin' && pendiente && <button className="btn reporte-accion" type="button" onClick={() => aceptar(r.id)}>ACEPTAR REPORTE</button>}
+        {rol === 'admin' && r.estado !== 'anulado' && <button className="btn sec reporte-accion" type="button" onClick={() => anular(r.id)}>ANULAR REPORTE</button>}
       </Card>;
     })}
     {reportes && !reportes.length && <Card><p className="vacio">{vacio}</p></Card>}
