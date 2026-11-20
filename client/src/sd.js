@@ -4,6 +4,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
   const CAMPOS_ID = { usuarios: '_id', alumnos: 'curp', asistencias: 'uid', cola: 'qid', avisos: 'id' };
   const PROTEGIDAS = Object.keys(CAMPOS_ID);
   let llaveDatos = null;
+  let validandoSesionOnline = false;
   const dbp = new Promise((ok, fail) => {
     const r = indexedDB.open('sharkdark', 6);
     r.onupgradeneeded = () => {
@@ -306,7 +307,8 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
 
   async function validarSesionOnline(sincronizar = true) {
     const s = ses();
-    if (!s?.token) return;
+    if (!s?.token || validandoSesionOnline) return;
+    validandoSesionOnline = true;
     try {
       const actual = await api('/api/yo'), keyId = `${s.rol}:${s.id}`;
       if (actual.id !== s.id || actual.rol !== s.rol) { await invalidarCuenta(keyId); location.reload(); return; }
@@ -324,7 +326,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
       else if (e.status === 401) { limpiarSesion(); llaveDatos = null; await del('session', 'active'); }
       else { errorSync = 'No se pudo validar la sesión con el servidor; los pendientes no se enviaron.'; refrescarBadge(); return; }
       location.reload();
-    }
+    } finally { validandoSesionOnline = false; }
   }
 
   async function init() {
@@ -554,7 +556,13 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     validarSesionOnline();
   });
   addEventListener('offline', refrescarBadge);
-  setInterval(() => { if (navigator.onLine && ses()?.token) validarSesionOnline(false); }, 20000);
+  const validarAlVolver = () => {
+    if (document.visibilityState === 'visible' && navigator.onLine && ses()?.token) validarSesionOnline(false);
+  };
+  document.addEventListener('visibilitychange', validarAlVolver);
+  setInterval(() => {
+    if (document.visibilityState === 'visible' && navigator.onLine && ses()?.token) validarSesionOnline(false);
+  }, 5 * 60 * 1000);
   if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 
   /* ---------- Lector de QR ---------- */

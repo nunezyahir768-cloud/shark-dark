@@ -364,22 +364,25 @@ export function Escaner() {
 }
 
 export function Citatorios() {
-  const { u } = useServicios();
+  const [alumnos, setAlumnos] = useState([]);
   const [lista, setLista] = useState([]), [error, setError] = useState(''), [b, ban] = useBanner();
   const [f, setF] = useState({ curp: '', fecha: hoyISO(), motivo: '' }), [formAbierto, setFormAbierto] = useState(false);
   const curp = f.curp.trim().toUpperCase();
-  const alumno = u.find(x => x.rol === 'alumno' && x.id === curp);
+  const alumno = alumnos.find(x => String(x.curp || x.id || '').trim().toUpperCase() === curp);
   const cargar = useCallback(() => SD.cached('admin_citatorios', '/api/admin/citatorios').then(setLista).catch(e => setError(e.message || 'No se pudieron cargar los citatorios.')), []);
-  useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => {
+    cargar();
+    SD.cached('citatorios_alumnos', '/api/admin/citatorios/alumnos').then(setAlumnos).catch(e => setError(e.message || 'No se pudieron cargar los alumnos.'));
+  }, [cargar]);
   const crear = async e => {
     e.preventDefault();
     try { await post('/api/admin/citatorios', { ...f, curp }); setF({ ...f, curp: '', motivo: '' }); setFormAbierto(false); ban('ok', 'Citatorio creado', 'Quedó registrado para el alumno.'); cargar(); }
     catch (e) { ban('err', 'No se pudo crear', msgErr(e)); }
   };
-  const anular = async id => {
-    if (!window.confirm('¿Anular este citatorio? Se conservará en el historial como anulado.')) return;
-    try { await post(`/api/admin/citatorios/${encodeURIComponent(id)}/anular`); ban('ok', 'Citatorio anulado', 'Se conservó en el historial.'); cargar(); }
-    catch (e) { ban('err', 'No se pudo anular', msgErr(e)); }
+  const eliminar = async x => {
+    if (!window.confirm(`¿Eliminar definitivamente el citatorio de ${x.alumno}? Esta acción no se puede deshacer.`)) return;
+    try { await SD.api(`/api/admin/citatorios/${encodeURIComponent(x.id)}`, { method: 'DELETE' }); ban('ok', 'Citatorio eliminado', 'Se eliminó del historial.'); cargar(); }
+    catch (e) { ban('err', 'No se pudo eliminar el citatorio', msgErr(e)); }
   };
   return <>
     <Hero titulo="Citatorios" sub="Registra citatorios para alumnos y consulta los anteriores." /><Banner b={b} />
@@ -392,7 +395,7 @@ export function Citatorios() {
       <label htmlFor="citatorio-fecha">Fecha de cita</label><input id="citatorio-fecha" type="date" value={f.fecha} onChange={e => setF({ ...f, fecha: e.target.value })} required />
       <label htmlFor="citatorio-motivo">Motivo</label><textarea id="citatorio-motivo" rows="4" maxLength="1000" value={f.motivo} onChange={e => setF({ ...f, motivo: e.target.value })} required />
       <button className="btn" disabled={!alumno}>REGISTRAR CITATORIO</button></form></div></Card>
-    {lista.map(x => <Card key={x.id} title={`${x.alumno} · ${x.fecha}`}><p>{x.motivo}</p><p className="sub">{x.semestre} {x.area} {x.grupo} · Registrado por {x.creadoPor}</p><p><span className={'tag ' + (x.estado === 'anulado' ? '' : 'ok')}>{x.estado === 'anulado' ? 'Anulado' : 'Vigente'}</span></p>{x.estado !== 'anulado' && <button className="btn sec" type="button" onClick={() => anular(x.id)}>ANULAR CITATORIO</button>}</Card>)}
+    {lista.map(x => <Card key={x.id} title={`${x.alumno} · ${x.fecha}`}><p>{x.motivo}</p><p className="sub">{x.semestre} {x.area} {x.grupo} · Registrado por {x.creadoPor}</p>{x.estado === 'anulado' && <p><span className="tag">Anulado</span></p>}<button className="btn sec" type="button" onClick={() => eliminar(x)}>ELIMINAR CITATORIO</button></Card>)}
     {!lista.length && <Card><p className="vacio">Aún no hay citatorios registrados.</p></Card>}
   </>;
 }

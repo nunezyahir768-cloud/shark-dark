@@ -90,6 +90,31 @@ async function enviarPush(rol, id, titulo, body, url = '/') {
         }
     }));
 }
+async function notificarAlumno(curp, id, titulo, texto, url, incluirTutores = true) {
+    const fecha = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+    const destinatarios = [{ rol: 'alumno', id: curp }];
+    if (incluirTutores) {
+        try {
+            const alumno = await usuarios.findOne({ _id: `alumno:${curp}`, rol: 'alumno' });
+            if (alumno) {
+                const tutores = [
+                    ...await usuarios.find({ rol: 'tutor', hijos: curp }).toArray(),
+                    ...await usuarios.find({ rol: 'tutor', curpAlumno: curp }).toArray()
+                ].filter((t, i, todos) => todos.findIndex(x => x.id === t.id) === i && vinculoOk(t, alumno));
+                for (const tutor of tutores) destinatarios.push({ rol: 'tutor', id: tutor.id });
+            }
+        } catch (e) { console.warn('No se pudieron buscar tutores vinculados para el aviso:', e.message); }
+    }
+    for (const d of destinatarios) {
+        const avisoId = d.rol === 'alumno' ? id : `${id}:tutor:${d.id}`;
+        try { await avisos.updateOne({ _id: avisoId }, { $setOnInsert: { origenId: id, para: d.id, curp, tipo: 'escolar', texto, fecha, creado: new Date() } }, { upsert: true }); }
+        catch (e) { console.warn('No se pudo guardar el aviso escolar:', e.message); }
+        try {
+            const destino = d.rol === 'tutor' && url.endsWith('#/citatorios') ? '/#/avisos' : url;
+            await enviarPush(d.rol, d.id, `TIBURONES · ${titulo}`, texto, destino);
+        } catch (e) { console.warn('No se pudo enviar push escolar:', e.message); }
+    }
+}
 async function revisarRecordatoriosClase() {
     if (!recordatoriosPush || !PUSH_PUBLIC || !PUSH_PRIVATE) return;
     const partes = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
@@ -345,10 +370,10 @@ app.post('/api/reportes-conducta', auth, h(async (req, res) => {
     await reportesConducta.insertOne(reporte);
     if (confirmado) {
         await registrarCambio(req, 'Reporte de conducta confirmado', `${alumno.nombre} · ${lugar}`);
-        try {
-            await enviarPush('alumno', alumno.curp, 'TIBURONES · Nuevo reporte', 'Se registró un nuevo reporte escolar. Consulta la sección Reportes.', '/#/reportes');
-        } catch (e) { console.warn('No se pudo enviar push del reporte:', e.message); }
     }
+    await notificarAlumno(alumno.curp, `reporte:${id}`, 'Reporte de conducta', confirmado
+        ? 'Se registró un nuevo reporte escolar. Consulta la sección Reportes.'
+        : 'Se registró una solicitud de reporte escolar, pendiente de confirmación. Consulta la sección Reportes.', '/#/reportes');
     res.status(201).json({ ok: true, id, estado: reporte.estado });
 }));
 app.get('/api/reportes-conducta', auth, h(async (req, res) => {
@@ -372,16 +397,16 @@ app.post('/api/reportes-conducta/:id/aceptar', auth, adminDe('sara', 'control'),
     );
     if (!actualizacion.modifiedCount) return bad(res, 'La solicitud ya fue atendida', 409);
     await registrarCambio(req, 'Reporte de conducta confirmado', `${reporte.alumno} · ${reporte.lugar}`);
+    await notificarAlumno(reporte.curp, `reporte-confirmado:${id}`, 'Reporte confirmado', 'Servicios Escolares confirmó la recepción de tu reporte. Consulta la sección Reportes.', '/#/reportes');
     res.json({ ok: true });
 }));
-app.post('/api/reportes-conducta/:id/anular', auth, adminDe('sara', 'control'), h(async (req, res) => {
+app.delete('/api/reportes-conducta/:id', auth, adminDe('sara', 'control'), h(async (req, res) => {
     const id = s(req.params.id);
-    const actualizacion = await reportesConducta.updateOne(
-        { _id: id, estado: { $ne: 'anulado' } },
-        { $set: { estado: 'anulado', anuladoPor: req.u.nombre || req.u.id, anuladoEn: new Date() } }
-    );
-    if (!actualizacion.modifiedCount) return bad(res, 'El reporte ya estaba anulado o no existe', 404);
-    await registrarCambio(req, 'Reporte de conducta anulado', id);
+    const reporte = await reportesConducta.findOneAndDelete({ _id: id });
+    if (!reporte) return bad(res, 'El reporte no existe', 404);
+    const origenesAvisos = [`reporte:${id}`, `reporte-confirmado:${id}`];
+    await avisos.deleteMany({ $or: [{ origenId: { $in: origenesAvisos } }, { _id: { $in: origenesAvisos } }] });
+    await registrarCambio(req, 'Reporte de conducta eliminado', `${reporte.alumno} · ${reporte.lugar}`);
     res.json({ ok: true });
 }));
 
@@ -779,6 +804,7 @@ app.post('/api/permisos', auth, h(async (req, res) => {
     if ((new Date(hasta) - new Date(desde)) / 864e5 > 30) return bad(res, 'El permiso no puede durar más de 30 días');
     const id = crypto.randomBytes(5).toString('hex').toUpperCase();
     await permisos.insertOne({ _id: id, curp: al.curp, alumno: al.nombre, area: al.area, semestre: al.semestre, grupo: al.grupo, tutor: req.u.id, desde, hasta, motivo, estado: 'pendiente', creado: new Date() });
+    await notificarAlumno(al.curp, `permiso:${id}:solicitado`, 'Solicitud de permiso', `Tu tutor solicitó un permiso para ${al.nombre}, del ${desde} al ${hasta}. Consulta la sección Permisos.`, '/#/permisos', false);
     res.status(201).json({ ok: true, id });
 }));
 app.get('/api/permisos', auth, h(async (req, res) => {
@@ -810,6 +836,10 @@ app.get('/api/admin/citatorios', auth, adminDe('sara', 'control'), h(async (_req
     const l = await citatorios.find({}).sort({ creado: -1 }).limit(500).toArray();
     res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
+app.get('/api/admin/citatorios/alumnos', auth, adminDe('sara', 'control'), h(async (_req, res) => {
+    const lista = await usuarios.find({ rol: 'alumno' }).project({ _id: 1, id: 1, curp: 1, nombre: 1, area: 1, semestre: 1, grupo: 1 }).limit(5000).toArray();
+    res.json(lista.map(a => ({ curp: a.curp || a.id || String(a._id).replace(/^alumno:/, ''), nombre: a.nombre, area: a.area, semestre: a.semestre, grupo: a.grupo })));
+}));
 app.get('/api/citatorios', auth, h(async (req, res) => {
     if (req.u.rol !== 'alumno') return bad(res, 'Solo alumnos pueden consultar sus citatorios', 403);
     const l = await citatorios.find({ curp: req.u.id }).sort({ creado: -1 }).limit(100).toArray();
@@ -824,16 +854,15 @@ app.post('/api/admin/citatorios', auth, adminDe('sara', 'control'), h(async (req
     const doc = { _id: id, curp, alumno: alumno.nombre, area: alumno.area, semestre: alumno.semestre, grupo: alumno.grupo, fecha, motivo, creado: new Date(), creadoPor: req.u.nombre || req.u.id };
     await citatorios.insertOne(doc);
     await registrarCambio(req, 'Citatorio creado', `${alumno.nombre} · ${fecha}`);
+    await notificarAlumno(curp, `citatorio:${id}`, 'Nuevo citatorio', `Tienes un citatorio para el ${fecha}. Consulta la sección Citatorios.`, '/#/citatorios');
     res.status(201).json({ ok: true, id });
 }));
-app.post('/api/admin/citatorios/:id/anular', auth, adminDe('sara', 'control'), h(async (req, res) => {
+app.delete('/api/admin/citatorios/:id', auth, adminDe('sara', 'control'), h(async (req, res) => {
     const id = s(req.params.id);
-    const actualizacion = await citatorios.updateOne(
-        { _id: id, estado: { $ne: 'anulado' } },
-        { $set: { estado: 'anulado', anuladoPor: req.u.nombre || req.u.id, anuladoEn: new Date() } }
-    );
-    if (!actualizacion.modifiedCount) return bad(res, 'El citatorio ya estaba anulado o no existe', 404);
-    await registrarCambio(req, 'Citatorio anulado', id);
+    const citatorio = await citatorios.findOneAndDelete({ _id: id });
+    if (!citatorio) return bad(res, 'El citatorio no existe', 404);
+    await avisos.deleteMany({ $or: [{ origenId: `citatorio:${id}` }, { _id: `citatorio:${id}` }] });
+    await registrarCambio(req, 'Citatorio eliminado', `${citatorio.alumno} · ${citatorio.fecha}`);
     res.json({ ok: true });
 }));
 

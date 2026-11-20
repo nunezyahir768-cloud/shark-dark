@@ -57,14 +57,14 @@ export default function ReportesConducta() {
     }
   }
 
-  async function anular(id) {
-    if (!window.confirm('¿Anular este reporte? Se conservará en el historial como anulado.')) return;
+  async function eliminar(r) {
+    if (!window.confirm(`¿Eliminar definitivamente el reporte de ${r.alumno}? Esta acción no se puede deshacer.`)) return;
     try {
-      await post(`/api/reportes-conducta/${encodeURIComponent(id)}/anular`);
-      ban('ok', 'Reporte anulado', 'Se conservó en el historial con estado anulado.');
+      await SD.api(`/api/reportes-conducta/${encodeURIComponent(r.id)}`, { method: 'DELETE' });
+      ban('ok', 'Reporte eliminado', 'Se eliminó del historial.');
       await cargar();
     } catch (er) {
-      ban('err', 'No se pudo anular el reporte', msgErr(er));
+      ban('err', 'No se pudo eliminar el reporte', msgErr(er));
     }
   }
 
@@ -114,7 +114,7 @@ export default function ReportesConducta() {
         {r.confirmadoEn && <p className="sub">Recibido por {r.confirmadoNombre} · {new Date(r.confirmadoEn).toLocaleString('es-MX')}</p>}
         {r.estado === 'anulado' && <p><span className="tag">Anulado</span></p>}
         {rol === 'admin' && pendiente && <button className="btn reporte-accion" type="button" onClick={() => aceptar(r.id)}>ACEPTAR REPORTE</button>}
-        {rol === 'admin' && r.estado !== 'anulado' && <button className="btn sec reporte-accion" type="button" onClick={() => anular(r.id)}>ANULAR REPORTE</button>}
+        {rol === 'admin' && <button className="btn sec reporte-accion" type="button" onClick={() => eliminar(r)}>ELIMINAR REPORTE</button>}
       </Card>;
     })}
     {reportes && !reportes.length && <Card><p className="vacio">{vacio}</p></Card>}
