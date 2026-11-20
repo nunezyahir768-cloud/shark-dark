@@ -70,7 +70,11 @@ export function InicioBienvenida({ rol, onTutorial, alumno, qrAbierto, onAbrirQr
 export function Inicio({ onTutorial }) {
   const ses = SD.session() || {};
   const alumno = useAlumno(), [qrAbierto, setQrAbierto] = useState(false);
-  return <InicioBienvenida rol={ses.rol} onTutorial={onTutorial} alumno={alumno} qrAbierto={qrAbierto} onAbrirQr={() => setQrAbierto(true)} onSalirQr={() => setQrAbierto(false)} />;
+  const [horario] = useCached('horario', '/api/horarios');
+  return <>
+    <InicioBienvenida rol={ses.rol} onTutorial={onTutorial} alumno={alumno} qrAbierto={qrAbierto} onAbrirQr={() => setQrAbierto(true)} onSalirQr={() => setQrAbierto(false)} />
+    {ses.rol === 'alumno' && alumno && <ClaseAhora bl={conDescanso(delGrupo(horario, alumno))} />}
+  </>;
 }
 export function PerfilAlumno() {
   const al = useAlumno(), [tut, setTut] = useState([]);

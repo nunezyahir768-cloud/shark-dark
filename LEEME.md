@@ -106,7 +106,7 @@ Orden recomendado para empezar:
 
 ## Notas
 
-- El recordatorio de "faltan 5 minutos para que termine la clase" lo envía el servidor por push a los alumnos. Los avisos escolares se envían a los roles elegidos y los avisos de asistencia también llegan a tutores, aun con la app cerrada, cuando las claves VAPID están configuradas y activaron notificaciones en ese dispositivo.
+- El recordatorio de "faltan 5 minutos para que termine la clase" y los reportes confirmados por Control Escolar se envían por push a los alumnos. Los avisos escolares se envían a los roles elegidos y los avisos de asistencia también llegan a tutores, aun con la app cerrada, cuando las claves VAPID están configuradas y activaron notificaciones en ese dispositivo.
 - Si cambias de equipo, borra el archivo `package-lock.json` viejo del repositorio; `npm install` crea uno nuevo.
 
 ### Notificaciones push con la app cerrada

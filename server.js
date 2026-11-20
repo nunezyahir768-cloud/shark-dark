@@ -343,7 +343,12 @@ app.post('/api/reportes-conducta', auth, h(async (req, res) => {
         ...(confirmado ? { confirmadoPor: req.u.id, confirmadoNombre: req.u.nombre || 'Servicios Escolares', confirmadoEn: new Date() } : {})
     };
     await reportesConducta.insertOne(reporte);
-    if (confirmado) await registrarCambio(req, 'Reporte de conducta confirmado', `${alumno.nombre} · ${lugar}`);
+    if (confirmado) {
+        await registrarCambio(req, 'Reporte de conducta confirmado', `${alumno.nombre} · ${lugar}`);
+        try {
+            await enviarPush('alumno', alumno.curp, 'TIBURONES · Nuevo reporte', 'Se registró un nuevo reporte escolar. Consulta la sección Reportes.', '/#/reportes');
+        } catch (e) { console.warn('No se pudo enviar push del reporte:', e.message); }
+    }
     res.status(201).json({ ok: true, id, estado: reporte.estado });
 }));
 app.get('/api/reportes-conducta', auth, h(async (req, res) => {
