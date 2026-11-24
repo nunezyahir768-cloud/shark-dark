@@ -28,7 +28,7 @@ shark-dark/
 │   ├── Intro.jsx      ← animación de entrada
 │   ├── paginas.jsx    ← alumno y tutor (y pantallas comunes)
 │   ├── docente.jsx    ← asistencia, calificaciones y reportes del docente
-│   ├── servicios.jsx  ← Servicios Escolares (cuentas, grupos, horarios; las materias se crean solas al armar el horario)
+│   ├── servicios.jsx  ← Servicios Escolares (cuentas, grupos, clases, horarios)
 │   ├── sd.js          ← lo que guarda datos sin internet y sincroniza
 │   └── styles.css     ← colores y diseño
 └── public/            ← lo que ve el navegador (el resultado de React queda aquí)
@@ -142,19 +142,3 @@ El envío push requiere estas variables en el entorno del servidor: `VAPID_PUBLI
 - La sesión offline permite consultar datos ya sincronizados. Docentes pueden dejar asistencias pendientes; el indicador muestra cuántas faltan. Al recuperar internet, la app vuelve al login y exige validación online antes de sincronizar. Las acciones administrativas no se autorizan offline.
 - Una cuenta revocada o una contraseña cambiada no se pueden conocer mientras el dispositivo está desconectado. Al volver internet se requiere un login online y el servidor aplica el estado actual; sin conexión, el ticket puede permitir consulta hasta que venza (máximo 24 horas).
 - El cifrado protege los datos guardados frente a lectura casual del almacenamiento del navegador, pero un dispositivo controlado por el usuario no es una bóveda confiable: malware, extensiones o código malicioso ejecutado en el sitio pueden acceder a datos mientras la sesión está abierta. Protege el dispositivo y mantén el sitio libre de XSS.
-
-## Entradas y salidas (portero) y fin de clases
-
-- **Escáner en modo ráfaga:** el portero enciende la cámara una vez y apunta a cada QR. Una franja arriba muestra el último alumno (verde = entrada, ámbar = salida) con un pitido corto; cada lectura reemplaza a la anterior. El primer escaneo del día es entrada y el siguiente salida. Si se lee el mismo QR dos veces en menos de 15 segundos no cambia nada. "Deshacer" borra el último registro.
-- **Contadores y buscador:** Dentro · Salieron · Sin llegar, buscador por nombre, grupo o CURP (con botón "Registrar" para quien olvidó su QR) y los últimos 5 movimientos.
-- **Salida:** solo se permite con un **permiso aprobado** para hoy o si Servicios Escolares presionó **Terminar clases de hoy** (en Inicio de Lic. Sara o Control Escolar; pide confirmación). Si no, sale una tarjeta roja y no se registra nada.
-- **Fin de clases:** todos salen libres sin escanear y a todos los tutores les llega **un solo aviso general** ("Las clases terminaron"). Las salidas escaneadas después de eso se registran pero no generan aviso individual.
-- **Entradas y salidas con permiso:** avisan al tutor vinculado (notificación y sección Notificaciones).
-- Colecciones nuevas en MongoDB: `accesos` y `diasEscolares` (se crean solas). Para ver el estado del día hace falta internet.
-
-## Importar cuentas desde Excel, CSV, Word o PDF
-
-- En Control Escolar → Cuentas, sube un archivo **.xlsx / .xls / .csv / .docx / .pdf**. No hay plantilla obligatoria (la de Excel quedó como opcional) ni orden fijo de columnas: la app detecta cada dato por su **contenido** (CURP de 18 caracteres, rol, semestre como "3-4", "3ro" o "tercero", carrera, grupo A/B/C, y lo que sobra es el nombre). También entiende apellidos y nombre en columnas separadas, listas numeradas, encabezados de sección ("ALUMNOS", "DOCENTES:") y líneas de texto corrido.
-- Antes de crear se muestran todas las filas; se pueden **quitar filas** sueltas o todas las que tengan errores. Si el archivo no dice el rol se puede elegir uno por defecto.
-- Los PDF deben tener texto (generados desde Word/Excel); un PDF escaneado o una foto no se puede leer. Los .doc antiguos hay que guardarlos como .docx.
-- El lector de PDF usa `pdfjs-dist`: `npm run build` genera `public/pdf-lector.js` y `public/pdf-worker.js`, que solo se descargan cuando alguien sube un PDF. pdfjs-dist 6 pide Node 22 o superior para instalarse (en Render pon la variable `NODE_VERSION=22`).

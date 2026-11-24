@@ -1,8 +1,8 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import SD from './sd.js';
 import * as XL from './excel.js';
-import { descargarPlantillaCuentas, leerCuentasArchivo, TIPOS_ARCHIVO } from './importar-cuentas.js';
-import { Card, Hero, Banner, useBanner, DIAS, SEMESTRES, AREAS, hh, hoyISO, post, msgErr, nombreGrupo, conDescanso, descargar } from './ui.jsx';
+import { descargarPlantillaCuentas, leerCuentasExcel } from './importar-cuentas.js';
+import { Card, Hero, Banner, useBanner, QR, DIAS, SEMESTRES, AREAS, hh, hoyISO, post, msgErr, nombreGrupo, conDescanso, descargar } from './ui.jsx';
 import { Camara } from './docente.jsx';
 import { InicioBienvenida } from './paginas.jsx';
 
@@ -17,41 +17,14 @@ function useServicios(cargarUsuarios = true) {
   return { u, g, c, h, cargar, error };
 }
 
-/* Fin de clases: Servicios Escolares lo confirma y desde ese momento el portero deja salir a todos */
-function FinDeClases({ puede }) {
-  const [d, setD] = useState(null), [b, ban] = useBanner();
-  const cargar = useCallback(() => { SD.api('/api/dia').then(setD).catch(() => {}); }, []);
-  useEffect(() => { cargar(); const i = setInterval(cargar, 30000); return () => clearInterval(i); }, [cargar]);
-  const cambiar = async terminar => {
-    const msg = terminar ? '¿Confirmas que las clases de hoy ya terminaron?\n\nDesde este momento el portero dejará salir a todos los alumnos sin escanear, y a los tutores les llegará un aviso general.' : '¿Reabrir las clases de hoy?\n\nEl portero volverá a pedir permiso aprobado para cada salida.';
-    if (!confirm(msg)) return;
-    try { await post('/api/admin/fin-clases', { accion: terminar ? 'terminar' : 'reabrir', confirmar: true }); ban('ok', terminar ? 'Clases terminadas' : 'Clases reabiertas', terminar ? 'El portero ya puede dejar salir a los alumnos.' : 'La salida vuelve a requerir permiso.'); cargar(); }
-    catch (er) { ban('err', 'No se pudo', msgErr(er)); }
-  };
-  if (!d) return null;
-  return (<><Banner b={b} />
-    <Card title="Fin de clases de hoy">
-      <p className="sub" style={{ margin: '0 0 10px' }}>{d.clasesTerminadas ? `Clases terminadas a las ${hh(d.hora)}. El portero deja salir a todos.` : 'Clases en curso. El portero solo deja salir a quien tenga un permiso aprobado.'}</p>
-      {puede
-        ? (d.clasesTerminadas
-          ? <button className="btn sec" type="button" onClick={() => cambiar(false)}>REABRIR CLASES</button>
-          : <button className="btn" type="button" onClick={() => cambiar(true)}>TERMINAR CLASES DE HOY</button>)
-        : <span className={'tag ' + (d.clasesTerminadas ? 'ok' : '')}>{d.clasesTerminadas ? 'salida libre' : 'salida con permiso'}</span>}
-    </Card></>);
-}
-
 export function InicioAdmin({ onTutorial }) {
-  const area = localStorage.getItem('sd_admin_area');
-  return (<>
-    <InicioBienvenida rol="admin" onTutorial={onTutorial} />
-    {['sara', 'control', 'portero'].includes(area) && <FinDeClases puede={area !== 'portero'} />}
-  </>);
+  return <InicioBienvenida rol="admin" onTutorial={onTutorial} />;
 }
 
 const sumar50 = h => { const [a, b] = (h || '').split(':').map(Number); if (Number.isNaN(a) || Number.isNaN(b)) return ''; const m = a * 60 + b + 50; return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 export function Cuentas() {
   const { u, g, cargar, error } = useServicios(), [b, ban] = useBanner(), [q, setQ] = useState(''), [temp, setTemp] = useState(''), [solicitudes, setSolicitudes] = useState([]), [errorSolicitudes, setErrorSolicitudes] = useState('');
-  const [archivoImp, setArchivoImp] = useState(null), [rolDef, setRolDef] = useState(''), [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false);
+  const [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false);
   const [crearAbierto, setCrearAbierto] = useState(false), [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [filtroRol, setFiltroRol] = useState('todos'), [filtroGrupo, setFiltroGrupo] = useState('todos'), [filtroEstado, setFiltroEstado] = useState('todos');
   const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A' });
@@ -67,28 +40,22 @@ export function Cuentas() {
     try { await post('/api/admin/usuarios', f); ban('ok', 'Cuenta creada', 'La persona puede entrar con su CURP y crear su contraseña.'); setF({ ...f, nombre: '', id: '' }); cargar(); }
     catch (er) { ban('err', 'No se pudo crear la cuenta', msgErr(er)); }
   };
-  const analizarArchivo = async (file, rol) => {
+  const leerExcel = async e => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
     setLeyendoExcel(true); setImportadas([]);
     try {
       const existentes = new Set(u.map(x => x.id || x.curp));
-      const filas = await leerCuentasArchivo(file, { rolPorDefecto: rol });
+      const filas = await leerCuentasExcel(file);
       setImportadas(filas.map(c => existentes.has(c.id) ? { ...c, errores: [...c.errores, 'Ya existe una cuenta con esta CURP'] } : c));
-      ban('ok', 'Archivo leído', `Se encontraron ${filas.length} cuentas para revisar.`);
-    } catch (er) { ban('err', 'No se pudo leer el archivo', er.message); }
+      ban('ok', 'Excel leído', `Se encontraron ${filas.length} cuentas para revisar.`);
+    } catch (er) { ban('err', 'No se pudo leer el Excel', er.message); }
     finally { setLeyendoExcel(false); }
   };
-  const leerExcel = e => {
-    const file = e.target.files?.[0]; e.target.value = '';
-    if (!file) return;
-    setArchivoImp(file); analizarArchivo(file, rolDef);
-  };
-  const cambiarRolDef = v => { setRolDef(v); if (archivoImp) analizarArchivo(archivoImp, v); };
-  const quitarImportada = i => setImportadas(l => l.filter((_, k) => k !== i));
-  const quitarConErrores = () => setImportadas(l => l.filter(x => !x.errores.length));
   const crearDesdeExcel = async () => {
     const errores = importadas.filter(x => x.errores.length);
     if (errores.length) return ban('err', 'Corrige el archivo', `Hay ${errores.length} filas con errores. No se creó ninguna cuenta.`);
-    if (!importadas.length || !confirm(`¿Crear las ${importadas.length} cuentas del archivo?`)) return;
+    if (!importadas.length || !confirm(`¿Crear las ${importadas.length} cuentas del Excel?`)) return;
     setCreandoImportadas(true);
     try {
       const cuentas = importadas.map(({ rol, nombre, id, semestre, area, grupo }) => ({ rol, nombre, id, semestre, area, grupo }));
@@ -114,24 +81,18 @@ export function Cuentas() {
   return (<>
     <Hero titulo="Cuentas" sub="Administra altas, accesos, grupos y solicitudes de recuperación." /><Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
-    <Card title="Importar cuentas desde un archivo">
-      <p className="sub">Sube un archivo de <b>Excel, CSV, Word o PDF</b> con la lista de personas. <b>No necesita plantilla ni un orden fijo</b>: la app busca sola la CURP, el nombre, el rol, el semestre, la carrera y el grupo, estén donde estén. Antes de crear nada podrás revisar todo.</p>
-      <label htmlFor="cuentas-excel">Archivo (Excel, CSV, Word o PDF)</label><input id="cuentas-excel" type="file" accept={TIPOS_ARCHIVO} onChange={leerExcel} disabled={leyendoExcel || creandoImportadas} />
-      <label htmlFor="cuentas-rol-def">Si el archivo no dice el rol, crear como</label>
-      <select id="cuentas-rol-def" value={rolDef} onChange={e => cambiarRolDef(e.target.value)} disabled={leyendoExcel || creandoImportadas}>
-        <option value="">Detectar solo (alumno si trae semestre, carrera o grupo)</option><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option>
-      </select>
-      <button className="mini" type="button" onClick={descargarPlantillaCuentas}>Descargar plantilla Excel (opcional)</button>
+    <Card title="Importar cuentas desde Excel">
+      <p className="sub">Sube un archivo .xlsx o .xls con encabezados <b>rol, nombre y CURP</b>; también se infiere el rol si el encabezado de nombres dice <b>Alumnos, Docentes o Tutores</b>. Para alumnos agrega <b>semestre, área y grupo</b>. Se revisan todas las filas antes de crear.</p>
+      <button className="mini" type="button" onClick={descargarPlantillaCuentas}>Descargar plantilla Excel</button>
+      <label htmlFor="cuentas-excel">Archivo Excel</label><input id="cuentas-excel" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={leerExcel} disabled={leyendoExcel || creandoImportadas} />
       {leyendoExcel && <p className="sub" role="status">Leyendo el archivo…</p>}
       {!!importadas.length && <>
         <p className="sub">{importadas.length} cuentas detectadas · {importadas.filter(x => !x.errores.length).length} listas · {importadas.filter(x => x.errores.length).length} con errores</p>
         <div className="import-cuentas-list">{importadas.map((x, i) => <div className="import-cuenta" key={`${x.fila}-${i}`}>
-          <div><b>{x.nombre || 'Sin nombre'}</b><span className="tag">{x.rol || 'sin rol'}</span><p className="sub">{x.id || 'Sin CURP'}{x.rol === 'alumno' ? ` · ${x.semestre || 'sin semestre'} · ${x.area || 'sin carrera'} · Grupo ${x.grupo || '?'}` : ''}</p></div>
+          <div><b>Fila {x.fila} · {x.nombre || 'Sin nombre'}</b><span className="tag">{x.rol}</span><p className="sub">{x.id || 'Sin CURP'}{x.rol === 'alumno' ? ` · ${x.semestre} · ${x.area} · Grupo ${x.grupo}` : ''}</p></div>
           {x.errores.length > 0 && <p className="msg" role="alert">{x.errores.join(' · ')}</p>}
-          <button className="mini" type="button" onClick={() => quitarImportada(i)}>Quitar</button>
         </div>)}</div>
-        {importadas.some(x => x.errores.length) && <button className="btn sec" type="button" onClick={quitarConErrores} disabled={creandoImportadas}>QUITAR LAS {importadas.filter(x => x.errores.length).length} FILAS CON ERRORES</button>}
-        <button className="btn" type="button" onClick={crearDesdeExcel} disabled={creandoImportadas || !importadas.length || importadas.some(x => x.errores.length)}>{creandoImportadas ? 'CREANDO CUENTAS…' : `CREAR CUENTAS (${importadas.length})`}</button>
+        <button className="btn" type="button" onClick={crearDesdeExcel} disabled={creandoImportadas || importadas.some(x => x.errores.length)}>{creandoImportadas ? 'CREANDO CUENTAS…' : `CREAR CUENTAS (${importadas.length})`}</button>
       </>}
     </Card>
     <button className="btn desplegable-toggle" type="button" aria-expanded={crearAbierto} aria-controls="cuentas-crear" onClick={() => setCrearAbierto(v => !v)}><span>{crearAbierto ? 'CERRAR CREAR CUENTA' : 'CREAR CUENTA'}</span><span className={'desplegable-flecha' + (crearAbierto ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
@@ -187,6 +148,25 @@ export function Grupos() {
       <div id={'grupo-cuentas-' + k.id} className={'desplegable-contenido' + (ver === k.id ? ' abierto' : '')} aria-hidden={ver !== k.id} inert={ver !== k.id}><div className="grupo-cuentas" aria-live="polite">{alumnos.length ? alumnos.sort((a,b) => a.nombre.localeCompare(b.nombre)).map(x => <div className="grupo-cuenta" key={x.id}><b>{x.nombre}</b><span>{x.curp || x.id}</span></div>) : <p className="vacio">Este grupo todavía no tiene cuentas.</p>}</div></div>
     </Card>; })}
     {!g.length && <Card><p className="vacio">Todavía no hay grupos. Crea la cuenta de un alumno y su grupo aparecerá aquí.</p></Card>}
+  </>);
+}
+
+export function Clases() {
+  const { g, u, c, cargar, error } = useServicios(), [b, ban] = useBanner(), [f, setF] = useState({ gi: 0, materia: '', docente: '' }), [qr, setQr] = useState(null);
+  const docs = u.filter(x => x.rol === 'docente');
+  const crear = async e => { e.preventDefault(); const k = g[+f.gi]; if (!k) return ban('err', 'Primero crea un grupo'); try { await post('/api/admin/clases', { area: k.area, semestre: k.semestre, grupo: k.grupo, materia: f.materia, docente: f.docente || (docs[0] && docs[0].id) }); setF({ ...f, materia: '' }); ban('ok', 'Clase añadida', 'Se generó su QR: búscala abajo y toca Ver QR.'); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
+  const borrar = async k => { if (!confirm('¿Borrar esta clase?')) return; try { await post('/api/admin/clases/borrar', { id: k.id }); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
+  return (<>
+    <Hero titulo="Materias" sub="Asigna cada materia a un grupo y a su docente." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
+    <Card title="Nueva clase"><form onSubmit={crear}>
+      <select value={f.gi} onChange={e => setF({ ...f, gi: e.target.value })}>{g.map((k, i) => <option key={k.id} value={i}>{nombreGrupo(k)}</option>)}</select>
+      <input value={f.materia} onChange={e => setF({ ...f, materia: e.target.value })} placeholder="Materia (ej. Matemáticas)" maxLength="60" required />
+      <select value={f.docente} onChange={e => setF({ ...f, docente: e.target.value })}>{docs.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}{!docs.length && <option value="">Primero crea un docente</option>}</select>
+      <button className="btn" type="submit">AÑADIR CLASE</button></form></Card>
+    <div id="clases-qr" className={'desplegable-contenido' + (qr ? ' abierto' : '')} aria-hidden={!qr} inert={!qr}><Card title="QR de la clase" style={{ textAlign: 'center' }}>{qr && <><QR texto={'CLASE:' + qr.id} /><p><b>{qr.materia}</b><br />{qr.semestre} {qr.area} {qr.grupo}</p><p className="sub">Imprímelo: el docente lo escanea y se abre esta clase.</p></>}</Card></div>
+    {c.slice().sort((a, b) => (a.semestre + a.area + a.grupo + a.materia).localeCompare(b.semestre + b.area + b.grupo + b.materia)).map(k => (
+      <Card key={k.id}><b>{k.materia}</b><p className="sub" style={{ margin: '2px 0 8px' }}>{k.semestre} {k.area} {k.grupo} · Prof. {k.docenteNombre || k.docente}</p>
+        <button className="mini desplegable-toggle" style={{ marginLeft: 0 }} aria-expanded={qr?.id === k.id} aria-controls="clases-qr" onClick={() => { setQr(qr?.id === k.id ? null : k); scrollTo(0, 0); }}><span>{qr?.id === k.id ? 'Ocultar QR' : 'Ver QR'}</span><span className={'desplegable-flecha' + (qr?.id === k.id ? ' abierta' : '')} aria-hidden="true">⌄</span></button><button className="mini rojo" onClick={() => borrar(k)}>Borrar</button></Card>))}
   </>);
 }
 
@@ -359,58 +339,16 @@ export function Historial() {
   </>;
 }
 
-/* Pitido corto: distinto para entrada, salida y salida no autorizada */
-function pitido(tipo) {
-  try {
-    const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
-    const ctx = pitido.ctx || (pitido.ctx = new C()), notas = tipo === 'no' ? [220, 180] : tipo === 'salida' ? [660] : [880];
-    notas.forEach((f, i) => { const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + i * 0.16; o.frequency.value = f; o.type = 'sine'; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14); o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.15); });
-  } catch { /* sin sonido */ }
-}
-
 export function Escaner() {
-  const [r, setR] = useState(null), [n, setN] = useState(0), [res, setRes] = useState(null), [dia, setDia] = useState(null), [b, ban] = useBanner();
-  const [q, setQ] = useState(''), [busq, setBusq] = useState([]);
-  const cargar = useCallback(() => {
-    SD.api('/api/dia').then(setDia).catch(() => {});
-    SD.api('/api/portero/resumen').then(setRes).catch(() => {});
-  }, []);
-  useEffect(() => { cargar(); const i = setInterval(cargar, 20000); return () => clearInterval(i); }, [cargar]);
-  const ver = async t => {
-    t = t.trim().toUpperCase();
-    if (!/^[A-Z0-9]{18}$/.test(t)) return ban('err', 'QR no válido', 'No contiene una CURP.');
-    try {
-      const x = await post('/api/portero/escaneo', { curp: t });
-      setR(x); setN(v => v + 1);
-      pitido(!x.autorizado ? 'no' : x.tipo);
-      if (navigator.vibrate) navigator.vibrate(x.autorizado ? 40 : [150, 70, 150]);
-      cargar();
-    } catch (er) { setR(null); ban('err', 'No se pudo registrar', msgErr(er)); }
-  };
-  useEffect(() => {   // buscador: espera un momento después de escribir
-    if (q.trim().length < 2) { setBusq([]); return; }
-    const t = setTimeout(() => SD.api('/api/portero/buscar?q=' + encodeURIComponent(q.trim())).then(setBusq).catch(() => setBusq([])), 300);
-    return () => clearTimeout(t);
-  }, [q, res]);
-  const deshacer = async () => {
-    if (!r || !r.id || !confirm('¿Deshacer este registro?')) return;
-    try { await post(`/api/portero/acceso/${r.id}/deshacer`); setR(null); ban('ok', 'Registro deshecho'); cargar(); }
-    catch (er) { ban('err', 'No se pudo deshacer', msgErr(er)); }
-  };
-  const libre = dia && dia.clasesTerminadas, rojo = r && !r.autorizado;
+  const [curp, setCurp] = useState(''), [r, setR] = useState(null), [b, ban] = useBanner();
+  const ver = async t => { t = t.trim().toUpperCase(); setCurp(t); if (!/^[A-Z0-9]{18}$/.test(t)) return ban('err', 'QR no válido', 'No contiene una CURP.'); const x = await SD.consultar(t); x.alumno ? (setR(x), ban('ok', 'Alumno encontrado', x.alumno.nombre)) : (setR(null), ban('err', 'No encontrado')); };
   return (<>
-    <Hero titulo="Escáner" sub="Activa la cámara una vez y apunta a cada QR. El primer escaneo del día es entrada y el siguiente es salida." /><Banner b={b} />
-    {dia && <div className={'acceso-estado ' + (libre ? 'libre' : 'curso')}><b>{libre ? 'Clases terminadas · salida libre' : 'Clases en curso'}</b><span>{libre ? `Desde las ${hh(dia.hora)}. Ya no hace falta escanear las salidas.` : 'La salida solo se permite con permiso aprobado.'}</span></div>}
-    {r && !rojo && <div key={n} className={'acceso-franja ' + r.tipo} role="status"><div><small>{r.tipo === 'entrada' ? 'ENTRADA' : 'SALIDA'}{r.duplicado ? ' · ya registrada' : ''} · {hh(r.hora)}</small><b>{r.alumno.nombre}</b><span>{r.alumno.semestre} {r.alumno.area} {r.alumno.grupo}{r.motivo ? ' · ' + r.motivo : ''}</span></div>{r.id && <button className="mini" type="button" onClick={deshacer}>Deshacer</button>}</div>}
-    {rojo && <div className="acceso-res no" role="alert"><small>SALIDA NO AUTORIZADA</small><b>{r.alumno.nombre}</b><span>{r.alumno.semestre} {r.alumno.area} {r.alumno.grupo}</span><em>{r.mensaje}</em><button className="mini" type="button" onClick={() => setR(null)}>Entendido</button></div>}
-    <Card><Camara pausa={600} onTexto={ver} onError={m => ban('err', 'Cámara', m)} />
-      <p className="sub" style={{ margin: '8px 0 0' }}>Deja la cámara encendida: cada lectura reemplaza a la anterior.</p></Card>
-    {res && <div className="acceso-cuentas"><div><b>{res.dentro}</b><span>Dentro</span></div><div><b>{res.salieron}</b><span>Salieron</span></div><div><b>{res.sinLlegar}</b><span>Sin llegar</span></div></div>}
-    <Card title="Buscar alumno"><input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Nombre, grupo o CURP" style={{ marginTop: 0 }} />
-      <ul className="l">{busq.map(x => <li key={x.curp}><span><b>{x.nombre}</b><br /><small className="sub">{x.semestre} {x.area} {x.grupo} · {x.estado}{x.hora ? ' ' + hh(x.hora) : ''}</small></span><button className="mini" type="button" onClick={() => { ver(x.curp); setQ(''); }}>Registrar</button></li>)}
-        {q.trim().length >= 2 && !busq.length && <li className="vacio">Sin resultados</li>}</ul>
-      <p className="sub" style={{ margin: '6px 0 0' }}>Úsalo cuando un alumno olvidó su QR: toca "Registrar".</p></Card>
-    {res && <Card title="Últimos movimientos"><ul className="l">{res.ultimos.map(x => <li key={x.id}><span>{hh(x.hora)} · {x.alumno}</span><span className={'tag ' + (x.tipo === 'entrada' ? 'ok' : '')}>{x.tipo}</span></li>)}{!res.ultimos.length && <li className="vacio">Todavía no hay movimientos hoy</li>}</ul></Card>}
+    <Hero titulo="Escáner" sub="Escanea el QR de un alumno, o escribe su CURP, para ver su ficha." /><Banner b={b} />
+    <Card><Camara onTexto={ver} onError={m => ban('err', 'Cámara', m)} />
+      <p className="sub" style={{ margin: '8px 0 0' }}>Después de cada lectura, apunta al siguiente código.</p>
+      <div className="fila2" style={{ marginTop: 12 }}><input value={curp} maxLength="18" placeholder="CURP" onChange={e => setCurp(e.target.value.toUpperCase())} style={{ marginTop: 0 }} /><button className="btn" style={{ flex: 'none', width: 80, margin: 0 }} onClick={() => ver(curp)}>OK</button></div></Card>
+    {r && <><Card title="Ficha"><dl><dt>Nombre</dt><dd>{r.alumno.nombre}</dd><dt>CURP</dt><dd>{r.alumno.curp}</dd><dt>Grupo</dt><dd>{r.alumno.semestre} {r.alumno.area} {r.alumno.grupo}</dd></dl></Card>
+      <Card title="Historial"><ul className="l">{r.asistencias.slice(0, 20).map(a => <li key={a.uid}><span>{a.fecha} · {a.hora}</span><span>{a.estado === 'falta' ? 'falta · ' : ''}{a.materia}</span></li>)}{!r.asistencias.length && <li className="vacio">Sin registros</li>}</ul></Card></>}
   </>);
 }
 
