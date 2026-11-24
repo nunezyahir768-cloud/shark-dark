@@ -12,10 +12,9 @@ const EXPLICACIONES = {
   opciones: 'Personaliza el tema y el tamaño de letra.',
   cuentas: 'Administra las cuentas escolares.',
   grupos: 'Consulta y administra grupos.',
-  clases: 'Administra materias y asignaciones.',
   horarios: 'Consulta y administra horarios.',
   historial: 'Consulta los cambios administrativos recientes.',
-  escaner: 'Escanea códigos QR para asistencia.'
+  escaner: 'Escanea el QR del alumno: registra su entrada o salida del día.'
 };
 
 const texto = (key, rol) => {

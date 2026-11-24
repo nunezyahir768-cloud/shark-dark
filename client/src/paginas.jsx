@@ -207,18 +207,33 @@ export function Horario() {
   </>);
 }
 
+/* Boleta: una fila por asignatura, 3 periodos de evaluación y promedio final (como la boleta oficial) */
+const fmtNota = n => Number.isInteger(n) ? String(n) : n.toFixed(1);
+const claseNota = n => n === null || n === undefined ? 'vacia' : n < 6 ? 'baja' : '';
 export function CalifVer() {
   const al = useAlumno(), [notas] = useCached('calif', '/api/calificaciones');
   if (!al) return <Sin />;
   const m = {}; (notas || []).filter(n => n.curp === al.curp).forEach(n => { (m[n.materia] = m[n.materia] || {})[n.parcial] = n.nota; });
   const prom = v => { const x = Object.values(v); return x.length ? x.reduce((a, b) => a + b, 0) / x.length : null; };
-  const ps = Object.values(m).map(prom).filter(x => x !== null), gen = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null;
+  const materias = Object.keys(m).sort((a, b) => a.localeCompare(b, 'es'));
+  const ps = materias.map(k => prom(m[k])), gen = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null;
   return (<>
     <Hero titulo="Calificaciones" sub={`${al.nombre} · solo consulta`} />
-    <Card title="Por materia"><div className="tabla"><table className="tb"><thead><tr><th className="izq">Materia</th><th>Parcial 1</th><th>Parcial 2</th><th>Parcial 3</th><th>Promedio</th></tr></thead>
-      <tbody>{Object.keys(m).sort().map(k => <tr key={k}><td className="izq">{k}</td>{[1, 2, 3].map(p => <td key={p}>{m[k][p] ?? '–'}</td>)}<td><b>{prom(m[k]).toFixed(1)}</b></td></tr>)}
-        {!Object.keys(m).length && <tr><td className="izq" colSpan="5">Aún no hay calificaciones</td></tr>}</tbody></table></div></Card>
-    {gen !== null && <Card title="Promedio general"><div className="num">{gen.toFixed(1)}</div></Card>}
+    <div className="boleta-wrap"><table className="boleta">
+      <thead>
+        <tr><th rowSpan="2" className="b-asig">Asignaturas / Áreas</th><th colSpan="3">Periodos de evaluación</th><th rowSpan="2" className="b-final">Promedio final</th></tr>
+        <tr><th>1<sup>er</sup></th><th>2<sup>o</sup></th><th>3<sup>er</sup></th></tr>
+      </thead>
+      <tbody>
+        {materias.map(k => { const pf = prom(m[k]), completa = [1, 2, 3].every(p => m[k][p] !== undefined);
+          return <tr key={k}><th scope="row" className="b-asig">{k}</th>
+            {[1, 2, 3].map(p => <td key={p} className={'b-nota ' + claseNota(m[k][p])}>{m[k][p] !== undefined ? fmtNota(m[k][p]) : '–'}</td>)}
+            <td className={'b-nota b-final ' + claseNota(pf) + (completa ? '' : ' parcial')} title={completa ? '' : 'Promedio parcial: faltan periodos'}>{pf !== null ? fmtNota(Math.round(pf * 10) / 10) : '–'}</td></tr>; })}
+        {!materias.length && <tr><td colSpan="5" className="b-vacio">Aún no hay calificaciones</td></tr>}
+      </tbody>
+      {gen !== null && <tfoot><tr><th scope="row" className="b-asig">Promedio general</th><td colSpan="3" /><td className={'b-nota b-final ' + claseNota(gen)}>{fmtNota(Math.round(gen * 10) / 10)}</td></tr></tfoot>}
+    </table></div>
+    <p className="sub boleta-nota">Un promedio en gris es parcial: todavía faltan periodos por calificar. Menor a 6 aparece en rojo.</p>
   </>);
 }
 

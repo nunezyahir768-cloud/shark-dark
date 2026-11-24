@@ -6,7 +6,7 @@ import Login, { CambiarPassword } from './Login.jsx';
 import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
 import { Inicio, PerfilAlumno, PerfilesTutor, PerfilDocente, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, Cuenta, Opciones } from './paginas.jsx';
 import { AsistenciaDocente, CalifDocente } from './docente.jsx';
-import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, CalificacionesAdmin, ReportesAdmin, Citatorios, CitatoriosAlumno } from './servicios.jsx';
+import { InicioAdmin, Cuentas, Grupos, Horarios, Escaner, CalificacionesAdmin, ReportesAdmin, Citatorios, CitatoriosAlumno } from './servicios.jsx';
 import ReportesConducta from './ReportesConducta.jsx';
 import TutorialInteractivo from './TutorialInteractivo.jsx';
 import QRAlumno from './QRAlumno.jsx';
@@ -23,7 +23,6 @@ const ICONOS_MENU = {
   opciones: <><path d="M4 7h9m4 0h3M4 17h3m4 0h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></>,
   cuentas: <><circle cx="9" cy="8" r="3" /><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5" /></>,
   grupos: <><circle cx="12" cy="8" r="3" /><circle cx="5" cy="11" r="2" /><circle cx="19" cy="11" r="2" /><path d="M6 21a6 6 0 0 1 12 0M1.5 19a4 4 0 0 1 4-4m13 0a4 4 0 0 1 4 4" /></>,
-  clases: <><path d="M3 5.5A3.5 3.5 0 0 1 6.5 2H21v17H6.5A3.5 3.5 0 0 0 3 22z" /><path d="M3 5.5v13A3.5 3.5 0 0 1 6.5 15H21M8 6h8" /></>,
   horarios: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
   escaner: <><path d="M4 8V4h4m8 0h4v4M20 16v4h-4M8 20H4v-4M4 12h16" /></>,
   historial: <><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5m4-1v5l3 2" /></>,
@@ -35,9 +34,9 @@ const MENU = {
   alumno: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['citatorios', 'Citatorios'], ['opciones', 'Opciones']],
   tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
   docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Notificaciones'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['opciones', 'Opciones']],
-  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
+  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
 };
-const MENU_ADMIN = { portero: [['inicio', 'Inicio'], ['escaner', 'Escáner']], sara: [['inicio', 'Inicio'], ['permisos', 'Permisos'], ['reportes', 'Reportes'], ['citatorios', 'Citatorios'], ['avisos', 'Notificaciones']], gabriela: [['inicio', 'Inicio'], ['horarios', 'Horarios']], control: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['clases', 'Materias'], ['calificaciones', 'Calificaciones']] };
+const MENU_ADMIN = { portero: [['inicio', 'Inicio'], ['escaner', 'Escáner']], sara: [['inicio', 'Inicio'], ['permisos', 'Permisos'], ['reportes', 'Reportes'], ['citatorios', 'Citatorios'], ['avisos', 'Notificaciones']], gabriela: [['inicio', 'Inicio'], ['horarios', 'Horarios']], control: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['calificaciones', 'Calificaciones']] };
 const INICIO = { alumno: 'inicio', tutor: 'inicio', docente: 'inicio', admin: 'inicio' };
 const PAGINAS = {
   inicio: { alumno: Inicio, tutor: Inicio, docente: Inicio, admin: InicioAdmin },
@@ -50,7 +49,7 @@ const PAGINAS = {
   reportes: { alumno: ReportesConducta, tutor: ReportesConducta, docente: ReportesConducta, admin: ReportesConducta },
   opciones: { alumno: Opciones, tutor: Opciones, docente: Opciones, admin: Opciones },
   cuenta: { alumno: Cuenta, tutor: Cuenta, docente: Cuenta, admin: Cuenta },
-  cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, citatorios: { admin: Citatorios, alumno: CitatoriosAlumno }
+  cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, citatorios: { admin: Citatorios, alumno: CitatoriosAlumno }
 };
 
 const useRuta = () => {
@@ -80,29 +79,35 @@ function useAvisoSiguiente(alumno, activo) {
   return toast;
 }
 
-/* Barra inferior "Floating Button": 4 accesos fijos + "Más" (abre el menú lateral completo). El botón central flota resaltado. */
+/* Barra inferior "Spotlight": 4 accesos fijos + "Más" (abre el menú lateral completo).
+   Una lamparita en el borde superior ilumina con un cono de luz el apartado activo y se desliza al cambiar de sección. */
 const ICONO_QR = <><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3z" /><path d="M14 14h3v3h-3zM20 14v.01M14 20h3m3-3v4" /></>;
 const ICONO_MAS = <><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></>;
 const BARRA = { alumno: ['inicio', 'horario', 'qr', 'avisos'], docente: ['inicio', 'horario', 'asistencia', 'calificaciones'], tutor: ['inicio', 'asistencia', 'permisos', 'calificaciones'] };
 const NOMBRE_BARRA = { avisos: 'Avisos', qr: 'Mi QR' };
-function BarraInferior({ rol, menu, ruta, onMas, abierto, onQr }) {
+function BarraInferior({ rol, menu, ruta, onMas, abierto, onQr, qrAbierto }) {
   const claves = BARRA[rol] || menu.slice(0, 4).map(([k]) => k);
   const etiqueta = k => NOMBRE_BARRA[k] || (menu.find(([c]) => c === k) || [])[1] || k;
   const items = claves.filter(k => k === 'qr' || menu.some(([c]) => c === k)).map(k => ({ k, t: etiqueta(k) }));
-  const centro = items.length === 4 ? 2 : -1;     // el botón central queda en medio de los 5 (4 + Más)
-  const Boton = ({ clave, texto, icono, activo, centro: esC, onClick, href, extra }) => {
+  const total = items.length + 1;                  // los accesos + "Más"
+  // Qué apartado se ilumina: menú abierto o sección que no está en la barra (Opciones, Perfil...) = "Más"; si no, el apartado actual.
+  let luz = items.findIndex(it => it.k === 'qr' ? qrAbierto : ruta === it.k);
+  if (abierto || luz < 0) luz = items.length;
+  const svg = c => <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{c}</svg>;
+  const Boton = ({ i, texto, icono, onClick, href, extra }) => {
+    const activo = i === luz;
     const contenido = <><span className="nf-ico">{icono}</span><span className="nf-txt">{texto}</span></>;
-    const cls = 'nf-btn' + (activo ? ' on' : '') + (esC ? ' centro' : '');
-    return href ? <a className={cls} href={href} aria-current={activo ? 'page' : undefined} {...extra}>{contenido}</a>
+    const cls = 'nf-btn' + (activo ? ' on' : '');
+    return href ? <a className={cls} href={href} aria-current={activo && !abierto ? 'page' : undefined} {...extra}>{contenido}</a>
       : <button type="button" className={cls} onClick={onClick} {...extra}>{contenido}</button>;
   };
-  const svg = c => <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{c}</svg>;
   return (
-    <nav className="nav-flotante" aria-label="Menú principal">
+    <nav className="nav-flotante" aria-label="Menú principal" style={{ '--n': total, '--i': luz }}>
+      <span className="nf-luz" aria-hidden="true"><span className="nf-haz"><i className="nf-lampara" /><i className="nf-cono" /></span></span>
       {items.map((it, i) => it.k === 'qr'
-        ? <Boton key="qr" texto={it.t} icono={svg(ICONO_QR)} centro={i === centro} onClick={onQr} />
-        : <Boton key={it.k} texto={it.t} icono={svg(ICONOS_MENU[it.k])} activo={ruta === it.k} centro={i === centro} href={'#/' + it.k} />)}
-      <Boton texto="Más" icono={svg(ICONO_MAS)} activo={abierto} onClick={onMas} extra={{ 'aria-expanded': abierto, 'aria-label': 'Más opciones' }} />
+        ? <Boton key="qr" i={i} texto={it.t} icono={svg(ICONO_QR)} onClick={onQr} />
+        : <Boton key={it.k} i={i} texto={it.t} icono={svg(ICONOS_MENU[it.k])} href={'#/' + it.k} />)}
+      <Boton i={items.length} texto="Más" icono={svg(ICONO_MAS)} onClick={onMas} extra={{ 'aria-expanded': abierto, 'aria-label': 'Más opciones' }} />
     </nav>
   );
 }
@@ -158,7 +163,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
               {Pag ? <div className="apartado-vista" key={ruta + (alumno ? alumno.curp : '')}><Pag {...paginaProps} /></div> : <div className="card"><p className="vacio">Esta sección no existe.</p></div>}
             </main>
           </div>
-          <BarraInferior rol={rol} menu={menu} ruta={ruta} abierto={abre} onMas={() => setAbre(true)} onQr={() => setQrBarra(true)} />
+          <BarraInferior rol={rol} menu={menu} ruta={ruta} abierto={abre} qrAbierto={qrBarra} onMas={() => setAbre(true)} onQr={() => setQrBarra(true)} />
           {qrBarra && alumno && rol === 'alumno' && <QRAlumno alumno={alumno} onSalir={() => setQrBarra(false)} />}
         </div>
         {tutorial && <TutorialInteractivo rol={rol} menu={menu} onMenu={setAbre} onClose={() => { setTutorial(false); setAbre(false); }} />}

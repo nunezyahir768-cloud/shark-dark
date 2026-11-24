@@ -73,7 +73,7 @@ const soloAdmin = adminDe('control');
 const publico = ({ salt, hash, _id, accessEnvHash, sessionId, sessionId_control, sessionId_sara, sessionId_gabriela, sessionId_portero, ...r }) => r;
 
 let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion, auditoria, avisosLeidos, reportesConducta, citatorios, suscripcionesPush;
-let recordatoriosPush;
+let recordatoriosPush, accesos, diasEscolares;
 const PUSH_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const PUSH_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
 const PUSH_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@sharkdark.app';
@@ -90,9 +90,9 @@ async function enviarPush(rol, id, titulo, body, url = '/') {
         }
     }));
 }
-async function notificarAlumno(curp, id, titulo, texto, url, incluirTutores = true) {
+async function notificarAlumno(curp, id, titulo, texto, url, incluirTutores = true, incluirAlumno = true) {
     const fecha = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
-    const destinatarios = [{ rol: 'alumno', id: curp }];
+    const destinatarios = incluirAlumno ? [{ rol: 'alumno', id: curp }] : [];
     if (incluirTutores) {
         try {
             const alumno = await usuarios.findOne({ _id: `alumno:${curp}`, rol: 'alumno' });
@@ -850,6 +850,80 @@ app.post('/api/permisos/:id/resolver', auth, adminDe('sara', 'control'), h(async
     res.json({ ok: true });
 }));
 
+/* ---------- Entradas y salidas (portero) y fin de clases ---------- */
+const ahoraMx = () => { const d = new Date(), z = { timeZone: 'America/Mexico_City' }; return { fecha: d.toLocaleDateString('sv-SE', z), hora: d.toLocaleTimeString('es-MX', { ...z, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) }; };
+const hora12 = hm => { const [hh, mm] = hm.split(':').map(Number); return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, '0')} ${hh < 12 ? 'am' : 'pm'}`; };
+app.get('/api/dia', auth, h(async (req, res) => {
+    const { fecha } = ahoraMx(), d = await diasEscolares.findOne({ _id: fecha });
+    res.json({ fecha, clasesTerminadas: !!(d && d.clasesTerminadas), hora: (d && d.hora) || '', por: (d && d.porNombre) || '' });
+}));
+app.post('/api/admin/fin-clases', auth, adminDe('sara', 'control'), h(async (req, res) => {
+    const { fecha, hora } = ahoraMx(), terminar = req.body.accion !== 'reabrir';
+    if (terminar && req.body.confirmar !== true) return bad(res, 'Confirma que las clases de hoy ya terminaron');
+    const antes = await diasEscolares.findOne({ _id: fecha }), yaTerminadas = !!(antes && antes.clasesTerminadas);
+    await diasEscolares.updateOne({ _id: fecha }, { $set: { clasesTerminadas: terminar, hora: terminar ? hora : '', por: req.u.id, porNombre: req.u.nombre || 'Servicios Escolares' } }, { upsert: true });
+    await registrarCambio(req, terminar ? 'Clases terminadas' : 'Clases reabiertas', `${fecha} · ${hora}`);
+    if (terminar && !yaTerminadas) {   // un solo aviso general a todos los tutores: así los alumnos salen sin tener que escanear
+        const titulo = 'Las clases terminaron', mensaje = `Las clases de hoy terminaron a las ${hora12(hora)}. Los alumnos ya pueden salir de la escuela.`;
+        await anuncios.insertOne({ _id: crypto.randomBytes(5).toString('hex'), titulo, mensaje, para: ['tutor'], creado: new Date(), por: req.u.id });
+        usuarios.find({ rol: 'tutor' }).project({ id: 1 }).toArray()
+            .then(us => Promise.all(us.map(u => enviarPush('tutor', u.id, titulo, mensaje, '/').catch(() => {}))))
+            .catch(e => console.warn('No se pudo avisar el fin de clases:', e.message));
+    }
+    res.json({ ok: true, clasesTerminadas: terminar, hora: terminar ? hora : '' });
+}));
+/* El portero escanea el QR: el primer escaneo del día es entrada, el siguiente salida, y así. La salida exige permiso aprobado o fin de clases. */
+app.post('/api/portero/escaneo', auth, adminDe('portero', 'control'), h(async (req, res) => {
+    const curp = s(req.body.curp).toUpperCase();
+    if (!RX.curp.test(curp)) return bad(res, 'QR no válido: no contiene una CURP');
+    const al = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
+    if (!al) return bad(res, 'Alumno no encontrado', 404);
+    const { fecha, hora } = ahoraMx(), alumno = { nombre: al.nombre, curp, area: al.area, semestre: al.semestre, grupo: al.grupo };
+    const ultimo = (await accesos.find({ curp, fecha }).sort({ creado: -1 }).limit(1).toArray())[0];
+    if (ultimo && Date.now() - new Date(ultimo.creado).getTime() < 15000)   // el mismo QR leído dos veces seguidas no cambia entrada por salida
+        return res.json({ ok: true, duplicado: true, autorizado: true, id: ultimo._id, tipo: ultimo.tipo, hora: ultimo.hora, motivo: ultimo.motivo || '', alumno });
+    const tipo = ultimo && ultimo.tipo === 'entrada' ? 'salida' : 'entrada';
+    let motivo = '';
+    if (tipo === 'salida') {
+        const dia = await diasEscolares.findOne({ _id: fecha });
+        if (dia && dia.clasesTerminadas) motivo = 'clases terminadas';
+        else { const p = await permisos.findOne({ curp, estado: 'aprobado', desde: { $lte: fecha }, hasta: { $gte: fecha } }); if (p) motivo = 'permiso aprobado'; }
+        if (!motivo) return res.json({ ok: true, autorizado: false, tipo, alumno, mensaje: 'Sin permiso aprobado y las clases aún no terminan. No lo dejes salir.' });
+    }
+    const id = crypto.randomBytes(5).toString('hex');
+    await accesos.insertOne({ _id: id, curp, alumno: al.nombre, area: al.area, semestre: al.semestre, grupo: al.grupo, fecha, hora, tipo, motivo, por: req.u.id, creado: new Date() });
+    const texto = tipo === 'entrada' ? `${al.nombre} entró a la escuela a las ${hora12(hora)}.` : `${al.nombre} salió de la escuela a las ${hora12(hora)} (${motivo}).`;
+    if (motivo !== 'clases terminadas') notificarAlumno(curp, `acceso:${id}`, tipo === 'entrada' ? 'Entrada' : 'Salida', texto, '/#/avisos', true, false).catch(e => console.warn('No se pudo avisar la entrada/salida:', e.message));
+    res.status(201).json({ ok: true, autorizado: true, id, tipo, hora, motivo, alumno });
+}));
+app.post('/api/portero/acceso/:id/deshacer', auth, adminDe('portero', 'control'), h(async (req, res) => {
+    const id = s(req.params.id), { fecha } = ahoraMx();
+    const r = await accesos.deleteOne({ _id: id, fecha });
+    if (!r.deletedCount) return bad(res, 'Solo se puede deshacer un registro de hoy', 404);
+    await avisos.deleteMany({ origenId: `acceso:${id}` });
+    res.json({ ok: true });
+}));
+/* Estado de cada alumno hoy según su último movimiento */
+async function estadoHoy(fecha) {
+    const movs = await accesos.find({ fecha }).sort({ creado: -1 }).limit(20000).toArray(), ultimo = new Map();
+    for (const m of movs) if (!ultimo.has(m.curp)) ultimo.set(m.curp, m);
+    return { movs, ultimo };
+}
+app.get('/api/portero/resumen', auth, adminDe('portero', 'control', 'sara'), h(async (req, res) => {
+    const { fecha } = ahoraMx(), { movs, ultimo } = await estadoHoy(fecha), total = await usuarios.countDocuments({ rol: 'alumno' });
+    let dentro = 0, salieron = 0;
+    for (const m of ultimo.values()) m.tipo === 'entrada' ? dentro++ : salieron++;
+    res.json({ total, dentro, salieron, sinLlegar: Math.max(0, total - dentro - salieron), ultimos: movs.slice(0, 5).map(({ _id, ...r }) => ({ id: _id, curp: r.curp, alumno: r.alumno, tipo: r.tipo, hora: r.hora })) });
+}));
+app.get('/api/portero/buscar', auth, adminDe('portero', 'control', 'sara'), h(async (req, res) => {
+    const norm = x => s(x).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''), q = norm(req.query.q);
+    if (q.length < 2) return res.json([]);
+    const { fecha } = ahoraMx(), { ultimo } = await estadoHoy(fecha);
+    const als = (await usuarios.find({ rol: 'alumno' }).project({ nombre: 1, curp: 1, id: 1, area: 1, semestre: 1, grupo: 1 }).limit(10000).toArray())
+        .filter(a => norm(`${a.nombre} ${a.curp || a.id} ${a.semestre} ${a.area} ${a.grupo}`).includes(q)).slice(0, 15);
+    res.json(als.map(a => { const c = a.curp || a.id, m = ultimo.get(c); return { curp: c, nombre: a.nombre, area: a.area, semestre: a.semestre, grupo: a.grupo, estado: !m ? 'sin llegar' : m.tipo === 'entrada' ? 'dentro' : 'salió', hora: m ? m.hora : '' }; }));
+}));
+
 /* ---------- Citatorios de Servicios Escolares ---------- */
 app.get('/api/admin/citatorios', auth, adminDe('sara', 'control'), h(async (_req, res) => {
     const l = await citatorios.find({}).sort({ creado: -1 }).limit(500).toArray();
@@ -932,6 +1006,8 @@ async function iniciarServidor() {
         grupos = db.collection('grupos');
         clases = db.collection('clases');
         permisos = db.collection('permisos');
+        accesos = db.collection('accesos');
+        diasEscolares = db.collection('diasEscolares');
         anuncios = db.collection('anuncios');
         horarios = db.collection('horarios');
         avisos = db.collection('avisos');

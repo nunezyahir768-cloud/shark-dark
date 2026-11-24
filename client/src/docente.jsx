@@ -3,7 +3,7 @@ import SD from './sd.js';
 import * as XL from './excel.js';
 import { Card, Hero, Banner, useBanner, QR, useDatos, useCached, hh, fmtF, hoyISO, post, msgErr, estadoHorario, mesDatos, descargar } from './ui.jsx';
 
-export function Camara({ onTexto, onError }) {
+export function Camara({ onTexto, onError, pausa = 1200 }) {
   const v = useRef(null), parar = useRef(null), [on, setOn] = useState(false), ultimo = useRef(''), procesando = useRef(false);
   useEffect(() => () => { parar.current && parar.current(); }, []);
   const alternar = async () => {
@@ -14,7 +14,7 @@ export function Camara({ onTexto, onError }) {
       if (procesando.current || t === ultimo.current) return;
       procesando.current = true; ultimo.current = t;
       try { await onTexto(t); }
-      finally { setTimeout(() => { ultimo.current = ''; procesando.current = false; }, 1200); }
+      finally { setTimeout(() => { ultimo.current = ''; procesando.current = false; }, pausa); }
     }, onError); }
     catch (e) { setOn(false); onError('No se pudo abrir la cámara (permiso o HTTPS).'); }
   };
