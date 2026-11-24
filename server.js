@@ -516,12 +516,16 @@ app.post('/api/admin/recuperaciones/:id/resolver', auth, soloAdmin, h(async (req
     await enviarPush(solicitud.rol, solicitud.curp, 'Contraseña restablecida', mensajeAviso, '/');
     res.json({ ok: true });
 }));
+const ROLES_CUENTA = { alumno: 'alumno', docente: 'docente', tutor: 'tutor' };
+const curpYaRegistrada = async (curp, session) => usuarios.findOne({ curp: String(curp).toUpperCase() }, { projection: { rol: 1 }, session });
 app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     const d = req.body || {}, rol = s(d.rol), id = s(d.id).toUpperCase();
     if (!['alumno', 'docente', 'tutor'].includes(rol)) return bad(res, 'Tipo de cuenta inválido');
     if (!RX.curp.test(id)) return bad(res, 'CURP inválida (18 letras y números)');
     if (ADMIN_CURP && id === ADMIN_CURP) return bad(res, 'Esa CURP está reservada para Servicios Escolares');
     if (s(d.nombre).length < 3) return bad(res, 'Escribe el nombre completo');
+    const previa = await curpYaRegistrada(id);
+    if (previa) return bad(res, `Esa CURP ya está registrada como ${ROLES_CUENTA[previa.rol] || previa.rol}. Una CURP no se puede repetir.`, 409);
     const doc = { _id: `${rol}:${id}`, rol, id, curp: id, nombre: s(d.nombre), debeCambiarPassword: true, creado: new Date() };
     if (rol === 'alumno') {            // el grupo se crea solo la primera vez que se usa
         const semestre = s(d.semestre).slice(0, 20), area = s(d.area).slice(0, 40), grupo = s(d.grupo).toUpperCase().slice(0, 3);
@@ -529,7 +533,7 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
         Object.assign(doc, { area, semestre, grupo, tutores: [] });
     }
     if (rol === 'tutor') doc.hijos = [];
-    try { await usuarios.insertOne(doc); } catch (e) { if (e.code === 11000) return bad(res, 'Ya existe esa cuenta', 409); throw e; }
+    try { await usuarios.insertOne(doc); } catch (e) { if (e.code === 11000) return bad(res, 'Esa CURP ya está registrada. Una CURP no se puede repetir.', 409); throw e; }
     if (rol === 'alumno') await grupos.updateOne({ _id: `${doc.semestre}|${doc.area}|${doc.grupo}` }, { $set: { semestre: doc.semestre, area: doc.area, grupo: doc.grupo, nombre: `${doc.semestre} ${doc.area} ${doc.grupo}` } }, { upsert: true });
     await registrarCambio(req, 'Cuenta creada', `${rol} · ${id}`);
     res.status(201).json({ ok: true });
@@ -564,17 +568,17 @@ app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => 
     let conflictos = [];
     try {
         await session.withTransaction(async () => {
-            conflictos = (await usuarios.find({ curp: { $in: [...curps] } }, { projection: { _id: 1 }, session }).toArray()).map(x => x._id);
+            conflictos = (await usuarios.find({ curp: { $in: [...curps] } }, { projection: { curp: 1, rol: 1 }, session }).toArray()).map(x => `${x.curp} (${x.rol})`);
             if (conflictos.length) return;
             await usuarios.insertMany(documentos, { ordered: true, session });
             for (const grupo of gruposNuevos.values()) await grupos.updateOne({ _id: grupo._id }, { $setOnInsert: grupo }, { upsert: true, session });
             await auditoria.insertOne({ accion: 'Cuentas importadas desde Excel', detalle: `${documentos.length} cuentas`, actor: req.u.id, actorNombre: req.u.nombre || 'Servicios Escolares', creado: new Date() }, { session });
         });
     } catch (e) {
-        if (e.code === 11000) return bad(res, 'Hay cuentas duplicadas. No se creó ninguna cuenta; actualiza la lista e intenta de nuevo.', 409);
+        if (e.code === 11000) return bad(res, 'Hay CURP repetidas. No se creó ninguna cuenta; actualiza la lista e intenta de nuevo.', 409);
         throw e;
     } finally { await session.endSession(); }
-    if (conflictos.length) return bad(res, `No se creó ninguna cuenta. Ya existen: ${conflictos.join(', ')}.`, 409);
+    if (conflictos.length) return bad(res, `No se creó ninguna cuenta. Estas CURP ya están registradas: ${conflictos.join(', ')}.`, 409);
     res.status(201).json({ ok: true, creadas: documentos.length });
 }));
 app.post('/api/admin/editar', auth, soloAdmin, h(async (req, res) => {
@@ -653,12 +657,27 @@ app.get('/api/horarios', auth, h(async (req, res) => {
 }));
 app.post('/api/admin/horarios', auth, adminDe('gabriela', 'control'), h(async (req, res) => {
     const b = req.body || {}, area = s(b.area), semestre = s(b.semestre), grupo = s(b.grupo).toUpperCase(), dia = Number(b.dia), tipo = b.tipo === 'descanso' ? 'descanso' : 'clase', HM = /^\d{2}:\d{2}$/;
-    if (!await grupos.findOne({ _id: `${semestre}|${area}|${grupo}` })) return bad(res, 'Grupo inválido');
+    const SEM_OK = ['1-2 semestre', '3-4 semestre', '5-6 semestre'], AREAS_OK = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'];
+    if (!SEM_OK.includes(semestre) || !AREAS_OK.includes(area) || !['A', 'B', 'C'].includes(grupo)) return bad(res, 'Grupo inválido');
+    await grupos.updateOne({ _id: `${semestre}|${area}|${grupo}` }, { $setOnInsert: { semestre, area, grupo, nombre: `${semestre} ${area} ${grupo}` } }, { upsert: true });
     if (tipo === 'clase' && s(b.inicio) < '10:00' && s(b.fin) > '09:30') return bad(res, 'Ese horario choca con el descanso fijo (9:30 a 10:00)');
     if (!(dia >= 1 && dia <= 6) || !HM.test(s(b.inicio)) || !HM.test(s(b.fin)) || s(b.fin) <= s(b.inicio)) return bad(res, 'Revisa el día y las horas');
     const doc = { _id: crypto.randomBytes(5).toString('hex'), area, semestre, grupo, dia, inicio: s(b.inicio), fin: s(b.fin), tipo, materia: 'Descanso', claseId: '', docente: '', docenteNombre: '' };
     if (tipo === 'clase') {
-        const cl = await clases.findOne({ _id: s(b.claseId).toUpperCase() });
+        let cl = null;
+        if (s(b.claseId)) cl = await clases.findOne({ _id: s(b.claseId).toUpperCase() });
+        else {   // la materia se crea sola con docente + nombre + grupo
+            const materia = limpiaMat(b.materia), docId = s(b.docente).toUpperCase();
+            if (materia.length < 2) return bad(res, 'Escribe el nombre de la materia');
+            const dc = await usuarios.findOne({ _id: 'docente:' + docId });
+            if (!dc) return bad(res, 'Docente no encontrado', 404);
+            cl = await clases.findOne({ area, semestre, grupo, docente: docId, materia: { $regex: `^${materia.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
+            if (!cl) {
+                cl = { _id: crypto.randomBytes(4).toString('hex').toUpperCase(), materia, area, semestre, grupo, docente: docId, docenteNombre: dc.nombre, horaInicio: '', horaFin: '' };
+                await clases.insertOne(cl);
+                await registrarCambio(req, 'Materia creada', `${materia} · ${semestre} ${area} ${grupo} · ${dc.nombre}`);
+            }
+        }
         if (!cl || `${cl.area}|${cl.semestre}|${cl.grupo}` !== `${area}|${semestre}|${grupo}`) return bad(res, 'Elige una clase de ese grupo');
         Object.assign(doc, { materia: cl.materia, claseId: cl._id, docente: cl.docente, docenteNombre: cl.docenteNombre });
     }
@@ -950,6 +969,12 @@ async function iniciarServidor() {
         await reportesConducta.createIndex({ reportanteId: 1, creado: -1 });
         await avisosLeidos.createIndex({ anuncioId: 1, rol: 1, para: 1 }, { unique: true });
         await auditoria.createIndex({ creado: -1 });
+        try {   // una CURP solo puede existir una vez, sin importar el tipo de cuenta
+            await usuarios.createIndex({ curp: 1 }, { unique: true, name: 'curp_unica', partialFilterExpression: { curp: { $type: 'string' } } });
+        } catch (e) {
+            const repetidas = await usuarios.aggregate([{ $match: { curp: { $type: 'string' } } }, { $group: { _id: '$curp', n: { $sum: 1 }, roles: { $push: '$rol' } } }, { $match: { n: { $gt: 1 } } }]).toArray();
+            console.error('⚠️ No se pudo crear el índice curp_unica. Hay CURP repetidas; bórralas desde Cuentas:', repetidas.map(r => `${r._id} (${r.roles.join(', ')})`).join('; ') || e.message);
+        }
 
         console.log('✅ Conexión exitosa a MongoDB Atlas');
         console.log('🦈 Base de datos: SHARK-DARK');

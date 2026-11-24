@@ -16,6 +16,7 @@ await build({
   outfile: 'public/bundle.js',
   loader: { '.js': 'jsx', '.jsx': 'jsx' },
   jsx: 'automatic',
+  external: ['/fonts/*', '/img/*'],
   target: ['es2019'],
   define: { 'process.env.NODE_ENV': '"production"', 'process.env.OFFLINE_PUBLIC_KEY': JSON.stringify(offlinePublicKey) },
   logLevel: 'info'

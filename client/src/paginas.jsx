@@ -139,16 +139,59 @@ export function AsistenciaVer() {
   </>);
 }
 
+function HorarioTabla({ bloques, rol, encabezado }) {
+  const clases = bloques.filter(b => b.tipo !== 'descanso');
+  const dias = [1, 2, 3, 4, 5, 6].filter(d => d <= 5 || clases.some(b => b.dia === d));
+  const mapa = new Map();
+  clases.forEach(b => {
+    const grupo = [b.semestre, b.area, b.grupo && `Grupo ${b.grupo}`].filter(Boolean).join(' · ');
+    const k = b.materia + '|' + (rol === 'docente' ? grupo : (b.docenteNombre || ''));
+    if (!mapa.has(k)) mapa.set(k, { materia: b.materia, extra: rol === 'docente' ? grupo : (b.docenteNombre || 'Por configurar'), bl: [] });
+    mapa.get(k).bl.push(b);
+  });
+  const filas = [...mapa.values()].sort((a, b) => a.materia.localeCompare(b.materia));
+  const imprimir = () => {
+    const st = document.createElement('style'); st.textContent = '@page{size:landscape;margin:10mm}';
+    document.head.appendChild(st); document.body.classList.add('imprime-horario');
+    const fin = () => { st.remove(); document.body.classList.remove('imprime-horario'); removeEventListener('afterprint', fin); };
+    addEventListener('afterprint', fin); print();
+  };
+  return (
+    <Card className="horario-tabla-card" title="Horario de grupo">
+      <p className="sub horario-encabezado">{encabezado} · Clases de 50 minutos</p>
+      <div className="tabla"><table className="tb ht">
+        <thead><tr><th className="izq">Asignatura</th><th>H</th>{dias.map(d => <th key={d}>{DIAS[d]}</th>)}</tr></thead>
+        <tbody>
+          {filas.map(f => <tr key={f.materia + f.extra}>
+            <td className="izq"><b>{f.materia}</b><br /><small>{f.extra}</small></td>
+            <td>{f.bl.length}</td>
+            {dias.map(d => <td key={d}>{f.bl.filter(b => b.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(b => <div key={b.id}>{hh(b.inicio)}–{hh(b.fin)}</div>)}</td>)}
+          </tr>)}
+          {!filas.length && <tr><td className="izq" colSpan={dias.length + 2}>Servicios Escolares aún no captura el horario.</td></tr>}
+        </tbody>
+      </table></div>
+      <p className="sub" style={{ margin: '8px 0 0' }}>H = clases por semana. Cada clase dura 50 minutos.</p>
+      <button className="btn sec horario-imprimir" type="button" onClick={imprimir} disabled={!filas.length}>Descargar PDF / Imprimir</button>
+    </Card>
+  );
+}
+
 export function Horario() {
   const rol = SD.session().rol, al = useAlumno(), [bl] = useCached('horario', '/api/horarios');
   const base = rol === 'docente' ? (bl || []) : delGrupo(bl, al), lista = conDescanso(base);
   const dias = [1, 2, 3, 4, 5, 6].filter(d => d <= 5 || lista.some(b => b.dia === d));
-  const hoy = new Date().getDay(), [dia, setDia] = useState(dias.includes(hoy) ? hoy : 1);
+  const hoy = new Date().getDay(), [dia, setDia] = useState(dias.includes(hoy) ? hoy : 1), [vista, setVista] = useState('dia');
   if (rol !== 'docente' && !al) return <Sin />;
   const clases = lista.filter(b => b.dia === dia).sort((a, b) => a.inicio.localeCompare(b.inicio));
   const abrevia = {1:'LUN',2:'MAR',3:'MIÉ',4:'JUE',5:'VIE',6:'SÁB'};
   return (<>
     <Hero titulo="Mi horario escolar" sub={rol === 'docente' ? 'CBTIS 170 · HORARIO DE CLASES' : `${al.semestre} · ${al.area} · Grupo ${al.grupo}`} />
+    <div className="fila2 horario-vistas">
+      <button className={vista === 'dia' ? 'btn' : 'btn sec'} type="button" aria-pressed={vista === 'dia'} onClick={() => setVista('dia')}>Por día</button>
+      <button className={vista === 'tabla' ? 'btn' : 'btn sec'} type="button" aria-pressed={vista === 'tabla'} onClick={() => setVista('tabla')}>Horario completo</button>
+    </div>
+    {vista === 'tabla' && <HorarioTabla bloques={base} rol={rol} encabezado={rol === 'docente' ? 'CBTIS 170 · Horario del docente' : `${al.semestre} · ${al.area} · Grupo ${al.grupo}`} />}
+    {vista === 'dia' && <>
     <Card title="Selecciona el día">
       <div className="dias-selector">{dias.map(d => <button key={d} className={dia === d ? 'activo' : ''} onClick={() => setDia(d)}>{abrevia[d]}</button>)}</div>
     </Card>
@@ -160,6 +203,7 @@ export function Horario() {
       </div>)}
       {base.length && !clases.length && <p className="vacio">No hay clases registradas para este día.</p>}
     </Card>
+    </>}
   </>);
 }
 

@@ -530,3 +530,62 @@ html[data-tema="oscuro"] .side nav a.on{background:linear-gradient(105deg,rgba(2
 html[data-tema="oscuro"] .side nav a.on .menu-icon{color:var(--rojo-hover)}
 html[data-tema="oscuro"] .btn.sec,html[data-tema="oscuro"] .tutorial-controles .btn.sec{background:linear-gradient(135deg,#F7E7B3,#D4AF37);color:#1F1F1F;border-color:#D4AF37}
 html[data-tema="oscuro"] .btn.sec:hover,html[data-tema="oscuro"] .tutorial-controles .btn.sec:hover{background:linear-gradient(135deg,#F7E7B3,#D4AF37);color:#1F1F1F;border-color:#F7E7B3}
+
+/* Barra inferior Floating Button */
+.nav-flotante{position:fixed;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(calc(100vw - 20px),410px);height:62px;z-index:45;display:flex;align-items:center;justify-content:space-around;padding:0 6px;border-radius:26px;background:rgba(28,24,24,.72);border:1px solid rgba(212,175,55,.28);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08)}
+html[data-tema="claro"] .nav-flotante{background:rgba(255,250,240,.78);border-color:rgba(139,0,8,.22);box-shadow:0 10px 28px rgba(60,40,30,.22),inset 0 1px 0 rgba(255,255,255,.7)}
+.nav-flotante .nf-btn{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;border:0;background:none;color:var(--muted,#b9a98f);font:inherit;font-size:.68rem;font-weight:600;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .2s,transform .2s}
+.nav-flotante .nf-ico{display:grid;place-items:center;width:24px;height:24px}
+.nav-flotante .nf-btn .menu-icon{width:22px;height:22px}
+.nav-flotante .nf-btn.on{color:var(--rojo)}
+.nav-flotante .nf-btn.on .nf-txt{color:var(--caramelo)}
+.nav-flotante .nf-btn.centro{position:relative;color:#fff;justify-content:flex-end;padding-bottom:7px}
+.nav-flotante .nf-btn.centro .nf-ico{position:absolute;top:-22px;left:50%;transform:translateX(-50%);width:54px;height:54px;border-radius:50%;background:linear-gradient(145deg,#E3101F,#8B0008);border:2px solid var(--caramelo);box-shadow:0 8px 20px rgba(214,0,15,.45),0 0 0 5px rgba(20,16,16,.55)}
+.nav-flotante .nf-btn.centro .menu-icon{width:25px;height:25px}
+.nav-flotante .nf-btn.centro .nf-txt{color:var(--caramelo)}
+.nav-flotante .nf-btn.centro:active .nf-ico{transform:translateX(-50%) scale(.93)}
+.nav-flotante .nf-btn:focus-visible{outline-offset:-3px;border-radius:18px}
+.app.con-barra main{padding-bottom:120px}
+.app.tutorial-activo .nav-flotante{display:none}
+.estado{bottom:84px!important}
+@media(prefers-reduced-motion:reduce){.nav-flotante .nf-btn{transition:none}}
+@media print{.nav-flotante{display:none!important}}
+
+/* Tipografía: principal Montserrat, secundaria Playfair Display */
+@font-face{font-family:"Montserrat";src:url("/fonts/Montserrat-var.woff") format("woff");font-weight:100 900;font-style:normal;font-display:swap}
+:root{--f-principal:"Montserrat","Segoe UI",system-ui,-apple-system,Arial,sans-serif;--f-secundaria:"Playfair Display",Georgia,"Times New Roman",serif}
+html,body,button,input,select,textarea{font-family:var(--f-principal)}
+h1,h2,.hero h1,.marca>span,.top>b,.centro>h1,.card h2,.tutorial-tarjeta h2,.qr-alumno-modal h2,.intro-n-aro{font-family:var(--f-secundaria)}
+.marca>span small{font-family:var(--f-principal)}
+.top>b{letter-spacing:.04em}
+
+/* Icono en la barra superior (destino de la entrada) */
+.top-logo{display:inline-flex;align-items:center;justify-content:center;width:38px;height:27px;flex:none}
+.top-logo img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 0 6px rgba(214,0,15,.4))}
+
+/* Entrada: caída con rebote + vuelo a la esquina + revelado circular */
+.intro-n{position:fixed;inset:0;z-index:9999;overflow:hidden;color:#f4ead4;touch-action:manipulation;--cx:50%;--cy:50%;--r:0px}
+.intro-n-fondo{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 50%,#1a1213 0%,#08080a 52%,#000 80%);-webkit-mask-image:radial-gradient(circle at var(--cx) var(--cy),transparent var(--r),#000 calc(var(--r) + 2px));mask-image:radial-gradient(circle at var(--cx) var(--cy),transparent var(--r),#000 calc(var(--r) + 2px))}
+.intro-n-luz{position:absolute;left:50%;top:50%;width:min(110vw,640px);aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%) scale(.4);background:radial-gradient(circle,rgba(214,0,15,.38),rgba(212,175,55,.1) 40%,transparent 68%);opacity:0;animation:in-luz 1.6s .35s ease-out forwards}
+.intro-n-aro{position:absolute;left:50%;top:50%;width:min(60vw,300px);aspect-ratio:1;border-radius:50%;border:1.5px solid rgba(212,175,55,.65);transform:translate(-50%,-50%) scale(.3);opacity:0;animation:in-aro 1.3s 1.05s cubic-bezier(.2,.7,.2,1) forwards}
+.intro-n-aro.dos{border-color:rgba(214,0,15,.6);animation-delay:1.3s}
+.intro-n-chispas i{position:absolute;left:50%;top:50%;width:4px;height:4px;border-radius:50%;background:#F7E7B3;box-shadow:0 0 10px 2px rgba(212,175,55,.8);opacity:0;animation:in-chispa 1s 1.05s ease-out forwards}
+.intro-n-chispas i:nth-child(even){background:#E3101F;box-shadow:0 0 10px 2px rgba(214,0,15,.8)}
+.intro-n-chispas i:nth-child(1){--x:-120px;--y:-90px}.intro-n-chispas i:nth-child(2){--x:130px;--y:-70px}.intro-n-chispas i:nth-child(3){--x:-150px;--y:20px}.intro-n-chispas i:nth-child(4){--x:150px;--y:40px}.intro-n-chispas i:nth-child(5){--x:-70px;--y:110px}.intro-n-chispas i:nth-child(6){--x:80px;--y:120px}.intro-n-chispas i:nth-child(7){--x:-30px;--y:-140px}.intro-n-chispas i:nth-child(8){--x:40px;--y:-150px}.intro-n-chispas i:nth-child(9){--x:-170px;--y:-20px}.intro-n-chispas i:nth-child(10){--x:170px;--y:-10px}
+.intro-n.volando .intro-n-luz,.intro-n.volando .intro-n-aro{transition:opacity .4s;opacity:0!important;animation:none}
+.intro-n-vuelo{position:absolute;left:50%;top:50%;width:min(52vw,240px);aspect-ratio:855/603;margin:calc(min(52vw,240px) * -.3526) 0 0 calc(min(52vw,240px) / -2);z-index:2;will-change:transform}
+.intro-n-icono{position:relative;width:100%;height:100%;opacity:0;animation:in-caida 1.15s cubic-bezier(.3,.7,.4,1) forwards;filter:drop-shadow(0 0 22px rgba(214,0,15,.5))}
+.intro-n-icono img{display:block;width:100%;height:100%;object-fit:contain}
+.intro-n-brillo{position:absolute;inset:0;-webkit-mask:url("/img/icono-tiburon.png") center/contain no-repeat;mask:url("/img/icono-tiburon.png") center/contain no-repeat;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.85) 50%,transparent 65%);background-size:250% 100%;background-position:130% 0;animation:in-brillo .9s 1.2s ease-in-out forwards}
+@keyframes in-caida{0%{opacity:0;transform:translateY(-55vh) scale(.9,1.1)}8%{opacity:1}42%{transform:translateY(0) scale(1.12,.88)}58%{transform:translateY(-9vh) scale(.96,1.05)}74%{transform:translateY(0) scale(1.05,.95)}88%{transform:translateY(-2.5vh) scale(1)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes in-luz{to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@keyframes in-aro{0%{opacity:.9;transform:translate(-50%,-50%) scale(.3)}100%{opacity:0;transform:translate(-50%,-50%) scale(2.4)}}
+@keyframes in-chispa{0%{opacity:1;transform:translate(-50%,-50%)}100%{opacity:0;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y)))}}
+@keyframes in-brillo{to{background-position:-30% 0}}
+@media(prefers-reduced-motion:reduce){.intro-n *{animation-duration:.01ms!important;animation-delay:0ms!important}}
+
+/* Horario completo (matriz) */
+.horario-vistas{margin:0 0 14px;gap:10px}.horario-vistas .btn{min-width:0;width:100%}
+.ht{min-width:560px}.ht th,.ht td{text-align:center;vertical-align:middle;padding:8px 6px}.ht td.izq,.ht th.izq{text-align:left;min-width:150px}.ht td small{color:var(--muted);font-weight:500}.ht td div{white-space:nowrap;font-size:.75rem;line-height:1.5}
+.horario-imprimir{margin-top:12px}
+@media print{body.imprime-horario .hero,body.imprime-horario .horario-vistas,body.imprime-horario .nav-flotante,body.imprime-horario .toast{display:none!important}.horario-tabla-card h2{color:#111!important}body.imprime-horario .horario-imprimir{display:none!important}.ht{min-width:0}.ht th,.ht td{border:1px solid #444!important}.horario-encabezado{color:#111!important;font-weight:700}}

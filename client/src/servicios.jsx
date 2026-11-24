@@ -21,6 +21,7 @@ export function InicioAdmin({ onTutorial }) {
   return <InicioBienvenida rol="admin" onTutorial={onTutorial} />;
 }
 
+const sumar50 = h => { const [a, b] = (h || '').split(':').map(Number); if (Number.isNaN(a) || Number.isNaN(b)) return ''; const m = a * 60 + b + 50; return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 export function Cuentas() {
   const { u, g, cargar, error } = useServicios(), [b, ban] = useBanner(), [q, setQ] = useState(''), [temp, setTemp] = useState(''), [solicitudes, setSolicitudes] = useState([]), [errorSolicitudes, setErrorSolicitudes] = useState('');
   const [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false);
@@ -170,54 +171,42 @@ export function Clases() {
 }
 
 export function Horarios() {
-  const { g, c, h, cargar, error } = useServicios(false), [b, ban] = useBanner(), [gi, setGi] = useState(0);
-  const [destino, setDestino] = useState(''), [docenteId, setDocenteId] = useState(''), [docentes, setDocentes] = useState([]);
-  const [f, setF] = useState({ dia: 1, inicio: '07:00', fin: '07:50', claseId: '' });
+  const { c, h, cargar, error } = useServicios(false), [b, ban] = useBanner();
+  const [docentes, setDocentes] = useState([]);
+  const [f, setF] = useState({ docente: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A', materia: '', dia: 1, inicio: '07:00', fin: '07:50' });
   useEffect(() => { SD.api('/api/admin/docentes').then(setDocentes).catch(e => ban('err', 'No se pudieron cargar los docentes', msgErr(e))); }, []);
-  const k = g[+gi], cl = k ? c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo) : [];
-  const docentesOrdenados = [...docentes].sort((a, b) => a.nombre.localeCompare(b.nombre));
-  const docente = docentesOrdenados.find(x => x.id === docenteId) || null;
-  const clasesDocente = docente ? c.filter(x => x.docente === docente.id).sort((a, b) => `${a.semestre}|${a.area}|${a.materia}|${a.grupo}`.localeCompare(`${b.semestre}|${b.area}|${b.materia}|${b.grupo}`)) : [];
-  const bloquesAlumno = k ? conDescanso(h.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo)) : [];
-  const bloquesDocente = docente ? h.filter(x => x.docente === docente.id) : [];
-  const clasesActivas = destino === 'docentes' ? clasesDocente : cl;
-  const claseActiva = clasesActivas.find(x => x.id === f.claseId) || clasesActivas[0] || null;
+  const docs = [...docentes].sort((x, y) => x.nombre.localeCompare(y.nombre));
+  const misMaterias = [...new Set(c.filter(x => x.docente === f.docente).map(x => x.materia))].sort();
+  const del = h.filter(x => x.area === f.area && x.semestre === f.semestre && x.grupo === f.grupo);
+  const bloques = conDescanso(del);
   const añadir = async e => {
     e.preventDefault();
-    const grupo = destino === 'alumnos' ? k : claseActiva;
-    if (!grupo) return ban('err', 'Primero registra el grupo y asigna una materia al docente desde Materias.');
-    try { await post('/api/admin/horarios', { area: grupo.area, semestre: grupo.semestre, grupo: grupo.grupo, dia: +f.dia, inicio: f.inicio, fin: f.fin, tipo: 'clase', claseId: claseActiva.id });
-      ban('ok', 'Bloque añadido', `${DIAS[f.dia]} ${hh(f.inicio)} a ${hh(f.fin)}`); setF({ ...f, inicio: f.fin, fin: '' }); cargar(); }
-    catch (er) { ban('err', 'No se pudo', msgErr(er)); }
+    if (!f.docente) return ban('err', 'Elige al docente');
+    try {
+      await post('/api/admin/horarios', { area: f.area, semestre: f.semestre, grupo: f.grupo, dia: +f.dia, inicio: f.inicio, fin: f.fin, tipo: 'clase', docente: f.docente, materia: f.materia });
+      ban('ok', 'Bloque añadido', `${f.materia} · ${DIAS[f.dia]} ${hh(f.inicio)} a ${hh(f.fin)}`);
+      const sig = f.fin === '09:30' ? '10:00' : f.fin; setF({ ...f, inicio: sig, fin: sumar50(sig) }); cargar();
+    } catch (er) { ban('err', 'No se pudo', msgErr(er)); }
   };
   const borrar = async x => { if (!confirm(`¿Quitar ${x.materia} del horario del ${DIAS[x.dia]}?`)) return; try { await post('/api/admin/horarios/borrar', { id: x.id }); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
   return (<>
-    <Hero titulo="Horarios" sub="El descanso de 9:30 a 10:00 ya está fijo todos los días." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
-    <Card title="Crear horarios"><p className="sub">¿De quién vas a crear el horario?</p><div className="fila2">
-      <button className={(destino === 'alumnos' ? 'btn' : 'btn sec') + ' desplegable-toggle'} type="button" aria-expanded={destino === 'alumnos'} aria-controls="horario-alumnos" onClick={() => { setDestino('alumnos'); setF({ ...f, claseId: '' }); }}><span>Alumnos</span><span className={'desplegable-flecha' + (destino === 'alumnos' ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
-      <button className={(destino === 'docentes' ? 'btn' : 'btn sec') + ' desplegable-toggle'} type="button" aria-expanded={destino === 'docentes'} aria-controls="horario-docentes" onClick={() => { setDestino('docentes'); setF({ ...f, claseId: '' }); }}><span>Docentes</span><span className={'desplegable-flecha' + (destino === 'docentes' ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
-    </div></Card>
-    <div id="horario-alumnos" className={'desplegable-contenido' + (destino === 'alumnos' ? ' abierto' : '')} aria-hidden={destino !== 'alumnos'} inert={destino !== 'alumnos'}><Card title="Horario del grupo"><form onSubmit={añadir}>
-      <label>Grupo</label><select value={gi} onChange={e => { setGi(e.target.value); setF({ ...f, claseId: '' }); }}>{g.map((x, i) => <option key={x.id} value={i}>{nombreGrupo(x)}</option>)}{!g.length && <option>Aún no hay grupos</option>}</select>
+    <Hero titulo="Horarios" sub="Elige docente, grupo y materia. La materia se crea sola. El descanso de 9:30 a 10:00 ya está fijo." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
+    <Card title="Añadir clase al horario"><form onSubmit={añadir}>
+      <label>Docente</label><select value={f.docente} onChange={e => setF({ ...f, docente: e.target.value })} required><option value="">Selecciona un docente</option>{docs.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
+      {!docs.length && <p className="sub">Primero crea la cuenta del docente en Cuentas.</p>}
+      <label>Semestre</label><select value={f.semestre} onChange={e => setF({ ...f, semestre: e.target.value })}>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select>
+      <label>Área</label><select value={f.area} onChange={e => setF({ ...f, area: e.target.value })}>{AREAS.map(s => <option key={s}>{s}</option>)}</select>
+      <label>Grupo</label><select value={f.grupo} onChange={e => setF({ ...f, grupo: e.target.value })}>{['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}</select>
+      <label>Materia</label><input list="materias-docente" value={f.materia} onChange={e => setF({ ...f, materia: e.target.value })} placeholder="Nombre de la materia" maxLength="60" required />
+      <datalist id="materias-docente">{misMaterias.map(m => <option key={m} value={m} />)}</datalist>
       <label>Día</label><select value={f.dia} onChange={e => setF({ ...f, dia: e.target.value })}>{[1, 2, 3, 4, 5, 6].map(d => <option key={d} value={d}>{DIAS[d]}</option>)}</select>
-      <div className="fila2"><div><label>De las</label><input type="time" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value })} required /></div><div><label>A las</label><input type="time" value={f.fin} onChange={e => setF({ ...f, fin: e.target.value })} required /></div></div>
-      <label>Materia y docente</label><select value={claseActiva?.id || ''} onChange={e => setF({ ...f, claseId: e.target.value })}>{cl.map(x => <option key={x.id} value={x.id}>{x.materia} · {x.docenteNombre}</option>)}{!cl.length && <option value="">Primero crea las materias de este grupo</option>}</select>
-      {!cl.length && <p className="sub">Primero agrega las materias y docentes desde la sección Materias.</p>}
-      <button className="btn" type="submit" disabled={!k || !claseActiva}>AÑADIR AL HORARIO</button></form></Card></div>
-    <div id="horario-docentes" className={'desplegable-contenido' + (destino === 'docentes' ? ' abierto' : '')} aria-hidden={destino !== 'docentes'} inert={destino !== 'docentes'}><Card title="Horario del docente"><label>Docente</label><select value={docenteId} onChange={e => { setDocenteId(e.target.value); setF({ ...f, claseId: '' }); }}><option value="">Selecciona un docente</option>{docentesOrdenados.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
-      {!docentesOrdenados.length && <p className="sub">No hay docentes registrados todavía.</p>}
-      {docente && <form onSubmit={añadir}>
-        <label>Materia, área, semestre y grupo</label><select value={claseActiva?.id || ''} onChange={e => setF({ ...f, claseId: e.target.value })}>{clasesDocente.map(x => <option key={x.id} value={x.id}>{x.semestre} · {x.area} · {x.materia} · Grupo {x.grupo}</option>)}{!clasesDocente.length && <option value="">Sin materias asignadas</option>}</select>
-        {!clasesDocente.length && <p className="sub">Asigna primero las materias de este docente desde la sección Materias.</p>}
-        <label>Día</label><select value={f.dia} onChange={e => setF({ ...f, dia: e.target.value })}>{[1, 2, 3, 4, 5, 6].map(d => <option key={d} value={d}>{DIAS[d]}</option>)}</select>
-        <div className="fila2"><div><label>De las</label><input type="time" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value })} required /></div><div><label>A las</label><input type="time" value={f.fin} onChange={e => setF({ ...f, fin: e.target.value })} required /></div></div>
-        <button className="btn" type="submit" disabled={!claseActiva}>AÑADIR AL HORARIO DEL DOCENTE</button>
-      </form>}
-    </Card></div>
-    {destino === 'alumnos' && [1, 2, 3, 4, 5, 6].filter(d => bloquesAlumno.some(x => x.dia === d)).map(d => (
-      <Card key={d} title={DIAS[d]}><ul className="l">{bloquesAlumno.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia}</span><span>{String(x.id).startsWith('desc') ? 'fijo' : <button className="mini rojo" onClick={() => borrar(x)}>Quitar</button>}</span></li>)}</ul></Card>))}
-    {destino === 'docentes' && docente && [1, 2, 3, 4, 5, 6].filter(d => bloquesDocente.some(x => x.dia === d)).map(d => (
-      <Card key={d} title={DIAS[d]}><ul className="l">{bloquesDocente.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia} · {x.area} · {x.semestre} · Grupo {x.grupo}</span><span><button className="mini rojo" onClick={() => borrar(x)}>Quitar</button></span></li>)}</ul></Card>))}
+      <div className="fila2"><div><label>De las</label><input type="time" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value, fin: sumar50(e.target.value) })} required /></div><div><label>A las</label><input type="time" value={f.fin} onChange={e => setF({ ...f, fin: e.target.value })} required /></div></div>
+      <button className="btn" type="submit">AÑADIR AL HORARIO</button>
+    </form></Card>
+    <Card title={`Horario de ${f.semestre} · ${f.area} · Grupo ${f.grupo}`}><p className="sub" style={{ margin: 0 }}>Cambia semestre, área o grupo arriba para ver otro horario.</p></Card>
+    {[1, 2, 3, 4, 5, 6].filter(d => bloques.some(x => x.dia === d)).map(d => (
+      <Card key={d} title={DIAS[d]}><ul className="l">{bloques.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia}{x.docenteNombre ? ` · ${x.docenteNombre}` : ''}</span><span>{String(x.id).startsWith('desc') ? 'fijo' : <button className="mini rojo" onClick={() => borrar(x)}>Quitar</button>}</span></li>)}</ul></Card>))}
+    {!del.length && <Card><p className="vacio">Este grupo aún no tiene clases en su horario.</p></Card>}
   </>);
 }
 

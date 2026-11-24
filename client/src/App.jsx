@@ -9,6 +9,7 @@ import { AsistenciaDocente, CalifDocente } from './docente.jsx';
 import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, CalificacionesAdmin, ReportesAdmin, Citatorios, CitatoriosAlumno } from './servicios.jsx';
 import ReportesConducta from './ReportesConducta.jsx';
 import TutorialInteractivo from './TutorialInteractivo.jsx';
+import QRAlumno from './QRAlumno.jsx';
 
 const ICONOS_MENU = {
   inicio: <><path d="m3 10 9-7 9 7" /><path d="M5 9v12h14V9M9 21v-7h6v7" /></>,
@@ -79,8 +80,35 @@ function useAvisoSiguiente(alumno, activo) {
   return toast;
 }
 
+/* Barra inferior "Floating Button": 4 accesos fijos + "Más" (abre el menú lateral completo). El botón central flota resaltado. */
+const ICONO_QR = <><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3z" /><path d="M14 14h3v3h-3zM20 14v.01M14 20h3m3-3v4" /></>;
+const ICONO_MAS = <><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></>;
+const BARRA = { alumno: ['inicio', 'horario', 'qr', 'avisos'], docente: ['inicio', 'horario', 'asistencia', 'calificaciones'], tutor: ['inicio', 'asistencia', 'permisos', 'calificaciones'] };
+const NOMBRE_BARRA = { avisos: 'Avisos', qr: 'Mi QR' };
+function BarraInferior({ rol, menu, ruta, onMas, abierto, onQr }) {
+  const claves = BARRA[rol] || menu.slice(0, 4).map(([k]) => k);
+  const etiqueta = k => NOMBRE_BARRA[k] || (menu.find(([c]) => c === k) || [])[1] || k;
+  const items = claves.filter(k => k === 'qr' || menu.some(([c]) => c === k)).map(k => ({ k, t: etiqueta(k) }));
+  const centro = items.length === 4 ? 2 : -1;     // el botón central queda en medio de los 5 (4 + Más)
+  const Boton = ({ clave, texto, icono, activo, centro: esC, onClick, href, extra }) => {
+    const contenido = <><span className="nf-ico">{icono}</span><span className="nf-txt">{texto}</span></>;
+    const cls = 'nf-btn' + (activo ? ' on' : '') + (esC ? ' centro' : '');
+    return href ? <a className={cls} href={href} aria-current={activo ? 'page' : undefined} {...extra}>{contenido}</a>
+      : <button type="button" className={cls} onClick={onClick} {...extra}>{contenido}</button>;
+  };
+  const svg = c => <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{c}</svg>;
+  return (
+    <nav className="nav-flotante" aria-label="Menú principal">
+      {items.map((it, i) => it.k === 'qr'
+        ? <Boton key="qr" texto={it.t} icono={svg(ICONO_QR)} centro={i === centro} onClick={onQr} />
+        : <Boton key={it.k} texto={it.t} icono={svg(ICONOS_MENU[it.k])} activo={ruta === it.k} centro={i === centro} href={'#/' + it.k} />)}
+      <Boton texto="Más" icono={svg(ICONO_MAS)} activo={abierto} onClick={onMas} extra={{ 'aria-expanded': abierto, 'aria-label': 'Más opciones' }} />
+    </nav>
+  );
+}
+
 function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, installMessage }) {
-  const rol = ses.rol, menu = rol === 'admin' ? (MENU_ADMIN[localStorage.getItem('sd_admin_area')] || MENU_ADMIN.portero) : MENU[rol], [abre, setAbre] = useState(false), [tutorial, setTutorial] = useState(false);
+  const rol = ses.rol, menu = rol === 'admin' ? (MENU_ADMIN[localStorage.getItem('sd_admin_area')] || MENU_ADMIN.portero) : MENU[rol], [abre, setAbre] = useState(false), [tutorial, setTutorial] = useState(false), [qrBarra, setQrBarra] = useState(false);
   const ruta = useRuta() || INICIO[rol];
   const [yo, setYo] = useState(null), [vinc, setVinc] = useState([]), [activo, setActivo] = useState(sessionStorage.getItem('sd_alumno') || '');
   useEffect(() => {
@@ -104,7 +132,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
   return (
     <AlumnoCtx.Provider value={alumno}>
       <TutorCtx.Provider value={{ vinc, activo: alumno ? alumno.curp : '', setActivo: elegir }}>
-        <div className={'app' + (tutorial ? ' tutorial-activo' : '')}>
+        <div className={'app con-barra' + (tutorial ? ' tutorial-activo' : '')}>
           <aside className={'side' + (abre ? ' abre' : '')}>
             <div className="marca"><Logo darkIcon alt="TIBURONES CBTIS 170" /><span>TIBURONES<small>CBTIS 170</small></span></div>
             <button className="side-close" type="button" aria-label="Cerrar menú" onClick={() => setAbre(false)}>×</button>
@@ -120,7 +148,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
           </aside>
           <div className={'velo' + (abre ? ' abre' : '')} onClick={() => setAbre(false)} />
           <div className="contenido">
-            <div className="top"><button aria-label="Abrir menú" aria-expanded={abre} onClick={() => setAbre(true)}>☰</button><b>{rol === 'admin' ? 'CONTROL ESCOLAR' : 'TIBURONES'}</b></div>
+            <div className="top"><button aria-label="Abrir menú" aria-expanded={abre} onClick={() => setAbre(true)}>☰</button><span className="top-logo" data-intro-destino=""><img src="/img/icono-tiburon.png" alt="" aria-hidden="true" /></span><b>{rol === 'admin' ? 'CONTROL ESCOLAR' : 'TIBURONES'}</b></div>
             {toast && <div className="toast">{toast}</div>}
             <main>
               {rol === 'tutor' && ok.length > 1 && ruta !== 'perfiles' && (
@@ -130,6 +158,8 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
               {Pag ? <div className="apartado-vista" key={ruta + (alumno ? alumno.curp : '')}><Pag {...paginaProps} /></div> : <div className="card"><p className="vacio">Esta sección no existe.</p></div>}
             </main>
           </div>
+          <BarraInferior rol={rol} menu={menu} ruta={ruta} abierto={abre} onMas={() => setAbre(true)} onQr={() => setQrBarra(true)} />
+          {qrBarra && alumno && rol === 'alumno' && <QRAlumno alumno={alumno} onSalir={() => setQrBarra(false)} />}
         </div>
         {tutorial && <TutorialInteractivo rol={rol} menu={menu} onMenu={setAbre} onClose={() => { setTutorial(false); setAbre(false); }} />}
       </TutorCtx.Provider>
