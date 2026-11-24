@@ -56,7 +56,7 @@ html[data-tamano-fuente="pequena"] .hero .sub{margin-top:2px}
 .hero .sub{color:var(--muted);margin:6px 0 0}
 .bienvenida{text-align:center}
 .bienvenida .hero{text-align:center}
-.logo-tema{display:block;position:relative}.logo-tema-imagen{display:none;width:100%;height:auto}.logo-tema-claro{display:block}html[data-tema="oscuro"] .logo-tema-claro{display:none}html[data-tema="oscuro"] .logo-tema-oscuro{display:block}
+.logo-tema{display:block;position:relative;overflow:hidden}.logo-tema-imagen{position:absolute;inset:0;display:none;width:100%;height:100%;object-fit:contain}.logo-tema-claro{display:block}html[data-tema="oscuro"] .logo-tema-claro{display:none}html[data-tema="oscuro"] .logo-tema-oscuro{display:block}
 .logo-original{display:block;position:relative}.logo-original img{display:block;width:100%;height:auto}.logo-original-oscuro{display:none}html[data-tema="oscuro"] .logo-original-claro{display:none}html[data-tema="oscuro"] .logo-original-oscuro{display:block}
 .bienvenida-acciones{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:nowrap;width:100%;margin:12px auto 0}
 .bienvenida-accion{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:0 1 auto;min-width:0;width:auto;min-height:42px;margin:0;padding:9px 16px;border-radius:10px;font-size:clamp(.62rem,2.5vw,.9rem);line-height:1.2}
