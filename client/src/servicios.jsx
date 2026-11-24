@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import SD from './sd.js';
 import * as XL from './excel.js';
-import { descargarPlantillaCuentas, leerCuentasExcel } from './importar-cuentas.js';
+import { descargarPlantillaCuentas, leerCuentasArchivo, TIPOS_ARCHIVO } from './importar-cuentas.js';
 import { Card, Hero, Banner, useBanner, DIAS, SEMESTRES, AREAS, hh, hoyISO, post, msgErr, nombreGrupo, conDescanso, descargar } from './ui.jsx';
 import { Camara } from './docente.jsx';
 import { InicioBienvenida } from './paginas.jsx';
@@ -51,7 +51,7 @@ export function InicioAdmin({ onTutorial }) {
 const sumar50 = h => { const [a, b] = (h || '').split(':').map(Number); if (Number.isNaN(a) || Number.isNaN(b)) return ''; const m = a * 60 + b + 50; return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 export function Cuentas() {
   const { u, g, cargar, error } = useServicios(), [b, ban] = useBanner(), [q, setQ] = useState(''), [temp, setTemp] = useState(''), [solicitudes, setSolicitudes] = useState([]), [errorSolicitudes, setErrorSolicitudes] = useState('');
-  const [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false);
+  const [archivoImp, setArchivoImp] = useState(null), [rolDef, setRolDef] = useState(''), [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false);
   const [crearAbierto, setCrearAbierto] = useState(false), [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [filtroRol, setFiltroRol] = useState('todos'), [filtroGrupo, setFiltroGrupo] = useState('todos'), [filtroEstado, setFiltroEstado] = useState('todos');
   const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A' });
@@ -67,22 +67,28 @@ export function Cuentas() {
     try { await post('/api/admin/usuarios', f); ban('ok', 'Cuenta creada', 'La persona puede entrar con su CURP y crear su contraseña.'); setF({ ...f, nombre: '', id: '' }); cargar(); }
     catch (er) { ban('err', 'No se pudo crear la cuenta', msgErr(er)); }
   };
-  const leerExcel = async e => {
-    const file = e.target.files?.[0]; e.target.value = '';
-    if (!file) return;
+  const analizarArchivo = async (file, rol) => {
     setLeyendoExcel(true); setImportadas([]);
     try {
       const existentes = new Set(u.map(x => x.id || x.curp));
-      const filas = await leerCuentasExcel(file);
+      const filas = await leerCuentasArchivo(file, { rolPorDefecto: rol });
       setImportadas(filas.map(c => existentes.has(c.id) ? { ...c, errores: [...c.errores, 'Ya existe una cuenta con esta CURP'] } : c));
-      ban('ok', 'Excel leído', `Se encontraron ${filas.length} cuentas para revisar.`);
-    } catch (er) { ban('err', 'No se pudo leer el Excel', er.message); }
+      ban('ok', 'Archivo leído', `Se encontraron ${filas.length} cuentas para revisar.`);
+    } catch (er) { ban('err', 'No se pudo leer el archivo', er.message); }
     finally { setLeyendoExcel(false); }
   };
+  const leerExcel = e => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    setArchivoImp(file); analizarArchivo(file, rolDef);
+  };
+  const cambiarRolDef = v => { setRolDef(v); if (archivoImp) analizarArchivo(archivoImp, v); };
+  const quitarImportada = i => setImportadas(l => l.filter((_, k) => k !== i));
+  const quitarConErrores = () => setImportadas(l => l.filter(x => !x.errores.length));
   const crearDesdeExcel = async () => {
     const errores = importadas.filter(x => x.errores.length);
     if (errores.length) return ban('err', 'Corrige el archivo', `Hay ${errores.length} filas con errores. No se creó ninguna cuenta.`);
-    if (!importadas.length || !confirm(`¿Crear las ${importadas.length} cuentas del Excel?`)) return;
+    if (!importadas.length || !confirm(`¿Crear las ${importadas.length} cuentas del archivo?`)) return;
     setCreandoImportadas(true);
     try {
       const cuentas = importadas.map(({ rol, nombre, id, semestre, area, grupo }) => ({ rol, nombre, id, semestre, area, grupo }));
@@ -108,18 +114,24 @@ export function Cuentas() {
   return (<>
     <Hero titulo="Cuentas" sub="Administra altas, accesos, grupos y solicitudes de recuperación." /><Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
-    <Card title="Importar cuentas desde Excel">
-      <p className="sub">Sube un archivo .xlsx o .xls con encabezados <b>rol, nombre y CURP</b>; también se infiere el rol si el encabezado de nombres dice <b>Alumnos, Docentes o Tutores</b>. Para alumnos agrega <b>semestre, área y grupo</b>. Se revisan todas las filas antes de crear.</p>
-      <button className="mini" type="button" onClick={descargarPlantillaCuentas}>Descargar plantilla Excel</button>
-      <label htmlFor="cuentas-excel">Archivo Excel</label><input id="cuentas-excel" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={leerExcel} disabled={leyendoExcel || creandoImportadas} />
+    <Card title="Importar cuentas desde un archivo">
+      <p className="sub">Sube un archivo de <b>Excel, CSV, Word o PDF</b> con la lista de personas. <b>No necesita plantilla ni un orden fijo</b>: la app busca sola la CURP, el nombre, el rol, el semestre, la carrera y el grupo, estén donde estén. Antes de crear nada podrás revisar todo.</p>
+      <label htmlFor="cuentas-excel">Archivo (Excel, CSV, Word o PDF)</label><input id="cuentas-excel" type="file" accept={TIPOS_ARCHIVO} onChange={leerExcel} disabled={leyendoExcel || creandoImportadas} />
+      <label htmlFor="cuentas-rol-def">Si el archivo no dice el rol, crear como</label>
+      <select id="cuentas-rol-def" value={rolDef} onChange={e => cambiarRolDef(e.target.value)} disabled={leyendoExcel || creandoImportadas}>
+        <option value="">Detectar solo (alumno si trae semestre, carrera o grupo)</option><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option>
+      </select>
+      <button className="mini" type="button" onClick={descargarPlantillaCuentas}>Descargar plantilla Excel (opcional)</button>
       {leyendoExcel && <p className="sub" role="status">Leyendo el archivo…</p>}
       {!!importadas.length && <>
         <p className="sub">{importadas.length} cuentas detectadas · {importadas.filter(x => !x.errores.length).length} listas · {importadas.filter(x => x.errores.length).length} con errores</p>
         <div className="import-cuentas-list">{importadas.map((x, i) => <div className="import-cuenta" key={`${x.fila}-${i}`}>
-          <div><b>Fila {x.fila} · {x.nombre || 'Sin nombre'}</b><span className="tag">{x.rol}</span><p className="sub">{x.id || 'Sin CURP'}{x.rol === 'alumno' ? ` · ${x.semestre} · ${x.area} · Grupo ${x.grupo}` : ''}</p></div>
+          <div><b>{x.nombre || 'Sin nombre'}</b><span className="tag">{x.rol || 'sin rol'}</span><p className="sub">{x.id || 'Sin CURP'}{x.rol === 'alumno' ? ` · ${x.semestre || 'sin semestre'} · ${x.area || 'sin carrera'} · Grupo ${x.grupo || '?'}` : ''}</p></div>
           {x.errores.length > 0 && <p className="msg" role="alert">{x.errores.join(' · ')}</p>}
+          <button className="mini" type="button" onClick={() => quitarImportada(i)}>Quitar</button>
         </div>)}</div>
-        <button className="btn" type="button" onClick={crearDesdeExcel} disabled={creandoImportadas || importadas.some(x => x.errores.length)}>{creandoImportadas ? 'CREANDO CUENTAS…' : `CREAR CUENTAS (${importadas.length})`}</button>
+        {importadas.some(x => x.errores.length) && <button className="btn sec" type="button" onClick={quitarConErrores} disabled={creandoImportadas}>QUITAR LAS {importadas.filter(x => x.errores.length).length} FILAS CON ERRORES</button>}
+        <button className="btn" type="button" onClick={crearDesdeExcel} disabled={creandoImportadas || !importadas.length || importadas.some(x => x.errores.length)}>{creandoImportadas ? 'CREANDO CUENTAS…' : `CREAR CUENTAS (${importadas.length})`}</button>
       </>}
     </Card>
     <button className="btn desplegable-toggle" type="button" aria-expanded={crearAbierto} aria-controls="cuentas-crear" onClick={() => setCrearAbierto(v => !v)}><span>{crearAbierto ? 'CERRAR CREAR CUENTA' : 'CREAR CUENTA'}</span><span className={'desplegable-flecha' + (crearAbierto ? ' abierta' : '')} aria-hidden="true">⌄</span></button>

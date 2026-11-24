@@ -151,3 +151,10 @@ El envío push requiere estas variables en el entorno del servidor: `VAPID_PUBLI
 - **Fin de clases:** todos salen libres sin escanear y a todos los tutores les llega **un solo aviso general** ("Las clases terminaron"). Las salidas escaneadas después de eso se registran pero no generan aviso individual.
 - **Entradas y salidas con permiso:** avisan al tutor vinculado (notificación y sección Notificaciones).
 - Colecciones nuevas en MongoDB: `accesos` y `diasEscolares` (se crean solas). Para ver el estado del día hace falta internet.
+
+## Importar cuentas desde Excel, CSV, Word o PDF
+
+- En Control Escolar → Cuentas, sube un archivo **.xlsx / .xls / .csv / .docx / .pdf**. No hay plantilla obligatoria (la de Excel quedó como opcional) ni orden fijo de columnas: la app detecta cada dato por su **contenido** (CURP de 18 caracteres, rol, semestre como "3-4", "3ro" o "tercero", carrera, grupo A/B/C, y lo que sobra es el nombre). También entiende apellidos y nombre en columnas separadas, listas numeradas, encabezados de sección ("ALUMNOS", "DOCENTES:") y líneas de texto corrido.
+- Antes de crear se muestran todas las filas; se pueden **quitar filas** sueltas o todas las que tengan errores. Si el archivo no dice el rol se puede elegir uno por defecto.
+- Los PDF deben tener texto (generados desde Word/Excel); un PDF escaneado o una foto no se puede leer. Los .doc antiguos hay que guardarlos como .docx.
+- El lector de PDF usa `pdfjs-dist`: `npm run build` genera `public/pdf-lector.js` y `public/pdf-worker.js`, que solo se descargan cuando alguien sube un PDF. pdfjs-dist 6 pide Node 22 o superior para instalarse (en Render pon la variable `NODE_VERSION=22`).

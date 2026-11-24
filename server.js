@@ -572,7 +572,7 @@ app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => 
             if (conflictos.length) return;
             await usuarios.insertMany(documentos, { ordered: true, session });
             for (const grupo of gruposNuevos.values()) await grupos.updateOne({ _id: grupo._id }, { $setOnInsert: grupo }, { upsert: true, session });
-            await auditoria.insertOne({ accion: 'Cuentas importadas desde Excel', detalle: `${documentos.length} cuentas`, actor: req.u.id, actorNombre: req.u.nombre || 'Servicios Escolares', creado: new Date() }, { session });
+            await auditoria.insertOne({ accion: 'Cuentas importadas desde archivo', detalle: `${documentos.length} cuentas`, actor: req.u.id, actorNombre: req.u.nombre || 'Servicios Escolares', creado: new Date() }, { session });
         });
     } catch (e) {
         if (e.code === 11000) return bad(res, 'Hay CURP repetidas. No se creó ninguna cuenta; actualiza la lista e intenta de nuevo.', 409);
