@@ -533,10 +533,31 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
         Object.assign(doc, { area, semestre, grupo, tutores: [] });
     }
     if (rol === 'tutor') doc.hijos = [];
+    let tutorId = '', tutorNuevo = null, tutorPrevio = null;
+    if (rol === 'alumno' && s(d.tutorCurp)) {   // el tutor se crea (o se enlaza si ya existe) junto con el alumno
+        tutorId = s(d.tutorCurp).toUpperCase();
+        if (!RX.curp.test(tutorId)) return bad(res, 'La CURP del tutor es inválida (18 letras y números)');
+        if (tutorId === id) return bad(res, 'La CURP del tutor no puede ser la del alumno');
+        if (ADMIN_CURP && tutorId === ADMIN_CURP) return bad(res, 'Esa CURP está reservada para Servicios Escolares');
+        tutorPrevio = await curpYaRegistrada(tutorId);
+        if (tutorPrevio && tutorPrevio.rol !== 'tutor') return bad(res, `La CURP del tutor ya está registrada como ${ROLES_CUENTA[tutorPrevio.rol] || tutorPrevio.rol}. Una CURP no se puede repetir.`, 409);
+        if (!tutorPrevio) {
+            if (s(d.tutorNombre).length < 3) return bad(res, 'Escribe el nombre completo del tutor');
+            tutorNuevo = { _id: `tutor:${tutorId}`, rol: 'tutor', id: tutorId, curp: tutorId, nombre: s(d.tutorNombre), hijos: [id], debeCambiarPassword: true, creado: new Date() };
+        }
+        doc.tutores = [tutorId];
+    }
     try { await usuarios.insertOne(doc); } catch (e) { if (e.code === 11000) return bad(res, 'Esa CURP ya está registrada. Una CURP no se puede repetir.', 409); throw e; }
+    if (tutorId) {
+        try {
+            if (tutorNuevo) await usuarios.insertOne(tutorNuevo);
+            else await usuarios.updateOne({ _id: `tutor:${tutorId}` }, { $addToSet: { hijos: id } });
+        } catch (e) { await usuarios.deleteOne({ _id: doc._id }); if (e.code === 11000) return bad(res, 'La CURP del tutor ya está registrada. Una CURP no se puede repetir.', 409); throw e; }
+        await registrarCambio(req, 'Vínculo tutor-alumno', `${tutorNuevo ? 'Tutor creado' : 'Tutor existente'} · ${tutorId} · ${id}`);
+    }
     if (rol === 'alumno') await grupos.updateOne({ _id: `${doc.semestre}|${doc.area}|${doc.grupo}` }, { $set: { semestre: doc.semestre, area: doc.area, grupo: doc.grupo, nombre: `${doc.semestre} ${doc.area} ${doc.grupo}` } }, { upsert: true });
     await registrarCambio(req, 'Cuenta creada', `${rol} · ${id}`);
-    res.status(201).json({ ok: true });
+    res.status(201).json({ ok: true, tutor: tutorId ? (tutorNuevo ? 'creado' : 'vinculado') : '' });
 }));
 app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => {
     const filas = req.body?.cuentas;
@@ -685,6 +706,47 @@ app.post('/api/admin/horarios', auth, adminDe('gabriela', 'control'), h(async (r
     const diaNombre = ['', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][dia];
     await registrarCambio(req, 'Horario añadido', `${diaNombre} · ${doc.materia} · ${semestre} ${area} ${grupo} · ${doc.inicio}-${doc.fin}`);
     res.status(201).json({ ok: true });
+}));
+app.post('/api/admin/horarios/importar', auth, adminDe('gabriela', 'control'), h(async (req, res) => {
+    const filas = req.body?.bloques;
+    if (!Array.isArray(filas) || !filas.length || filas.length > 500) return bad(res, 'Envía entre 1 y 500 clases para importar.');
+    const SEM_OK = ['1-2 semestre', '3-4 semestre', '5-6 semestre'], AREAS_OK = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'], HM = /^\d{2}:\d{2}$/;
+    const errores = [], lista = [];
+    const docIds = [...new Set(filas.map(f => s(f?.docente).toUpperCase()))];
+    const docs = new Map((await usuarios.find({ rol: 'docente', id: { $in: docIds } }).toArray()).map(d => [d.id, d]));
+    const choca = (a, b) => a.dia === b.dia && a.inicio < b.fin && b.inicio < a.fin;
+    const existentes = await horarios.find({ tipo: { $ne: 'descanso' } }).limit(5000).toArray();
+    filas.forEach((f, i) => {
+        const n = Number(f?.fila) || i + 2, b = { dia: Number(f?.dia), inicio: s(f?.inicio), fin: s(f?.fin), semestre: s(f?.semestre), area: s(f?.area), grupo: s(f?.grupo).toUpperCase(), docente: s(f?.docente).toUpperCase(), materia: limpiaMat(f?.materia) };
+        const err = m => errores.push(`Fila ${n}: ${m}`);
+        if (!SEM_OK.includes(b.semestre) || !AREAS_OK.includes(b.area) || !['A', 'B', 'C'].includes(b.grupo)) return err('grupo inválido');
+        if (!(b.dia >= 1 && b.dia <= 6) || !HM.test(b.inicio) || !HM.test(b.fin) || b.fin <= b.inicio) return err('revisa el día y las horas');
+        if (b.inicio < '10:00' && b.fin > '09:30') return err('choca con el descanso (9:30 a 10:00)');
+        if (b.materia.length < 2) return err('falta la materia');
+        const dc = docs.get(b.docente);
+        if (!dc) return err(`no existe un docente con la CURP ${b.docente}`);
+        const g = `${b.semestre}|${b.area}|${b.grupo}`;
+        const otro = [...existentes, ...lista].find(x => choca(x, b) && (`${x.semestre}|${x.area}|${x.grupo}` === g || x.docente === b.docente));
+        if (otro) return err(`${dc.nombre} o el grupo ya tiene clase el mismo día a esa hora (${otro.materia}, ${otro.inicio}-${otro.fin})`);
+        lista.push({ ...b, docenteNombre: dc.nombre });
+    });
+    if (errores.length) return bad(res, 'No se creó ninguna clase. ' + errores.slice(0, 8).join(' · ') + (errores.length > 8 ? ` · y ${errores.length - 8} errores más` : ''));
+    let materiasNuevas = 0;
+    const cache = new Map();
+    for (const b of lista) {
+        const g = `${b.semestre}|${b.area}|${b.grupo}`;
+        await grupos.updateOne({ _id: g }, { $setOnInsert: { semestre: b.semestre, area: b.area, grupo: b.grupo, nombre: `${b.semestre} ${b.area} ${b.grupo}` } }, { upsert: true });
+        const k = `${g}|${b.docente}|${b.materia.toLowerCase()}`;
+        let cl = cache.get(k);
+        if (!cl) {
+            cl = (await clases.find({ area: b.area, semestre: b.semestre, grupo: b.grupo, docente: b.docente }).toArray()).find(c => c.materia.toLowerCase() === b.materia.toLowerCase());
+            if (!cl) { cl = { _id: crypto.randomBytes(4).toString('hex').toUpperCase(), materia: b.materia, area: b.area, semestre: b.semestre, grupo: b.grupo, docente: b.docente, docenteNombre: b.docenteNombre, horaInicio: '', horaFin: '' }; await clases.insertOne(cl); materiasNuevas++; }
+            cache.set(k, cl);
+        }
+        await horarios.insertOne({ _id: crypto.randomBytes(5).toString('hex'), area: b.area, semestre: b.semestre, grupo: b.grupo, dia: b.dia, inicio: b.inicio, fin: b.fin, tipo: 'clase', materia: cl.materia, claseId: cl._id, docente: cl.docente, docenteNombre: cl.docenteNombre });
+    }
+    await registrarCambio(req, 'Horarios importados', `${lista.length} clases · ${materiasNuevas} materias nuevas`);
+    res.status(201).json({ ok: true, creadas: lista.length, materiasNuevas });
 }));
 app.post('/api/admin/horarios/borrar', auth, adminDe('gabriela', 'control'), h(async (req, res) => {
     const id = s(req.body.id), bloque = await horarios.findOne({ _id: id });

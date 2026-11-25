@@ -2,6 +2,7 @@
 import SD from './sd.js';
 import * as XL from './excel.js';
 import { descargarPlantillaCuentas, leerCuentasExcel } from './importar-cuentas.js';
+import { descargarPlantillaHorarios, leerHorariosExcel, nombreDia } from './importar-horarios.js';
 import { Card, Hero, Banner, useBanner, QR, DIAS, SEMESTRES, AREAS, hh, hoyISO, post, msgErr, nombreGrupo, conDescanso, descargar } from './ui.jsx';
 import { Camara } from './docente.jsx';
 import { InicioBienvenida } from './paginas.jsx';
@@ -27,7 +28,7 @@ export function Cuentas() {
   const [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false);
   const [crearAbierto, setCrearAbierto] = useState(false), [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [filtroRol, setFiltroRol] = useState('todos'), [filtroGrupo, setFiltroGrupo] = useState('todos'), [filtroEstado, setFiltroEstado] = useState('todos');
-  const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A' });
+  const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A', tutorNombre: '', tutorCurp: '', sinTutor: false });
   const cargarSolicitudes = async () => { try { setSolicitudes(await SD.cached('admin_recuperaciones', '/api/admin/recuperaciones')); setErrorSolicitudes(''); } catch (e) { setErrorSolicitudes(e.message || 'No se pudieron cargar las solicitudes.'); } };
   const borrarSolicitudes = async () => {
     if (!solicitudes.length || !confirm('¿Quieres borrar todas las solicitudes de restablecimiento pendientes? Esta acción no se puede deshacer.')) return;
@@ -35,9 +36,16 @@ export function Cuentas() {
     catch (er) { ban('err', 'No se pudieron borrar las solicitudes', msgErr(er)); }
   };
   useEffect(() => { cargarSolicitudes(); }, []);
+  const tutorEncontrado = f.rol === 'alumno' && f.tutorCurp.length === 18 ? u.find(x => x.rol === 'tutor' && x.id === f.tutorCurp) : null;
   const crear = async e => {
     e.preventDefault();
-    try { await post('/api/admin/usuarios', f); ban('ok', 'Cuenta creada', 'La persona puede entrar con su CURP y crear su contraseña.'); setF({ ...f, nombre: '', id: '' }); cargar(); }
+    try {
+      const { sinTutor, ...datos } = f;
+      if (datos.rol !== 'alumno' || sinTutor) { delete datos.tutorCurp; delete datos.tutorNombre; }
+      const r = await post('/api/admin/usuarios', datos);
+      ban('ok', 'Cuenta creada', r.tutor === 'creado' ? 'Se crearon el alumno y su tutor, ya vinculados. Ambos entran con su CURP.' : r.tutor === 'vinculado' ? 'El alumno quedó vinculado a un tutor que ya existía.' : 'La persona puede entrar con su CURP y crear su contraseña.');
+      setF({ ...f, nombre: '', id: '', tutorNombre: '', tutorCurp: '' }); cargar();
+    }
     catch (er) { ban('err', 'No se pudo crear la cuenta', msgErr(er)); }
   };
   const leerExcel = async e => {
@@ -103,7 +111,15 @@ export function Cuentas() {
       {f.rol === 'alumno' && <>
         <label>Semestre</label><select value={f.semestre} onChange={e => setF({ ...f, semestre: e.target.value })}>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select>
         <label>Área</label><select value={f.area} onChange={e => setF({ ...f, area: e.target.value })}>{AREAS.map(s => <option key={s}>{s}</option>)}</select>
-        <label>Grupo</label><select value={f.grupo} onChange={e => setF({ ...f, grupo: e.target.value })}>{['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}</select></>}
+        <label>Grupo</label><select value={f.grupo} onChange={e => setF({ ...f, grupo: e.target.value })}>{['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}</select>
+        <label>Tutor del alumno</label>
+        {!f.sinTutor && <>
+          <input value={f.tutorCurp} onChange={e => setF({ ...f, tutorCurp: e.target.value.toUpperCase() })} placeholder="CURP del tutor (18 caracteres)" maxLength="18" required />
+          {tutorEncontrado
+            ? <p className="sub" role="status">Tutor ya registrado: <b>{tutorEncontrado.nombre}</b>. Se vinculará a este alumno.</p>
+            : <input value={f.tutorNombre} onChange={e => setF({ ...f, tutorNombre: e.target.value })} placeholder="Nombre completo del tutor" required />}
+        </>}
+        <label className="check"><input type="checkbox" checked={f.sinTutor} onChange={e => setF({ ...f, sinTutor: e.target.checked })} /> Todavía no tengo los datos del tutor</label></>}
       <button className="btn" type="submit">CREAR CUENTA</button></form></Card></div>
     <Card className="solicitudes-card" title={`Solicitudes de restablecimiento · ${solicitudes.length}`}>
       <button className="mini rojo solicitudes-borrar" type="button" onClick={borrarSolicitudes} disabled={!solicitudes.length}>Borrar solicitudes</button>
@@ -176,6 +192,26 @@ export function Horarios() {
   const [f, setF] = useState({ docente: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A', materia: '', dia: 1, inicio: '07:00', fin: '07:50' });
   useEffect(() => { SD.api('/api/admin/docentes').then(setDocentes).catch(e => ban('err', 'No se pudieron cargar los docentes', msgErr(e))); }, []);
   const docs = [...docentes].sort((x, y) => x.nombre.localeCompare(y.nombre));
+  const [excel, setExcel] = useState([]), [leyendo, setLeyendo] = useState(false), [importando, setImportando] = useState(false);
+  const leerExcel = async e => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    setLeyendo(true); setExcel([]);
+    try { const bl = await leerHorariosExcel(file); setExcel(bl); ban('ok', 'Excel leído', `Se encontraron ${bl.length} clases para revisar.`); }
+    catch (er) { ban('err', 'No se pudo leer el Excel', er.message); }
+    finally { setLeyendo(false); }
+  };
+  const importar = async () => {
+    const malas = excel.filter(x => x.errores.length);
+    if (malas.length) return ban('err', 'Corrige el archivo', `Hay ${malas.length} filas con errores. No se creó ninguna clase.`);
+    if (!excel.length || !confirm(`¿Crear las ${excel.length} clases del Excel?`)) return;
+    setImportando(true);
+    try {
+      const r = await post('/api/admin/horarios/importar', { bloques: excel.map(({ errores, ...b }) => b) });
+      ban('ok', 'Horarios creados', `Se crearon ${r.creadas} clases y ${r.materiasNuevas} materias nuevas.`); setExcel([]); cargar();
+    } catch (er) { ban('err', 'No se crearon las clases', msgErr(er)); }
+    finally { setImportando(false); }
+  };
   const misMaterias = [...new Set(c.filter(x => x.docente === f.docente).map(x => x.materia))].sort();
   const del = h.filter(x => x.area === f.area && x.semestre === f.semestre && x.grupo === f.grupo);
   const bloques = conDescanso(del);
@@ -203,6 +239,18 @@ export function Horarios() {
       <div className="fila2"><div><label>De las</label><input type="time" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value, fin: sumar50(e.target.value) })} required /></div><div><label>A las</label><input type="time" value={f.fin} onChange={e => setF({ ...f, fin: e.target.value })} required /></div></div>
       <button className="btn" type="submit">AÑADIR AL HORARIO</button>
     </form></Card>
+    <Card title="Importar horarios desde Excel">
+      <p className="sub">Una fila por clase, con CURP del docente, semestre, área, grupo, materia, día(s) y horas. En "día" puedes poner varios, como <b>Lunes, Miércoles</b>. Se revisan todas las filas, y los cruces de horario, antes de crear.</p>
+      <button className="mini" type="button" onClick={descargarPlantillaHorarios}>Descargar plantilla Excel</button>
+      <label>Archivo Excel</label>
+      <input type="file" accept=".xlsx,.xls" onChange={leerExcel} disabled={leyendo || importando} />
+      {excel.length > 0 && <>
+        <div className="tabla"><table className="tb"><thead><tr><th className="izq">Materia</th><th>Grupo</th><th>Día</th><th>Hora</th><th>Revisión</th></tr></thead>
+          <tbody>{excel.slice(0, 60).map((x, i) => <tr key={i}><td className="izq">{x.materia || '–'}</td><td>{x.semestre.slice(0, 3)} {x.grupo}</td><td>{nombreDia(x.dia)}</td><td>{x.inicio}–{x.fin}</td><td>{x.errores.length ? <span className="tag err">{x.errores.join(', ')}</span> : <span className="tag ok">Listo</span>}</td></tr>)}</tbody></table></div>
+        {excel.length > 60 && <p className="sub">Se muestran 60 de {excel.length} filas.</p>}
+        <button className="btn" type="button" onClick={importar} disabled={importando || excel.some(x => x.errores.length)}>{importando ? 'CREANDO…' : `CREAR ${excel.length} CLASES`}</button>
+      </>}
+    </Card>
     <Card title={`Horario de ${f.semestre} · ${f.area} · Grupo ${f.grupo}`}><p className="sub" style={{ margin: 0 }}>Cambia semestre, área o grupo arriba para ver otro horario.</p></Card>
     {[1, 2, 3, 4, 5, 6].filter(d => bloques.some(x => x.dia === d)).map(d => (
       <Card key={d} title={DIAS[d]}><ul className="l">{bloques.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia}{x.docenteNombre ? ` · ${x.docenteNombre}` : ''}</span><span>{String(x.id).startsWith('desc') ? 'fijo' : <button className="mini rojo" onClick={() => borrar(x)}>Quitar</button>}</span></li>)}</ul></Card>))}

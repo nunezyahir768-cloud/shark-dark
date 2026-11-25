@@ -67,13 +67,46 @@ export function InicioBienvenida({ rol, onTutorial, alumno, qrAbierto, onAbrirQr
   </>);
 }
 
+function ResumenAlumno({ alumno, d }) {
+  const mes = hoyISO().slice(0, 7), rs = (d.asistencias || []).filter(r => r.curp === alumno.curp && (r.fecha || '').startsWith(mes));
+  const cuenta = e => rs.filter(r => r.estado === e).length;
+  const avisos = [...(d.avisos || [])].filter(x => !x.curp || x.curp === alumno.curp).sort((x, y) => (y.fecha || '').localeCompare(x.fecha || '')).slice(0, 2);
+  return (<>
+    <Card title="Este mes"><div className="resumen">
+      <a href="#/asistencia"><b>{cuenta('asistio')}</b><span>Asistencias</span></a>
+      <a href="#/asistencia" className={cuenta('falta') ? 'alerta' : ''}><b>{cuenta('falta')}</b><span>Faltas</span></a>
+      <a href="#/asistencia"><b>{cuenta('justificada')}</b><span>Justificadas</span></a>
+    </div></Card>
+    <Card title="Avisos recientes">
+      {avisos.length ? <ul className="l">{avisos.map((x, i) => <li key={x.id || i}><span>{x.texto || x.titulo}</span></li>)}</ul> : <p className="vacio">No tienes avisos nuevos.</p>}
+      <a className="enlace-card" href="#/avisos">Ver todos los avisos ›</a>
+    </Card>
+  </>);
+}
+
+function ResumenDocente({ bl }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const i = setInterval(() => tick(x => x + 1), 30000); return () => clearInterval(i); }, []);
+  const { hoy, ahora } = estadoHorario(bl), clases = hoy.filter(b => b.tipo !== 'descanso');
+  return (<>
+    <ClaseAhora bl={bl} />
+    {ahora && <a className="btn pasar-lista" href="#/asistencia">PASAR LISTA · {ahora.materia}</a>}
+    <Card title="Tus clases de hoy">
+      {clases.length ? <ul className="l">{clases.map(b => <li key={b.id}><span>{hh(b.inicio)} a {hh(b.fin)} · {b.materia}</span><span>{b.semestre} {b.grupo}</span></li>)}</ul> : <p className="vacio">Hoy no tienes clases.</p>}
+      <a className="enlace-card" href="#/horario">Ver horario completo ›</a>
+    </Card>
+  </>);
+}
+
 export function Inicio({ onTutorial }) {
   const ses = SD.session() || {};
-  const alumno = useAlumno(), [qrAbierto, setQrAbierto] = useState(false);
+  const alumno = useAlumno(), [qrAbierto, setQrAbierto] = useState(false), d = useDatos();
   const [horario] = useCached('horario', '/api/horarios');
+  const familia = (ses.rol === 'alumno' || ses.rol === 'tutor') && alumno;
   return <>
     <InicioBienvenida rol={ses.rol} onTutorial={onTutorial} alumno={alumno} qrAbierto={qrAbierto} onAbrirQr={() => setQrAbierto(true)} onSalirQr={() => setQrAbierto(false)} />
-    {ses.rol === 'alumno' && alumno && <ClaseAhora bl={conDescanso(delGrupo(horario, alumno))} />}
+    {familia && <><ClaseAhora bl={conDescanso(delGrupo(horario, alumno))} /><ResumenAlumno alumno={alumno} d={d} /></>}
+    {ses.rol === 'docente' && <ResumenDocente bl={conDescanso(horario)} />}
   </>;
 }
 export function PerfilAlumno() {
@@ -212,13 +245,33 @@ export function CalifVer() {
   if (!al) return <Sin />;
   const m = {}; (notas || []).filter(n => n.curp === al.curp).forEach(n => { (m[n.materia] = m[n.materia] || {})[n.parcial] = n.nota; });
   const prom = v => { const x = Object.values(v); return x.length ? x.reduce((a, b) => a + b, 0) / x.length : null; };
-  const ps = Object.values(m).map(prom).filter(x => x !== null), gen = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null;
+  const f1 = x => x === null || x === undefined ? '–' : Number.isInteger(x) ? String(x) : x.toFixed(1);
+  const rep = x => typeof x === 'number' && x < 6 ? ' rep' : '';
+  const materias = Object.keys(m).sort((x, y) => x.localeCompare(y));
+  const ps = materias.map(k => prom(m[k])).filter(x => x !== null), gen = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null;
+  const imprimir = () => { document.body.classList.add('imprime-horario'); const fin = () => { document.body.classList.remove('imprime-horario'); removeEventListener('afterprint', fin); }; addEventListener('afterprint', fin); print(); };
   return (<>
     <Hero titulo="Calificaciones" sub={`${al.nombre} · solo consulta`} />
-    <Card title="Por materia"><div className="tabla"><table className="tb"><thead><tr><th className="izq">Materia</th><th>Parcial 1</th><th>Parcial 2</th><th>Parcial 3</th><th>Promedio</th></tr></thead>
-      <tbody>{Object.keys(m).sort().map(k => <tr key={k}><td className="izq">{k}</td>{[1, 2, 3].map(p => <td key={p}>{m[k][p] ?? '–'}</td>)}<td><b>{prom(m[k]).toFixed(1)}</b></td></tr>)}
-        {!Object.keys(m).length && <tr><td className="izq" colSpan="5">Aún no hay calificaciones</td></tr>}</tbody></table></div></Card>
-    {gen !== null && <Card title="Promedio general"><div className="num">{gen.toFixed(1)}</div></Card>}
+    <Card className="horario-tabla-card" title="Boleta">
+      <p className="sub horario-encabezado">{al.nombre} · {al.semestre} · {al.area} · Grupo {al.grupo}</p>
+      <div className="tabla"><table className="tb boleta">
+        <thead>
+          <tr><th rowSpan="2" className="izq">Asignaturas</th><th colSpan="3">Periodos de evaluación</th><th rowSpan="2">Promedio final</th></tr>
+          <tr><th>1er</th><th>2º</th><th>3er</th></tr>
+        </thead>
+        <tbody>
+          {materias.map(k => <tr key={k}>
+            <td className="izq">{k}</td>
+            {[1, 2, 3].map(p => <td key={p} className={'nota' + rep(m[k][p])}>{f1(m[k][p])}</td>)}
+            <td className={'nota fin' + rep(prom(m[k]))}>{f1(prom(m[k]) === null ? null : Math.round(prom(m[k]) * 10) / 10)}</td>
+          </tr>)}
+          {!materias.length && <tr><td className="izq" colSpan="5">Aún no hay calificaciones</td></tr>}
+        </tbody>
+        {gen !== null && <tfoot><tr><td className="izq" colSpan="4"><b>Promedio general</b></td><td className={'nota fin' + rep(gen)}>{f1(Math.round(gen * 10) / 10)}</td></tr></tfoot>}
+      </table></div>
+      <p className="sub" style={{ margin: '8px 0 0' }}>Las calificaciones menores a 6 aparecen en rojo.</p>
+      <button className="btn sec horario-imprimir" type="button" onClick={imprimir} disabled={!materias.length}>Descargar PDF / Imprimir</button>
+    </Card>
   </>);
 }
 
