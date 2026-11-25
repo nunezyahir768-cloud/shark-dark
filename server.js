@@ -517,15 +517,28 @@ app.post('/api/admin/recuperaciones/:id/resolver', auth, soloAdmin, h(async (req
     res.json({ ok: true });
 }));
 const ROLES_CUENTA = { alumno: 'alumno', docente: 'docente', tutor: 'tutor' };
-const curpYaRegistrada = async (curp, session) => usuarios.findOne({ curp: String(curp).toUpperCase() }, { projection: { rol: 1 }, session });
+const MAX_ALUMNOS_TUTOR = 3;
+/* Regla de CURP: en un mismo tipo de cuenta nunca se repite; un alumno no puede compartir CURP con nadie;
+   un docente sí puede tener además su cuenta de tutor. Devuelve el choque o null. */
+const conflictoCurp = async (rol, curp, session) => {
+    const c = String(curp).toUpperCase();
+    const mismo = await usuarios.findOne({ _id: `${rol}:${c}` }, { projection: { rol: 1 }, session });
+    if (mismo) return { rol, mismoRol: true };
+    const otros = await usuarios.find({ curp: c }, { projection: { rol: 1 }, session }).toArray();
+    const choque = otros.find(o => rol === 'alumno' || o.rol === 'alumno');
+    return choque ? { rol: choque.rol } : null;
+};
+const textoConflicto = (rol, ch) => ch.mismoRol
+    ? `Ya existe una cuenta de ${ROLES_CUENTA[rol] || rol} con esa CURP.`
+    : `Esa CURP ya está registrada como ${ROLES_CUENTA[ch.rol] || ch.rol}. Un alumno no puede compartir su CURP con otra cuenta.`;
 app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     const d = req.body || {}, rol = s(d.rol), id = s(d.id).toUpperCase();
     if (!['alumno', 'docente', 'tutor'].includes(rol)) return bad(res, 'Tipo de cuenta inválido');
     if (!RX.curp.test(id)) return bad(res, 'CURP inválida (18 letras y números)');
     if (ADMIN_CURP && id === ADMIN_CURP) return bad(res, 'Esa CURP está reservada para Servicios Escolares');
     if (s(d.nombre).length < 3) return bad(res, 'Escribe el nombre completo');
-    const previa = await curpYaRegistrada(id);
-    if (previa) return bad(res, `Esa CURP ya está registrada como ${ROLES_CUENTA[previa.rol] || previa.rol}. Una CURP no se puede repetir.`, 409);
+    const previa = await conflictoCurp(rol, id);
+    if (previa) return bad(res, textoConflicto(rol, previa), 409);
     const doc = { _id: `${rol}:${id}`, rol, id, curp: id, nombre: s(d.nombre), debeCambiarPassword: true, creado: new Date() };
     if (rol === 'alumno') {            // el grupo se crea solo la primera vez que se usa
         const semestre = s(d.semestre).slice(0, 20), area = s(d.area).slice(0, 40), grupo = s(d.grupo).toUpperCase().slice(0, 3);
@@ -539,11 +552,16 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
         if (!RX.curp.test(tutorId)) return bad(res, 'La CURP del tutor es inválida (18 letras y números)');
         if (tutorId === id) return bad(res, 'La CURP del tutor no puede ser la del alumno');
         if (ADMIN_CURP && tutorId === ADMIN_CURP) return bad(res, 'Esa CURP está reservada para Servicios Escolares');
-        tutorPrevio = await curpYaRegistrada(tutorId);
-        if (tutorPrevio && tutorPrevio.rol !== 'tutor') return bad(res, `La CURP del tutor ya está registrada como ${ROLES_CUENTA[tutorPrevio.rol] || tutorPrevio.rol}. Una CURP no se puede repetir.`, 409);
+        tutorPrevio = await usuarios.findOne({ _id: `tutor:${tutorId}` });
         if (!tutorPrevio) {
-            if (s(d.tutorNombre).length < 3) return bad(res, 'Escribe el nombre completo del tutor');
-            tutorNuevo = { _id: `tutor:${tutorId}`, rol: 'tutor', id: tutorId, curp: tutorId, nombre: s(d.tutorNombre), hijos: [id], debeCambiarPassword: true, creado: new Date() };
+            const choque = await conflictoCurp('tutor', tutorId);
+            if (choque) return bad(res, textoConflicto('tutor', choque), 409);
+            const docente = await usuarios.findOne({ _id: `docente:${tutorId}` }, { projection: { nombre: 1 } });
+            const nombreTutor = s(d.tutorNombre) || docente?.nombre || '';
+            if (nombreTutor.length < 3) return bad(res, 'Escribe el nombre completo del tutor');
+            tutorNuevo = { _id: `tutor:${tutorId}`, rol: 'tutor', id: tutorId, curp: tutorId, nombre: nombreTutor, hijos: [id], debeCambiarPassword: true, creado: new Date() };
+        } else if (hijosDe(tutorPrevio).filter(x => x !== id).length >= MAX_ALUMNOS_TUTOR) {
+            return bad(res, `Ese tutor ya tiene ${MAX_ALUMNOS_TUTOR} alumnos vinculados, que es el máximo.`, 409);
         }
         doc.tutores = [tutorId];
     }
@@ -564,7 +582,7 @@ app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => 
     if (!Array.isArray(filas) || !filas.length || filas.length > 500) return bad(res, 'Envía entre 1 y 500 cuentas para importar.');
     const semestresValidos = ['1-2 semestre', '3-4 semestre', '5-6 semestre'];
     const areasValidas = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'];
-    const documentos = [], curps = new Set(), gruposNuevos = new Map();
+    const documentos = [], curps = new Set(), gruposNuevos = new Map(), rolesEnArchivo = new Map();
     for (let i = 0; i < filas.length; i++) {
         const d = filas[i] || {}, rol = s(d.rol), id = s(d.id).toUpperCase(), nombre = s(d.nombre).replace(/\s+/g, ' ');
         if (!['alumno', 'docente', 'tutor'].includes(rol)) return bad(res, `Fila ${i + 1}: rol inválido.`);
@@ -572,7 +590,9 @@ app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => 
         if (ADMIN_CURP && id === ADMIN_CURP) return bad(res, `Fila ${i + 1}: CURP reservada para Servicios Escolares.`);
         if (nombre.length < 3 || nombre.length > 120) return bad(res, `Fila ${i + 1}: escribe un nombre de 3 a 120 caracteres.`);
         const _id = `${rol}:${id}`;
-        if (curps.has(id)) return bad(res, `Fila ${i + 1}: CURP repetida en el archivo.`);
+        const previosArchivo = rolesEnArchivo.get(id) || new Set();
+        if (previosArchivo.has(rol) || (rol === 'alumno' && previosArchivo.size) || previosArchivo.has('alumno')) return bad(res, `Fila ${i + 1}: CURP repetida en el archivo.`);
+        previosArchivo.add(rol); rolesEnArchivo.set(id, previosArchivo);
         curps.add(id);
         const doc = { _id, rol, id, curp: id, nombre, debeCambiarPassword: true, creado: new Date() };
         if (rol === 'alumno') {
@@ -589,7 +609,8 @@ app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => 
     let conflictos = [];
     try {
         await session.withTransaction(async () => {
-            conflictos = (await usuarios.find({ curp: { $in: [...curps] } }, { projection: { curp: 1, rol: 1 }, session }).toArray()).map(x => `${x.curp} (${x.rol})`);
+            const existentes = await usuarios.find({ curp: { $in: [...curps] } }, { projection: { curp: 1, rol: 1 }, session }).toArray();
+            conflictos = existentes.filter(x => documentos.some(d => d.curp === x.curp && (d.rol === x.rol || d.rol === 'alumno' || x.rol === 'alumno'))).map(x => `${x.curp} (${x.rol})`);
             if (conflictos.length) return;
             await usuarios.insertMany(documentos, { ordered: true, session });
             for (const grupo of gruposNuevos.values()) await grupos.updateOne({ _id: grupo._id }, { $setOnInsert: grupo }, { upsert: true, session });
@@ -758,6 +779,7 @@ app.post('/api/admin/vincular', auth, soloAdmin, h(async (req, res) => {
     const t = s(req.body.tutor).toUpperCase(), a = s(req.body.alumno).toUpperCase();
     const tu = await usuarios.findOne({ _id: 'tutor:' + t }), al = await usuarios.findOne({ _id: 'alumno:' + a });
     if (!tu || !al) return bad(res, 'No se encontró el tutor o el alumno', 404);
+    if (!hijosDe(tu).includes(a) && hijosDe(tu).length >= MAX_ALUMNOS_TUTOR) return bad(res, `Un tutor puede tener máximo ${MAX_ALUMNOS_TUTOR} alumnos vinculados.`, 409);
     await usuarios.updateOne({ _id: tu._id }, { $addToSet: { hijos: a } });
     await usuarios.updateOne({ _id: al._id }, { $addToSet: { tutores: t } });
     await registrarCambio(req, 'Vínculo tutor-alumno', `${tu.nombre} · ${al.nombre}`);
@@ -831,6 +853,7 @@ app.post('/api/vinculos/:accion', auth, h(async (req, res) => {
     const yo = await usuarios.findOne({ _id: `${req.u.rol}:${req.u.id}` });
     if (!yo || curp === yo.curp) return bad(res, 'Esa CURP no es válida para vincular');
     if (req.params.accion === 'agregar') {
+        if (req.u.rol === 'tutor' && !hijosDe(yo).includes(curp) && hijosDe(yo).length >= MAX_ALUMNOS_TUTOR) return bad(res, `Un tutor puede tener máximo ${MAX_ALUMNOS_TUTOR} alumnos vinculados.`);
         if ((yo[campo] || []).length >= 6) return bad(res, 'Ya llegaste al máximo de vínculos (6)');
         await usuarios.updateOne({ _id: yo._id }, { $addToSet: { [campo]: curp } });
     } else if (req.params.accion === 'quitar') {
@@ -1031,13 +1054,7 @@ async function iniciarServidor() {
         await reportesConducta.createIndex({ reportanteId: 1, creado: -1 });
         await avisosLeidos.createIndex({ anuncioId: 1, rol: 1, para: 1 }, { unique: true });
         await auditoria.createIndex({ creado: -1 });
-        try {   // una CURP solo puede existir una vez, sin importar el tipo de cuenta
-            await usuarios.createIndex({ curp: 1 }, { unique: true, name: 'curp_unica', partialFilterExpression: { curp: { $type: 'string' } } });
-        } catch (e) {
-            const repetidas = await usuarios.aggregate([{ $match: { curp: { $type: 'string' } } }, { $group: { _id: '$curp', n: { $sum: 1 }, roles: { $push: '$rol' } } }, { $match: { n: { $gt: 1 } } }]).toArray();
-            console.error('⚠️ No se pudo crear el índice curp_unica. Hay CURP repetidas; bórralas desde Cuentas:', repetidas.map(r => `${r._id} (${r.roles.join(', ')})`).join('; ') || e.message);
-        }
-
+        try { await usuarios.dropIndex('curp_unica'); } catch { /* no existía */ }   // la regla de CURP ahora vive en conflictoCurp
         console.log('✅ Conexión exitosa a MongoDB Atlas');
         console.log('🦈 Base de datos: SHARK-DARK');
         app.listen(PORT, () => {

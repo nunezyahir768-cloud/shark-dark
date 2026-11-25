@@ -303,7 +303,7 @@ export function Avisos() {
   const [f, setF] = useState({ destino: 'todos', titulo: '', mensaje: '' });
   const enviar = async e => { e.preventDefault(); try { await post('/api/anuncios', f); setF({ ...f, titulo: '', mensaje: '' }); ban('ok', 'Aviso enviado', 'Ya lo pueden ver en Notificaciones.'); cargar(); } catch (er) { ban('err', 'No se pudo enviar', msgErr(er)); } };
   const borrar = async id => { if (!confirm('¿Borrar este aviso?')) return; try { await post(`/api/anuncios/${id}/borrar`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
-  const marcarLeido = async id => { try { await post(`/api/anuncios/${encodeURIComponent(id)}/leido`); await cargar(); } catch (er) { ban('err', 'No se pudo actualizar el aviso', msgErr(er)); } };
+  const marcarLeido = async id => { try { await post(`/api/anuncios/${encodeURIComponent(id)}/leido`); await cargar(); dispatchEvent(new Event('sd-avisos')); } catch (er) { ban('err', 'No se pudo actualizar el aviso', msgErr(er)); } };
   return (<>
     <Hero titulo="Notificaciones" sub={adm ? 'Los avisos que envíes aparecerán en la sección Notificaciones de cada persona.' : 'Mensajes y avisos de Servicios Escolares.'} /><Banner b={b} />
     <Card title="Notificaciones en este dispositivo"><p className="sub">Permite las notificaciones para recibir avisos aunque la app esté cerrada.</p><BotonAvisos /></Card>

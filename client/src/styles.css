@@ -547,7 +547,7 @@ html[data-tema="claro"] .nav-flotante .nf-btn.on{color:#8B0008}
 html[data-tema="claro"] .nav-flotante .nf-btn.on .nf-ico{filter:drop-shadow(0 0 5px rgba(214,0,15,.4))}
 .nav-flotante .nf-btn:focus-visible{outline-offset:-4px;border-radius:999px}
 .app.con-barra main{padding-bottom:120px}
-.app.tutorial-activo .nav-flotante{display:none}
+.app.tutorial-activo .nav-flotante{z-index:152}
 .estado{bottom:84px!important}
 @media(prefers-reduced-motion:reduce){.spot-luz,.nav-flotante .nf-btn,.nav-flotante .nf-ico{transition:none}}
 @media print{.nav-flotante{display:none!important}}
@@ -613,3 +613,14 @@ label.check{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:.
 .resumen a.alerta{border-color:var(--rojo)}.resumen a.alerta b{color:var(--rojo)}
 .enlace-card{display:inline-block;margin-top:10px;font-size:.85rem;font-weight:600;color:var(--caramelo);text-decoration:none}
 a.btn.pasar-lista{display:block;text-align:center;text-decoration:none;margin:0 0 14px;min-height:52px;line-height:52px;padding:0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Campana de notificaciones con número, como el de las apps en el celular */
+.top .campana{position:relative;margin-left:auto;display:grid;place-items:center;width:42px;height:42px;border-radius:50%;color:var(--caramelo);text-decoration:none}
+.top .campana svg{width:24px;height:24px}
+.insignia{position:absolute;top:-4px;right:-7px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;display:grid;place-items:center;background:#E3101F;color:#fff;font:700 .66rem/1 var(--f-principal);border:2px solid var(--plomo-2,#1c1717);box-shadow:0 2px 6px rgba(214,0,15,.5);animation:insignia-pop .4s cubic-bezier(.34,1.6,.5,1)}
+.top .campana .insignia{top:2px;right:0}
+.insignia.punto{min-width:11px;width:11px;height:11px;padding:0;top:-2px;right:-4px}
+.nav-flotante .nf-ico{position:relative;overflow:visible}
+.nav-flotante .insignia{border-color:transparent}
+@keyframes insignia-pop{from{transform:scale(0)}to{transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.insignia{animation:none}}

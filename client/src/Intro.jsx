@@ -57,7 +57,6 @@ export default function Intro({ onFin }) {
           <span className="intro-n-brillo" aria-hidden="true" />
         </div>
       </div>
-      <button className="intro-omitir" type="button" onClick={onFin}>Omitir <span aria-hidden="true">›</span></button>
     </section>
   );
 }

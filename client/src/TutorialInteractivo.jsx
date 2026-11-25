@@ -23,22 +23,23 @@ const texto = (key, rol) => {
   return typeof valor === 'string' ? valor : valor?.[rol] || 'Consulta la información disponible en esta sección.';
 };
 
-export default function TutorialInteractivo({ rol, menu, onMenu, onClose }) {
+export default function TutorialInteractivo({ rol, menu, enBarra = [], onMenu, onClose }) {
   const pasos = useMemo(() => {
-    const lista = menu.map(([key, titulo]) => ({ tipo: 'menu', key, titulo, texto: texto(key, rol) }));
+    const orden = [...menu.filter(([k]) => enBarra.includes(k)).sort((a, b) => enBarra.indexOf(a[0]) - enBarra.indexOf(b[0])), ...menu.filter(([k]) => !enBarra.includes(k))];
+    const lista = orden.map(([key, titulo]) => ({ tipo: 'menu', key, titulo, texto: texto(key, rol), enBarra: enBarra.includes(key) }));
     lista.push({ tipo: 'final', titulo: '¡Listo!', texto: 'Ya conoces las secciones principales de tu cuenta.' });
     return lista;
-  }, [menu, rol]);
+  }, [menu, rol, enBarra]);
   const [indice, setIndice] = useState(0);
   const [posicionTarjeta, setPosicionTarjeta] = useState(null);
   const paso = pasos[indice];
 
   useEffect(() => {
     setPosicionTarjeta(null);
-    const menuAbierto = paso.tipo === 'menu';
+    const menuAbierto = paso.tipo === 'menu' && !paso.enBarra;
     onMenu(menuAbierto);
     let selector = null;
-    if (paso.tipo === 'menu') selector = `.side nav a[href="#/${paso.key}"]`;
+    if (paso.tipo === 'menu') selector = paso.enBarra ? `.nav-flotante a[href="#/${paso.key}"]` : `.side nav a[href="#/${paso.key}"]`;
     let posicionTimer;
     const timer = setTimeout(() => {
       document.querySelectorAll('.tutorial-enfoque').forEach(el => el.classList.remove('tutorial-enfoque'));

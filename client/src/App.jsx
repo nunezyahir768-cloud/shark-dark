@@ -85,17 +85,44 @@ const ICONO_QR = <><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3z" /><path d="M14
 const ICONO_MAS = <><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></>;
 const BARRA = { alumno: ['inicio', 'horario', 'qr', 'avisos'], docente: ['inicio', 'horario', 'asistencia', 'calificaciones'], tutor: ['inicio', 'asistencia', 'permisos', 'calificaciones'] };
 const NOMBRE_BARRA = { avisos: 'Avisos', qr: 'Mi QR' };
-function BarraInferior({ rol, menu, ruta, onMas, abierto, onQr }) {
-  const claves = BARRA[rol] || menu.slice(0, 4).map(([k]) => k);
+const clavesBarra = (rol, menu) => (BARRA[rol] || menu.slice(0, 4).map(([k]) => k)).filter(k => k === 'qr' || menu.some(([c]) => c === k));
+
+/* Cuántas notificaciones sin leer hay: avisos de la escuela sin revisar + avisos personales nuevos desde la última vez que entró a Notificaciones. */
+function useNoLeidas(ses, ruta) {
+  const [n, setN] = useState(0), llave = 'sd_avisos_visto_' + (ses.id || ses.curp || '');
+  const calcular = useCallback(async () => {
+    if (ses.rol === 'admin') return setN(0);
+    try {
+      const [anuncios, personales] = await Promise.all([SD.api('/api/anuncios'), SD.api('/api/avisos')]);
+      let visto = 0; try { visto = Number(localStorage.getItem(llave)) || 0; if (!visto) localStorage.setItem(llave, String(visto = Date.now())); } catch { /* sin almacenamiento */ }
+      setN((anuncios || []).filter(a => !a.leido).length + (personales || []).filter(a => new Date(a.creado).getTime() > visto).length);
+    } catch { /* sin conexión: se queda el número anterior */ }
+  }, [ses.rol, llave]);
+  useEffect(() => {
+    if (ruta === 'avisos') { try { localStorage.setItem(llave, String(Date.now())); } catch { /* nada */ } }
+    calcular();
+  }, [ruta, calcular, llave]);
+  useEffect(() => {
+    const i = setInterval(calcular, 60000);
+    addEventListener('sd-avisos', calcular); addEventListener('online', calcular);
+    return () => { clearInterval(i); removeEventListener('sd-avisos', calcular); removeEventListener('online', calcular); };
+  }, [calcular]);
+  return n;
+}
+const Insignia = ({ n }) => n > 0 ? <span className="insignia" aria-label={`${n} sin leer`}>{n > 99 ? '99+' : n}</span> : null;
+
+function BarraInferior({ rol, menu, ruta, onMas, abierto, onQr, noLeidas }) {
+  const claves = clavesBarra(rol, menu);
   const etiqueta = k => NOMBRE_BARRA[k] || (menu.find(([c]) => c === k) || [])[1] || k;
-  const items = claves.filter(k => k === 'qr' || menu.some(([c]) => c === k)).map(k => ({ k, t: etiqueta(k) }));
+  const items = claves.map(k => ({ k, t: etiqueta(k) }));
+  const avisosEnMenuLateral = !claves.includes('avisos') && menu.some(([c]) => c === 'avisos');
   const n = items.length + 1;                                   // accesos + "Más"
   const enBarra = items.findIndex(it => it.k === ruta);
   const idx = abierto || enBarra < 0 ? n - 1 : enBarra;         // cualquier otra pantalla ilumina "Más"
   const svg = c => <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{c}</svg>;
-  const Boton = ({ texto, icono, i, onClick, href, extra }) => {
+  const Boton = ({ texto, icono, i, onClick, href, extra, insignia }) => {
     const on = i === idx, cls = 'nf-btn' + (on ? ' on' : '');
-    const dentro = <><span className="nf-ico">{icono}</span><span className="nf-txt">{texto}</span></>;
+    const dentro = <><span className="nf-ico">{icono}{insignia}</span><span className="nf-txt">{texto}</span></>;
     return href ? <a className={cls} href={href} aria-current={on ? 'page' : undefined}>{dentro}</a>
       : <button type="button" className={cls} onClick={onClick} {...extra}>{dentro}</button>;
   };
@@ -104,8 +131,8 @@ function BarraInferior({ rol, menu, ruta, onMas, abierto, onQr }) {
       <span className="spot-luz" aria-hidden="true" />
       {items.map((it, i) => it.k === 'qr'
         ? <Boton key="qr" i={i} texto={it.t} icono={svg(ICONO_QR)} onClick={onQr} />
-        : <Boton key={it.k} i={i} texto={it.t} icono={svg(ICONOS_MENU[it.k])} href={'#/' + it.k} />)}
-      <Boton i={n - 1} texto="Más" icono={svg(ICONO_MAS)} onClick={onMas} extra={{ 'aria-expanded': abierto, 'aria-label': 'Más opciones' }} />
+        : <Boton key={it.k} i={i} texto={it.t} icono={svg(ICONOS_MENU[it.k])} href={'#/' + it.k} insignia={it.k === 'avisos' ? <Insignia n={noLeidas} /> : null} />)}
+      <Boton i={n - 1} texto="Más" icono={svg(ICONO_MAS)} insignia={avisosEnMenuLateral && noLeidas > 0 ? <span className="insignia punto" aria-hidden="true" /> : null} onClick={onMas} extra={{ 'aria-expanded': abierto, 'aria-label': 'Más opciones' }} />
     </nav>
   );
 }
@@ -113,6 +140,7 @@ function BarraInferior({ rol, menu, ruta, onMas, abierto, onQr }) {
 function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, installMessage }) {
   const rol = ses.rol, menu = rol === 'admin' ? (MENU_ADMIN[localStorage.getItem('sd_admin_area')] || MENU_ADMIN.portero) : MENU[rol], [abre, setAbre] = useState(false), [tutorial, setTutorial] = useState(false), [qrBarra, setQrBarra] = useState(false);
   const ruta = useRuta() || INICIO[rol];
+  const noLeidas = useNoLeidas(ses, ruta), enBarra = clavesBarra(rol, menu), menuLateral = menu.filter(([k]) => !enBarra.includes(k));
   const [yo, setYo] = useState(null), [vinc, setVinc] = useState([]), [activo, setActivo] = useState(sessionStorage.getItem('sd_alumno') || '');
   useEffect(() => {
     if (rol === 'alumno') SD.api('/api/yo').then(setYo).catch(() => setYo(ses));
@@ -139,7 +167,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
           <aside className={'side' + (abre ? ' abre' : '')}>
             <div className="marca"><Logo darkIcon alt="TIBURONES CBTIS 170" /><span>TIBURONES<small>CBTIS 170</small></span></div>
             <button className="side-close" type="button" aria-label="Cerrar menú" onClick={() => setAbre(false)}>×</button>
-            <nav>{menu.map(([k, t]) => {
+            <nav>{menuLateral.map(([k, t]) => {
               const activa = ruta === k || (k === 'opciones' && (ruta === 'perfiles' || ruta === 'perfil'));
               return <a key={k} href={'#/' + k} className={activa ? 'on' : ''} aria-current={activa ? 'page' : undefined}><IconoMenu nombre={k} /><span>{t}</span></a>;
             })}</nav>
@@ -151,7 +179,7 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
           </aside>
           <div className={'velo' + (abre ? ' abre' : '')} onClick={() => setAbre(false)} />
           <div className="contenido">
-            <div className="top"><button aria-label="Abrir menú" aria-expanded={abre} onClick={() => setAbre(true)}>☰</button><span className="top-logo" data-intro-destino=""><img src="/img/icono-tiburon.png" alt="" aria-hidden="true" /></span><b>{rol === 'admin' ? 'CONTROL ESCOLAR' : 'TIBURONES'}</b></div>
+            <div className="top"><button aria-label="Abrir menú" aria-expanded={abre} onClick={() => setAbre(true)}>☰</button><span className="top-logo" data-intro-destino=""><img src="/img/icono-tiburon.png" alt="" aria-hidden="true" /></span><b>{rol === 'admin' ? 'CONTROL ESCOLAR' : 'TIBURONES'}</b>{rol !== 'admin' && menu.some(([c]) => c === 'avisos') && <a className="campana" href="#/avisos" aria-label={noLeidas ? `Notificaciones: ${noLeidas} sin leer` : 'Notificaciones'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg><Insignia n={noLeidas} /></a>}</div>
             {toast && <div className="toast">{toast}</div>}
             <main>
               {rol === 'tutor' && ok.length > 1 && ruta !== 'perfiles' && (
@@ -161,10 +189,10 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
               {Pag ? <div className="apartado-vista" key={ruta + (alumno ? alumno.curp : '')}><Pag {...paginaProps} /></div> : <div className="card"><p className="vacio">Esta sección no existe.</p></div>}
             </main>
           </div>
-          <BarraInferior rol={rol} menu={menu} ruta={ruta} abierto={abre} onMas={() => setAbre(true)} onQr={() => setQrBarra(true)} />
+          <BarraInferior rol={rol} menu={menu} ruta={ruta} abierto={abre} onMas={() => setAbre(true)} onQr={() => setQrBarra(true)} noLeidas={noLeidas} />
           {qrBarra && alumno && rol === 'alumno' && <QRAlumno alumno={alumno} onSalir={() => setQrBarra(false)} />}
         </div>
-        {tutorial && <TutorialInteractivo rol={rol} menu={menu} onMenu={setAbre} onClose={() => { setTutorial(false); setAbre(false); }} />}
+        {tutorial && <TutorialInteractivo rol={rol} menu={menu} enBarra={enBarra} onMenu={setAbre} onClose={() => { setTutorial(false); setAbre(false); }} />}
       </TutorCtx.Provider>
     </AlumnoCtx.Provider>
   );

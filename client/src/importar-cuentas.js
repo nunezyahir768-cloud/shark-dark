@@ -53,10 +53,12 @@ export async function leerCuentasExcel(file) {
     return cuenta;
   }).filter(x => x.nombre || x.id || x.rol);
   if (filas.length > 501) throw new Error('El archivo supera el máximo de 500 cuentas por importación.');
-  const vistos = new Set();
+  const vistos = new Map();   // CURP -> tipos de cuenta que ya la usan en el archivo
   for (const cuenta of cuentas) {
-    if (cuenta.id && vistos.has(cuenta.id)) cuenta.errores.push('CURP repetida en el archivo');
-    vistos.add(cuenta.id);
+    if (!cuenta.id) continue;
+    const antes = vistos.get(cuenta.id) || new Set();
+    if (antes.has(cuenta.rol) || (cuenta.rol === 'alumno' && antes.size) || antes.has('alumno')) cuenta.errores.push('CURP repetida en el archivo');
+    antes.add(cuenta.rol); vistos.set(cuenta.id, antes);
   }
   if (!cuentas.length) throw new Error('No encontré filas de cuentas.');
   return cuentas;

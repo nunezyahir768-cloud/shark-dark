@@ -37,6 +37,7 @@ export function Cuentas() {
   };
   useEffect(() => { cargarSolicitudes(); }, []);
   const tutorEncontrado = f.rol === 'alumno' && f.tutorCurp.length === 18 ? u.find(x => x.rol === 'tutor' && x.id === f.tutorCurp) : null;
+  const docenteTutor = f.rol === 'alumno' && f.tutorCurp.length === 18 && !tutorEncontrado ? u.find(x => x.rol === 'docente' && x.id === f.tutorCurp) : null;
   const crear = async e => {
     e.preventDefault();
     try {
@@ -116,8 +117,10 @@ export function Cuentas() {
         {!f.sinTutor && <>
           <input value={f.tutorCurp} onChange={e => setF({ ...f, tutorCurp: e.target.value.toUpperCase() })} placeholder="CURP del tutor (18 caracteres)" maxLength="18" required />
           {tutorEncontrado
-            ? <p className="sub" role="status">Tutor ya registrado: <b>{tutorEncontrado.nombre}</b>. Se vinculará a este alumno.</p>
-            : <input value={f.tutorNombre} onChange={e => setF({ ...f, tutorNombre: e.target.value })} placeholder="Nombre completo del tutor" required />}
+            ? <p className="sub" role="status">Tutor ya registrado: <b>{tutorEncontrado.nombre}</b>. Se vinculará a este alumno (máximo 3 alumnos por tutor).</p>
+            : docenteTutor
+              ? <p className="sub" role="status">Docente registrado: <b>{docenteTutor.nombre}</b>. Se le creará además su cuenta de tutor.</p>
+              : <input value={f.tutorNombre} onChange={e => setF({ ...f, tutorNombre: e.target.value })} placeholder="Nombre completo del tutor" required />}
         </>}
         <label className="check"><input type="checkbox" checked={f.sinTutor} onChange={e => setF({ ...f, sinTutor: e.target.checked })} /> Todavía no tengo los datos del tutor</label></>}
       <button className="btn" type="submit">CREAR CUENTA</button></form></Card></div>
