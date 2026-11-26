@@ -2,8 +2,14 @@ import { useEffect, useState } from 'react';
 import SD from './sd.js';
 import { Card, Hero, Banner, useBanner, post, msgErr } from './ui.jsx';
 
+const cicloPorFecha = () => {
+  const partes = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit' }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  const inicio = Number(partes.year) - (Number(partes.month) < 8 ? 1 : 0);
+  return `${inicio}-${inicio + 1}`;
+};
+
 const vacio = () => ({
-  ciclo: '',
+  ciclo: cicloPorFecha(),
   inicioClases: '',
   finClases: '',
   parciales: [1, 2, 3].map(n => ({ n, inicio: '', fin: '', califAbre: '', califCierra: '' })),
@@ -36,7 +42,7 @@ export default function Periodos() {
   }
 
   useEffect(() => {
-    if (periodo && !modificado) setForm(periodo.configurado ? aFormulario(periodo) : vacio());
+    if (periodo && !modificado) setForm(!periodo.configurado || periodo.estado?.fecha > periodo.finClases ? vacio() : aFormulario(periodo));
   }, [periodo, modificado]);
 
   useEffect(() => {
@@ -107,16 +113,16 @@ export default function Periodos() {
       {!periodo.estado.enCiclo && <p className="sub" role="status">{periodo.estado.mensaje}</p>}
       {parcialesActuales.map(parcial => <div className="clase-horario" key={parcial.n}>
         <div>
-          <div className="materia">Parcial {parcial.n} · {etiquetaEstado(parcial.estado)}</div>
+          <div className="materia">Parcial {parcial.n} · {parcial.habilitado ? etiquetaEstado(parcial.estado) : 'Bloqueado hasta terminar el parcial anterior'}</div>
           <div className="detalle">Periodo: {parcial.inicio} a {parcial.fin}</div>
           <div className="detalle">Captura: {parcial.califAbre} a {parcial.califCierra}</div>
           {parcial.estadoManual && <div className="detalle">Estado manual persistente: {parcial.manualEstado === 'abierto' ? 'Abierto' : 'Cerrado'}</div>}
         </div>
         <div className="fila2" style={{ maxWidth: 300, marginTop: 8 }}>
-          <button className="btn sec" type="button" disabled={Boolean(accionando)} onClick={() => cambiarEstado(parcial, 'abierto')}>
+          <button className="btn sec" type="button" disabled={Boolean(accionando) || !parcial.habilitado} onClick={() => cambiarEstado(parcial, 'abierto')}>
             {accionando === `${parcial.n}:abierto` ? 'GUARDANDO…' : 'ABRIR AHORA'}
           </button>
-          <button className="btn sec" type="button" disabled={Boolean(accionando)} onClick={() => cambiarEstado(parcial, 'cerrado')}>
+          <button className="btn sec" type="button" disabled={Boolean(accionando) || !parcial.habilitado} onClick={() => cambiarEstado(parcial, 'cerrado')}>
             {accionando === `${parcial.n}:cerrado` ? 'GUARDANDO…' : 'CERRAR AHORA'}
           </button>
         </div>

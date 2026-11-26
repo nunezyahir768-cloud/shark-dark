@@ -24,16 +24,16 @@ export function InicioAdmin({ onTutorial }) {
 const sumar50 = h => { const [a, b] = (h || '').split(':').map(Number); if (Number.isNaN(a) || Number.isNaN(b)) return ''; const m = a * 60 + b + 50; return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 export function Cuentas() {
   const { u, g, cargar, error } = useServicios(), [b, ban] = useBanner(), [solicitudes, setSolicitudes] = useState([]), [errorSolicitudes, setErrorSolicitudes] = useState('');
-  const [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false);
-  const [crearAbierto, setCrearAbierto] = useState(false), [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false), [errorImportacion, setErrorImportacion] = useState('');
+  const [crearAbierto, setCrearAbierto] = useState(false), [importarAbierto, setImportarAbierto] = useState(false), [recuperacionesAbiertas, setRecuperacionesAbiertas] = useState(false);
   const filtrosIniciales = { q: '', rol: 'todos', grupo: 'todos', estado: 'todos' };
-  const [filtros, setFiltros] = useState(filtrosIniciales), [filtrosEdicion, setFiltrosEdicion] = useState(filtrosIniciales);
+  const [filtros, setFiltros] = useState(filtrosIniciales);
   const [errorCrear, setErrorCrear] = useState('');
   const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A', tutorNombre: '', tutorCurp: '', sinTutor: false });
   const cargarSolicitudes = async () => { try { setSolicitudes(await SD.cached('admin_recuperaciones', '/api/admin/recuperaciones')); setErrorSolicitudes(''); } catch (e) { setErrorSolicitudes(e.message || 'No se pudieron cargar las solicitudes.'); } };
   const borrarSolicitudes = async () => {
     if (!solicitudes.length || !confirm('¿Quieres borrar todas las solicitudes de restablecimiento pendientes? Esta acción no se puede deshacer.')) return;
-    try { const r = await SD.api('/api/admin/recuperaciones', { method: 'DELETE' }); setSolicitudes([]); ban('ok', 'Solicitudes borradas', `Se borraron ${r.eliminadas} solicitudes pendientes.`); }
+    try { const r = await SD.api('/api/admin/recuperaciones', { method: 'DELETE' }); setSolicitudes([]); setRecuperacionesAbiertas(false); ban('ok', 'Solicitudes borradas', `Se borraron ${r.eliminadas} solicitudes pendientes.`); }
     catch (er) { ban('err', 'No se pudieron borrar las solicitudes', msgErr(er)); }
   };
   useEffect(() => { cargarSolicitudes(); }, []);
@@ -46,7 +46,8 @@ export function Cuentas() {
       const { sinTutor, ...datos } = f;
       if (datos.rol !== 'alumno' || sinTutor) { delete datos.tutorCurp; delete datos.tutorNombre; }
       const r = await post('/api/admin/usuarios', datos);
-      ban('ok', 'Cuenta creada', r.tutor === 'creado' ? 'Se crearon el alumno y su tutor, ya vinculados. Ambos entran con su CURP.' : r.tutor === 'vinculado' ? 'El alumno quedó vinculado a un tutor que ya existía.' : 'La persona puede entrar con su CURP y crear su contraseña.');
+      if (r.codigosActivacion?.length) alert('Entrega este código de activación a la persona; solo se muestra ahora:\n' + r.codigosActivacion.map(x => `${x.curp}: ${x.codigo}`).join('\n'));
+      ban('ok', 'Cuenta creada', 'Entrega el código de activación que se mostró en pantalla junto con la CURP.');
       setF({ ...f, nombre: '', id: '', tutorNombre: '', tutorCurp: '' }); setCrearAbierto(false); cargar();
     }
     catch (er) { setErrorCrear(msgErr(er)); }
@@ -54,13 +55,13 @@ export function Cuentas() {
   const leerExcel = async e => {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
-    setLeyendoExcel(true); setImportadas([]);
+    setLeyendoExcel(true); setImportadas([]); setErrorImportacion('');
     try {
       const existentes = new Set(u.map(x => x.id || x.curp));
       const filas = await leerCuentasExcel(file);
       setImportadas(filas.map(c => existentes.has(c.id) ? { ...c, errores: [...c.errores, 'Ya existe una cuenta con esta CURP'] } : c));
       ban('ok', 'Excel leído', `Se encontraron ${filas.length} cuentas para revisar.`);
-    } catch (er) { ban('err', 'No se pudo leer el Excel', er.message); }
+    } catch (er) { setErrorImportacion(er.message || 'No se pudo leer el Excel.'); }
     finally { setLeyendoExcel(false); }
   };
   const crearDesdeExcel = async () => {
@@ -71,8 +72,9 @@ export function Cuentas() {
     try {
       const cuentas = importadas.map(({ rol, nombre, id, semestre, area, grupo }) => ({ rol, nombre, id, semestre, area, grupo }));
       const r = await post('/api/admin/usuarios/importar', { cuentas });
-      ban('ok', 'Cuentas creadas', `Se crearon ${r.creadas} cuentas correctamente.`); setImportadas([]); cargar();
-    } catch (er) { ban('err', 'No se crearon las cuentas', msgErr(er)); }
+      if (r.codigosActivacion?.length) alert('Entrega estos códigos de activación a cada persona; solo se muestran ahora:\n' + r.codigosActivacion.map(x => `${x.curp}: ${x.codigo}`).join('\n'));
+      ban('ok', 'Cuentas creadas', `Se crearon ${r.creadas} cuentas correctamente.`); setImportadas([]); setImportarAbierto(false); cargar();
+    } catch (er) { setErrorImportacion(msgErr(er)); }
     finally { setCreandoImportadas(false); }
   };
   const acc = async (a, x) => {
@@ -89,15 +91,20 @@ export function Cuentas() {
       && (filtros.grupo === 'todos' || grupo === filtros.grupo)
       && (filtros.estado === 'todos' || (filtros.estado === 'primer-acceso' ? x.debeCambiarPassword : !x.debeCambiarPassword));
   }).sort((a, b) => a.nombre.localeCompare(b.nombre)).slice(0, 100);
-  const aplicarFiltros = e => { e.preventDefault(); setFiltros({ ...filtrosEdicion }); setFiltrosAbiertos(false); };
-  const limpiarFiltros = () => { setFiltros(filtrosIniciales); setFiltrosEdicion(filtrosIniciales); setFiltrosAbiertos(false); };
   return (<>
     <Hero titulo="Cuentas" sub="Administra altas, accesos, grupos y solicitudes de recuperación." /><Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
-    <Card title="Importar cuentas desde Excel">
+    <div className="cuentas-acciones">
+      <button className="btn" type="button" onClick={() => { setErrorCrear(''); setCrearAbierto(true); }}>CREAR CUENTA</button>
+      <button className="btn sec" type="button" onClick={() => setImportarAbierto(true)}>IMPORTAR EXCEL</button>
+      <button className="btn sec" type="button" onClick={() => { setRecuperacionesAbiertas(true); cargarSolicitudes(); }}>RECUPERACIONES · {solicitudes.length}</button>
+      <a className="btn sec" href="#/grupos">GRUPOS</a>
+    </div>
+    <PanelEmergente abierto={importarAbierto} titulo="Importar cuentas" onCerrar={() => setImportarAbierto(false)}>
       <p className="sub">Sube un archivo .xlsx o .xls con encabezados <b>rol, nombre y CURP</b>; también se infiere el rol si el encabezado de nombres dice <b>Alumnos, Docentes o Tutores</b>. Para alumnos agrega <b>semestre, área y grupo</b>. Se revisan todas las filas antes de crear.</p>
       <button className="mini" type="button" onClick={descargarPlantillaCuentas}>Descargar plantilla Excel</button>
-      <label htmlFor="cuentas-excel">Archivo Excel</label><input id="cuentas-excel" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={leerExcel} disabled={leyendoExcel || creandoImportadas} />
+      <input id="cuentas-excel" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={leerExcel} disabled={leyendoExcel || creandoImportadas} /><label className="cuentas-archivo" htmlFor="cuentas-excel">Seleccionar archivo XLSX o XLS</label>
+      {errorImportacion && <p className="msg" role="alert">{errorImportacion}</p>}
       {leyendoExcel && <p className="sub" role="status">Leyendo el archivo…</p>}
       {!!importadas.length && <>
         <p className="sub">{importadas.length} cuentas detectadas · {importadas.filter(x => !x.errores.length).length} listas · {importadas.filter(x => x.errores.length).length} con errores</p>
@@ -107,9 +114,8 @@ export function Cuentas() {
         </div>)}</div>
         <button className="btn" type="button" onClick={crearDesdeExcel} disabled={creandoImportadas || importadas.some(x => x.errores.length)}>{creandoImportadas ? 'CREANDO CUENTAS…' : `CREAR CUENTAS (${importadas.length})`}</button>
       </>}
-    </Card>
-    <button className="btn" type="button" aria-haspopup="dialog" onClick={() => { setErrorCrear(''); setCrearAbierto(true); }}>CREAR CUENTA</button>
-    <PanelEmergente abierto={crearAbierto} titulo="Datos para crear cuenta" onCerrar={() => setCrearAbierto(false)}>
+    </PanelEmergente>
+    <PanelEmergente abierto={crearAbierto} titulo="Nueva cuenta" onCerrar={() => setCrearAbierto(false)}>
       <form onSubmit={crear}>
       <select value={f.rol} onChange={e => setF({ ...f, rol: e.target.value })}><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select>
       <input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Nombre completo" required />
@@ -132,33 +138,29 @@ export function Cuentas() {
       <button className="btn" type="submit">CREAR CUENTA</button>
       </form>
     </PanelEmergente>
-    <Card className="solicitudes-card" title={`Solicitudes de restablecimiento · ${solicitudes.length}`}>
+    <PanelEmergente abierto={recuperacionesAbiertas} titulo={`Recuperaciones · ${solicitudes.length}`} onCerrar={() => setRecuperacionesAbiertas(false)}>
+    <Card title="Solicitudes pendientes">
       <button className="mini rojo solicitudes-borrar" type="button" onClick={borrarSolicitudes} disabled={!solicitudes.length}>Borrar solicitudes</button>
-      <p className="sub">Revisa la identidad del usuario antes de autorizar. Al aceptar, se elimina la contraseña y la persona tendrá que crear una nueva al entrar con su CURP.</p>
+      <p className="sub">Revisa la identidad antes de autorizar. Entrega personalmente el código de activación que aparece al confirmar el restablecimiento.</p>
       <button className="mini" onClick={cargarSolicitudes}>Actualizar solicitudes</button>
-      {solicitudes.map(x => <div key={x.id} style={{ borderTop: '1px solid var(--linea)', paddingTop: 10, marginTop: 10 }}><b>{x.nombre || 'Cuenta'}</b><span className="tag">Pendiente</span><p className="sub">{x.rol} · {x.curp} · {new Date(x.creado).toLocaleString()}</p><button className="mini" onClick={async () => { if (!confirm('Confirma que verificaste la identidad del usuario.')) return; try { await post('/api/admin/recuperaciones/' + x.id + '/resolver', { accion: 'restablecer' }); setSolicitudes(v => v.filter(s => s.id !== x.id)); ban('ok', 'Ya se eliminó la contraseña', 'La solicitud se eliminó. La persona puede entrar con su CURP y crear una contraseña nueva.'); } catch (er) { ban('err', 'No se pudo restablecer', msgErr(er)); } }}>Verificar y restablecer</button><button className="mini rojo" onClick={async () => { try { if (!confirm('¿Rechazar esta solicitud?')) return; await post('/api/admin/recuperaciones/' + x.id + '/resolver', { accion: 'rechazar' }); setSolicitudes(v => v.filter(s => s.id !== x.id)); } catch (er) { ban('err', 'No se pudo rechazar', msgErr(er)); } }}>Rechazar</button></div>)}
+      {solicitudes.map(x => <div key={x.id} style={{ borderTop: '1px solid var(--linea)', paddingTop: 10, marginTop: 10 }}><b>{x.nombre || 'Cuenta'}</b><span className="tag">Pendiente</span><p className="sub">{x.rol} · {x.curp} · {new Date(x.creado).toLocaleString()}</p><button className="mini" onClick={async () => { if (!confirm('Confirma que verificaste la identidad del usuario.')) return; try { const r = await post('/api/admin/recuperaciones/' + x.id + '/resolver', { accion: 'restablecer' }); alert(`Código de activación para ${x.curp}: ${r.codigoActivacion}`); setSolicitudes(v => v.filter(s => s.id !== x.id)); ban('ok', 'Contraseña restablecida', 'Entrega el código de activación a la persona.'); } catch (er) { ban('err', 'No se pudo restablecer', msgErr(er)); } }}>Verificar y restablecer</button><button className="mini rojo" onClick={async () => { try { if (!confirm('¿Rechazar esta solicitud?')) return; await post('/api/admin/recuperaciones/' + x.id + '/resolver', { accion: 'rechazar' }); setSolicitudes(v => v.filter(s => s.id !== x.id)); } catch (er) { ban('err', 'No se pudo rechazar', msgErr(er)); } }}>Rechazar</button></div>)}
       {errorSolicitudes && <p className="msg" role="alert">{errorSolicitudes}</p>}
       {!solicitudes.length && !errorSolicitudes && <p className="vacio">No hay solicitudes pendientes.</p>}
     </Card>
-    <button className="btn rojo" type="button" aria-haspopup="dialog" onClick={() => { setFiltrosEdicion({ ...filtros }); setFiltrosAbiertos(true); }}>BUSCAR Y FILTRAR CUENTAS</button>
-    <PanelEmergente abierto={filtrosAbiertos} titulo="Buscar y filtrar cuentas" onCerrar={() => setFiltrosAbiertos(false)}>
-      <form onSubmit={aplicarFiltros}>
-      <label htmlFor="cuentas-buscar">Nombre o CURP</label><input id="cuentas-buscar" value={filtrosEdicion.q} onChange={e => setFiltrosEdicion({ ...filtrosEdicion, q: e.target.value })} placeholder="Escribe nombre o CURP" />
-      <div className="fila2">
-        <div><label htmlFor="cuentas-rol">Perfil</label><select id="cuentas-rol" value={filtrosEdicion.rol} onChange={e => setFiltrosEdicion({ ...filtrosEdicion, rol: e.target.value })}><option value="todos">Todos</option><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select></div>
-        <div><label htmlFor="cuentas-estado">Estado de acceso</label><select id="cuentas-estado" value={filtrosEdicion.estado} onChange={e => setFiltrosEdicion({ ...filtrosEdicion, estado: e.target.value })}><option value="todos">Todos</option><option value="primer-acceso">Primer acceso pendiente</option><option value="activa">Activa</option></select></div>
-      </div>
-      <label htmlFor="cuentas-grupo">Grupo</label><select id="cuentas-grupo" value={filtrosEdicion.grupo} onChange={e => setFiltrosEdicion({ ...filtrosEdicion, grupo: e.target.value })}><option value="todos">Todos los grupos</option>{g.map(k => <option key={k.id} value={`${k.semestre}|${k.area}|${k.grupo}`}>{nombreGrupo(k)}</option>)}</select>
-      <p className="sub" style={{ marginBottom: 0 }}>Se muestran hasta 100 resultados.</p>
-      <div className="fila2 panel-emergente-acciones">
-        <button className="btn" type="submit">APLICAR</button>
-        <button className="btn sec" type="button" onClick={limpiarFiltros}>LIMPIAR</button>
-      </div>
-      </form>
     </PanelEmergente>
+    <Card title="Directorio de cuentas">
+      <label htmlFor="cuentas-buscar">Buscar por nombre o CURP</label><input id="cuentas-buscar" value={filtros.q} onChange={e => setFiltros({ ...filtros, q: e.target.value })} placeholder="Escribe un nombre o CURP" />
+      <div className="fila2">
+        <div><label htmlFor="cuentas-rol">Perfil</label><select id="cuentas-rol" value={filtros.rol} onChange={e => setFiltros({ ...filtros, rol: e.target.value })}><option value="todos">Todos</option><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select></div>
+        <div><label htmlFor="cuentas-estado">Estado de acceso</label><select id="cuentas-estado" value={filtros.estado} onChange={e => setFiltros({ ...filtros, estado: e.target.value })}><option value="todos">Todos</option><option value="primer-acceso">Primer acceso pendiente</option><option value="activa">Activa</option></select></div>
+      </div>
+      <label htmlFor="cuentas-grupo">Grupo</label><select id="cuentas-grupo" value={filtros.grupo} onChange={e => setFiltros({ ...filtros, grupo: e.target.value })}><option value="todos">Todos los grupos</option>{g.map(k => <option key={k.id} value={`${k.semestre}|${k.area}|${k.grupo}`}>{nombreGrupo(k)}</option>)}</select>
+      <p className="sub" style={{ marginBottom: 0 }}>Se muestran hasta 100 resultados.</p>
+    </Card>
     {l.map(x => (
       <Card key={x.rol + x.id}><b>{x.nombre}</b><span className="tag">{x.rol}</span><span className={'tag ' + (x.debeCambiarPassword ? '' : 'ok')}>{x.debeCambiarPassword ? 'Primer acceso pendiente' : 'Activa'}</span>
         <p className="sub" style={{ margin: '4px 0 8px' }}>{x.curp || x.id}{x.rol === 'alumno' ? ` · ${x.semestre} ${x.area} ${x.grupo}` : ''}{x.hijos && x.hijos.length ? ` · alumnos: ${x.hijos.join(', ')}` : ''}{x.tutores && x.tutores.length ? ` · tutores: ${x.tutores.join(', ')}` : ''}</p>
+        {x.debeCambiarPassword && <button className="mini" style={{ marginLeft: 0 }} onClick={async () => { try { const r = await SD.api(`/api/admin/usuarios/${x.rol}/${x.id}/codigo-activacion`, { method: 'POST' }); alert(`Código de activación para ${r.curp}: ${r.codigo}`); } catch (er) { ban('err', 'No se pudo emitir el código', msgErr(er)); } }}>Emitir código de activación</button>}
         {x.rol === 'alumno' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('grupo', x)}>Cambiar grupo</button>}
         {x.rol === 'tutor' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('vincular', x)}>Vincular alumno</button>}
         <button className={'mini rojo'} style={x.rol === 'docente' ? { marginLeft: 0 } : {}} onClick={() => acc('borrar', x)}>Borrar</button></Card>))}
@@ -282,7 +284,7 @@ export function CalificacionesAdmin() {
     setGuardando(true);
     try {
       const r = await post('/api/calificaciones', { materia: clase.materia, parcial: Number(parcial), area: grupo.area, semestre: grupo.semestre, grupo: grupo.grupo, notas: alumnos.filter(a => notas[a.curp] !== undefined && notas[a.curp] !== '').map(a => ({ curp: a.curp, nota: Number(notas[a.curp]) })) });
-      ban('ok', 'Calificaciones guardadas', `Se guardaron ${r.guardadas} calificaciones. ${r.publicada ? 'Se avisó a cada alumno.' : 'Los alumnos verán las notas cuando se cierre el parcial.'}`);
+      ban('ok', 'Calificaciones guardadas', `Se guardaron ${r.guardadas} calificaciones. ${r.publicada ? 'Se avisó a cada alumno.' : 'Las notas se publicarán al cerrar la ventana de captura.'}`);
       SD.cached('admin_calificaciones', '/api/calificaciones');
     } catch (e) { ban('err', 'No se pudieron guardar', msgErr(e)); }
     finally { setGuardando(false); }

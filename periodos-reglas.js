@@ -58,9 +58,10 @@ function estadoPeriodo(periodo, fecha) {
       : diaSinClase
         ? `No hay clases: ${diaSinClase.motivo}`
         : '';
-  const parciales = periodo.parciales.map(parcial => {
-    const automatico = fecha < parcial.inicio ? 'proximo' : fecha <= parcial.fin ? 'en-curso' : 'cerrado';
-    const estado = parcial.manualEstado === 'abierto' ? 'en-curso'
+  const parciales = periodo.parciales.slice().sort((a, b) => Number(a.n) - Number(b.n)).map((parcial, indice, lista) => {
+    const habilitado = (indice === 0 || fecha > lista[indice - 1].fin) && fecha >= parcial.inicio;
+    const automatico = !habilitado || fecha < parcial.inicio ? 'proximo' : fecha <= parcial.fin ? 'en-curso' : 'cerrado';
+    const estado = !habilitado ? 'proximo' : parcial.manualEstado === 'abierto' ? 'en-curso'
       : parcial.manualEstado === 'cerrado' ? 'cerrado' : automatico;
     return {
       n: Number(parcial.n),
@@ -72,7 +73,9 @@ function estadoPeriodo(periodo, fecha) {
       versionManual: Number(parcial.versionManual) || 0,
       estado,
       estadoManual: Boolean(parcial.manualEstado),
-      califAbierta: fecha >= parcial.califAbre && fecha <= parcial.califCierra
+      habilitado,
+      califAbierta: habilitado && fecha >= parcial.califAbre && fecha <= parcial.califCierra,
+      califPublicada: habilitado && fecha > parcial.califCierra
     };
   });
   return { configurado: true, ciclo: periodo.ciclo, fecha, enCiclo, mensaje, parciales };

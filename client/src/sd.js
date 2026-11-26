@@ -261,11 +261,11 @@ const { fechaHoraMexico } = asistenciaReglas;
     }
   }
 
-  async function activarCuenta(rol, curp, password, confirmar) {
+  async function activarCuenta(rol, curp, codigoActivacion, password, confirmar) {
     if (!navigator.onLine) throw new Error('Necesitas conexión a internet para crear tu contraseña.');
-    return api('/api/cuenta/activar', { method: 'POST', body: { rol, curp: String(curp).trim().toUpperCase(), password, confirmar } });
+    return api('/api/cuenta/activar', { method: 'POST', body: { rol, curp: String(curp).trim().toUpperCase(), codigoActivacion, password, confirmar } });
   }
-  const activarAlumno = (curp, password, confirmar) => activarCuenta('alumno', curp, password, confirmar);
+  const activarAlumno = (curp, codigoActivacion, password, confirmar) => activarCuenta('alumno', curp, codigoActivacion, password, confirmar);
 
   async function solicitarRecuperacion(rol, id) {
     return api('/api/recuperacion', { method: 'POST', body: { rol, id: String(id).trim().toUpperCase() } });
@@ -386,11 +386,12 @@ const { fechaHoraMexico } = asistenciaReglas;
     fecha = permiso.fecha;
     const autorizacion = permiso.autorizacion;
     const hora = momento.hora;
-    const ya = (await all('asistencias')).find(a => a.curp === curp && a.fecha === fecha && a.estado !== 'falta' && mat(a.materia).toLowerCase() === k);
+    const ya = (await all('asistencias')).find(a => a.curp === curp && a.fecha === fecha && a.estado !== 'falta' && (a.claseId === clase.id || (!a.claseId && mat(a.materia).toLowerCase() === k)));
     if (ya) return { duplicada: true, asistencia: ya };
     await del('asistencias', `F:${curp}:${fecha}:${k}`);
+    await del('asistencias', `F:${curp}:${fecha}:${k}:${clase.id}`);
     const capturaOffline = !!s.offline || !navigator.onLine;
-    const a = { uid: crypto.randomUUID(), curp, fecha, hora, estado: 'asistio', materia, horaInicio: clase.horaInicio || '', horaFin: clase.horaFin || '', docente: s.id, docenteNombre: s.nombre, pendiente: true, capturaOffline };
+    const a = { uid: crypto.randomUUID(), curp, fecha, hora, estado: 'asistio', materia, claseId: clase.id, horaInicio: clase.horaInicio || '', horaFin: clase.horaFin || '', docente: s.id, docenteNombre: s.nombre, pendiente: true, capturaOffline };
     await put('asistencias', a);
     await put('cola', { tipo: 'asistencia', uid: a.uid, datos: { ...a, autorizacion } });
     refrescarBadge();

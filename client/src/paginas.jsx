@@ -231,7 +231,7 @@ export function Horario() {
 export function CalifVer() {
   const al = useAlumno(), [notas] = useCached('calif', '/api/calificaciones'), [periodo] = useCached('periodo', '/api/periodos');
   if (!al) return <Sin />;
-  const publicados = new Set((periodo?.estado?.parciales || []).filter(p => p.estado === 'cerrado').map(p => Number(p.n)));
+  const publicados = new Set((periodo?.estado?.parciales || []).filter(p => p.califPublicada).map(p => Number(p.n)));
   const m = {}; (notas || []).filter(n => n.curp === al.curp && publicados.has(Number(n.parcial))).forEach(n => { (m[n.materia] = m[n.materia] || {})[n.parcial] = n.nota; });
   const prom = v => { const x = Object.values(v); return x.length ? x.reduce((a, b) => a + b, 0) / x.length : null; };
   const f1 = x => x === null || x === undefined ? '–' : Number.isInteger(x) ? String(x) : x.toFixed(1);

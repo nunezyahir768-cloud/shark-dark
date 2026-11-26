@@ -635,3 +635,11 @@ a.btn.pasar-lista{display:block;text-align:center;text-decoration:none;margin:0 
 .nav-flotante .insignia{border-color:transparent}
 @keyframes insignia-pop{from{transform:scale(0)}to{transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){.insignia{animation:none}}
+.cuentas-acciones{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:4px 0 16px}
+.cuentas-acciones .btn{width:100%;min-width:0;margin:0;padding:10px 12px;font-size:.78rem}
+.cuentas-acciones .btn.sec{background:linear-gradient(135deg,#3a2022,#241719);border-color:#7d3036;color:#fff}
+#cuentas-excel{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.cuentas-archivo{display:flex;align-items:center;justify-content:center;min-height:52px;margin:12px 0;padding:12px;border:1px dashed var(--rojo-secundario);border-radius:12px;background:rgba(139,0,8,.08);font-weight:650;cursor:pointer}
+.cuentas-archivo:hover{border-color:var(--rojo);background:rgba(214,0,15,.12)}
+#cuentas-excel:focus-visible+.cuentas-archivo{outline:3px solid var(--rojo);outline-offset:3px}
+@media(max-width:680px){.cuentas-acciones{grid-template-columns:repeat(2,minmax(0,1fr))}.cuentas-acciones .btn{min-height:48px}}

@@ -9,7 +9,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
   const [enLinea, setEnLinea] = useState(navigator.onLine);
   const [u, setU] = useState(''), [password, setPassword] = useState(''), [msg, setMsg] = useState('');
   const [etapa, setEtapa] = useState('curp'), [modo, setModo] = useState('login');
-  const [enviado, setEnviado] = useState(false), [cargando, setCargando] = useState(false), [confirmar, setConfirmar] = useState('');
+  const [enviado, setEnviado] = useState(false), [cargando, setCargando] = useState(false), [confirmar, setConfirmar] = useState(''), [codigoActivacion, setCodigoActivacion] = useState('');
   useEffect(() => {
     const actualizar = () => setEnLinea(navigator.onLine);
     addEventListener('online', actualizar); addEventListener('offline', actualizar);
@@ -20,7 +20,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
     try {
       const cuenta = await SD.identificarCuenta(u);
       setRol(cuenta.rol);
-      setPassword(''); setConfirmar('');
+      setPassword(''); setConfirmar(''); setCodigoActivacion('');
       setModo(cuenta.tienePassword ? 'login' : 'activar');
       setEtapa('password');
     } catch (err) { setMsg(err.message); }
@@ -34,7 +34,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
   }
   async function activar(e) {
     e.preventDefault(); setMsg(''); setCargando(true);
-    try { await SD.activarCuenta(rol, u, password, confirmar); setModo('login'); setPassword(''); setConfirmar(''); setMsg('¡Contraseña creada! Inicia sesión con tu CURP y contraseña.'); }
+    try { await SD.activarCuenta(rol, u, codigoActivacion, password, confirmar); setModo('login'); setPassword(''); setConfirmar(''); setCodigoActivacion(''); setMsg('¡Contraseña creada! Inicia sesión con tu CURP y contraseña.'); }
     catch (err) { setMsg(err.message); } finally { setCargando(false); }
   }
   async function pedir(e) {
@@ -61,8 +61,9 @@ export default function Login({ onOk, onInstall, installMessage }) {
           </> : <><p className="sub">Si la CURP corresponde a una cuenta, la solicitud fue enviada a Servicios Escolares.</p><button className="btn" type="button" onClick={volverCurp}>VOLVER</button></>}
           {!enviado && <button type="button" className="mini" onClick={volverCurp}>Cancelar</button>}
         </form> : modo === 'activar' ? <form onSubmit={activar}>
-          <h2>Crea tu contraseña</h2><p className="sub">Cuenta identificada como {rol}. Elige una contraseña de al menos 4 caracteres.</p>
+          <h2>Crea tu contraseña</h2><p className="sub">Cuenta identificada como {rol}. Escribe el código que te entregó Servicios Escolares.</p>
           <div className="paso-acceso" key="crear-password">
+            <label htmlFor="codigo-activacion">Código de activación</label><input id="codigo-activacion" value={codigoActivacion} onChange={e => setCodigoActivacion(e.target.value.toUpperCase())} autoComplete="one-time-code" required />
             <label htmlFor="nueva">Nueva contraseña</label><input id="nueva" type="password" value={password} onChange={e => setPassword(e.target.value)} minLength="4" autoComplete="new-password" required />
             <label htmlFor="confirmar">Confirma tu contraseña</label><input id="confirmar" type="password" value={confirmar} onChange={e => setConfirmar(e.target.value)} minLength="4" autoComplete="new-password" required />
             <button className="btn" type="submit" disabled={cargando}>{cargando ? 'GUARDANDO…' : 'CREAR MI CONTRASEÑA'}</button><p className="msg" role="alert">{msg}</p>
@@ -87,7 +88,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
       </Card>
       {controlEscolar
         ? <p className="sub" style={{ textAlign: 'center' }}><a href="/">Volver a TIBURONES</a></p>
-        : <div className="login-pie"><p className="sub">El alumno debe estar dado de alta por Servicios Escolares antes de crear su contraseña.</p><a className="login-control" href="/control-escolar">Acceso de Control Escolar</a>
+        : <div className="login-pie"><p className="sub">La cuenta debe estar dada de alta por Servicios Escolares. Para activarla necesitas su código de activación.</p><a className="login-control" href="/control-escolar">Acceso de Control Escolar</a>
           {modo === 'login' && etapa === 'curp' && <><button className="btn login-instalar" type="button" onClick={onInstall}>Descargar acceso directo</button>{installMessage && <p className="sub login-instalar-ayuda" role="status">{installMessage}</p>}</>}
         </div>}
       <span className={'login-estado' + (enLinea ? ' conectado' : '')} role="status"><i aria-hidden="true" />{enLinea ? 'En línea' : 'Sin conexión'}</span>

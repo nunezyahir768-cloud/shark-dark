@@ -12,7 +12,7 @@ const { crearTicketOffline } = require('./offline-auth');
 const { areasCoincidentes, areasDuplicadas } = require('./admin-auth');
 const { tipoAccesoValido, esMismoAcceso, decidirAcceso, crearRegistroAcceso } = require('./acceso-escolar');
 const { fechaHoraMexico, minutosDeHora, decidirRegistroAsistencia, validarAutorizacionCierre } = require('./client/src/asistencia-reglas');
-const { validarPeriodo, estadoPeriodo, eventosAutomaticosPeriodo } = require('./periodos-reglas');
+const { validarPeriodo, fechaValida, estadoPeriodo, eventosAutomaticosPeriodo } = require('./periodos-reglas');
 const webpush = require('web-push');
 
 const app = express();
@@ -34,14 +34,27 @@ const h = fn => (req, res) => fn(req, res).catch(e => { console.error(e); res.st
 const limpiaMat = v => s(v).replace(/\s+/g, ' ').slice(0, 60);
 /* Límite de intentos de login: 8 fallos por cuenta cada 15 minutos */
 const fallos = new Map();
+let intentosLogin;
 const bloqueado = (k, max = 8) => { const f = fallos.get(k); return f && f.c >= max && Date.now() - f.t < 15 * 60e3; };
 const fallo = k => { const f = fallos.get(k); fallos.set(k, f && Date.now() - f.t < 15 * 60e3 ? { c: f.c + 1, t: f.t } : { c: 1, t: Date.now() }); };
+const loginBloqueado = async k => { const d = await intentosLogin.findOne({ _id: k }); return !!d && d.vence > new Date() && d.c >= 8; };
+const loginFallido = async k => {
+    const ahora = new Date(), vence = new Date(Date.now() + 15 * 60e3);
+    await intentosLogin.updateOne({ _id: k }, [{ $set: { c: { $cond: [{ $gt: ['$vence', ahora] }, { $add: [{ $ifNull: ['$c', 0] }, 1] }, 1] }, vence: { $cond: [{ $gt: ['$vence', ahora] }, '$vence', vence] } } }], { upsert: true });
+};
 const bad = (res, msg, code = 400) => res.status(code).json({ error: msg });
 
 const hashPw = (pw, salt = crypto.randomBytes(16).toString('hex')) =>
     ({ salt, hash: crypto.scryptSync(pw, salt, 64).toString('hex') });
 const okPw = (pw, u) => {
     const a = Buffer.from(crypto.scryptSync(pw, u.salt, 64).toString('hex')), b = Buffer.from(u.hash);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+const nuevoCodigoActivacion = () => crypto.randomBytes(9).toString('base64url').toUpperCase();
+const hashCodigoActivacion = codigo => crypto.createHash('sha256').update(String(codigo || '').trim().toUpperCase()).digest('hex');
+const codigoCoincide = (codigo, hash) => {
+    if (!hash || !codigo) return false;
+    const a = Buffer.from(hashCodigoActivacion(codigo)), b = Buffer.from(hash);
     return a.length === b.length && crypto.timingSafeEqual(a, b);
 };
 const firmar = p => {
@@ -74,7 +87,7 @@ const auth = async (req, res, next) => {
 };
 const adminDe = (...areas) => (req, res, next) => req.u.rol === 'admin' && areas.includes(req.u.adminArea) ? next() : bad(res, 'No tienes permiso para esta seccion', 403);
 const soloAdmin = adminDe('control');
-const publico = ({ salt, hash, _id, accessEnvHash, sessionId, sessionId_control, sessionId_sara, sessionId_gabriela, sessionId_portero, ...r }) => r;
+const publico = ({ salt, hash, _id, accessEnvHash, activationCodeHash, sessionId, sessionId_control, sessionId_sara, sessionId_gabriela, sessionId_portero, ...r }) => r;
 
 let usuarios, asistencias, asistenciasPendientes, cierresPendientes, accesosEscuela, accesosEscuelaBloqueos, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, periodos, solicitudesRecuperacion, auditoria, avisosLeidos, reportesConducta, citatorios, suscripcionesPush;
 let recordatoriosPush;
@@ -151,6 +164,9 @@ const registrarCambio = (req, accion, detalle, id) => auditoria.insertOne({
 
 async function periodoActivo() {
     const activo = await periodos.findOne({ _id: 'activo' });
+    const fecha = fechaHoraMexico().fecha;
+    const porFecha = await periodos.find({ _id: { $ne: 'activo' }, inicioClases: { $lte: fecha }, finClases: { $gte: fecha } }).sort({ inicioClases: -1 }).limit(1).next();
+    if (porFecha) return porFecha;
     return activo?.cicloId ? periodos.findOne({ _id: activo.cicloId }) : null;
 }
 
@@ -252,21 +268,20 @@ app.post('/api/cuenta/identificar', h(async (req, res) => {
 }));
 app.post('/api/login', h(async (req, res) => {
     const id = s(req.body.id).toUpperCase(), rol = s(req.body.rol), password = String(req.body.password || '');
-    const llave = 'ip:' + req.ip;
-    if (bloqueado(llave, 40)) return bad(res, 'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo', 429);
+    const llave = crypto.createHash('sha256').update(`${req.ip}|${rol}|${rol === 'admin' ? ADMIN_ID : id}`).digest('hex');
+    if (await loginBloqueado(llave)) return bad(res, 'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo', 429);
     if (rol === 'admin') {
         const configuradas = Object.values(ADMIN_ACCESS_PASSWORDS).some(acceso => acceso.length >= 4);
         const coincidencias = areasCoincidentes(password, ADMIN_ACCESS_PASSWORDS);
         if (!configuradas) return bad(res, 'El acceso administrativo no está configurado en el servidor.', 503);
         if (coincidencias.length > 1) return bad(res, 'Configuración inválida: la contraseña está asignada a más de un área administrativa.', 503);
-        if (!coincidencias.length) { fallo(llave); return bad(res, 'Contraseña incorrecta.', 401); }
+        if (!coincidencias.length) { await loginFallido(llave); return bad(res, 'Contraseña incorrecta.', 401); }
         const adminArea = coincidencias[0];
         const admin = await usuarios.findOne({ _id: 'admin:' + ADMIN_ID, rol: 'admin' });
         if (!admin) {
-            fallo(llave);
+            await loginFallido(llave);
             return bad(res, 'No se encontró la cuenta administrativa.', 401);
         }
-        fallos.delete(llave);
         const sid = crypto.randomBytes(24).toString('base64url');
         await usuarios.updateOne({ _id: admin._id }, { $set: { [`sessionId_${adminArea}`]: sid } });
         const datos = publico(admin);
@@ -276,9 +291,8 @@ app.post('/api/login', h(async (req, res) => {
     if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Elige cómo quieres entrar');
     if (!RX.curp.test(id)) return bad(res, 'Escribe una CURP v\u00e1lida');
     const u = await usuarios.findOne({ _id: `${rol}:${id}`, rol });
-    if (!u) { fallo(llave); return bad(res, 'No encontramos esa cuenta. Revisa la CURP con Servicios Escolares.', 401); }
-    if (u.hash && (!password || !okPw(password, u))) { fallo(llave); return bad(res, 'CURP o contraseña incorrectas', 401); }
-    fallos.delete(llave);
+    if (!u) { await loginFallido(llave); return bad(res, 'No encontramos esa cuenta. Revisa la CURP con Servicios Escolares.', 401); }
+    if (!u.hash || (!password || !okPw(password, u))) { await loginFallido(llave); return bad(res, 'CURP o contraseña incorrectas', 401); }
     const sid = crypto.randomBytes(24).toString('base64url');
     await usuarios.updateOne({ _id: u._id }, { $set: { sessionId: sid } });
     const rolReal = u.rol === 'admin' ? 'admin' : rol;
@@ -309,7 +323,7 @@ app.delete('/api/push/suscripcion', auth, h(async (req, res) => {
 const activarCuenta = h(async (req, res) => {
     const rol = s(req.body.rol);
     const curp = s(req.body.curp).toUpperCase();
-    const password = String(req.body.password || ''), confirmar = String(req.body.confirmar || '');
+    const password = String(req.body.password || ''), confirmar = String(req.body.confirmar || ''), codigo = s(req.body.codigoActivacion);
     if (!['alumno', 'tutor', 'docente'].includes(rol)) return bad(res, 'Tipo de cuenta inválido');
     if (!RX.curp.test(curp)) return bad(res, 'Escribe una CURP válida de 18 caracteres');
     if (!validaPassword(password)) return bad(res, 'Usa una contrase\u00f1a de 4 a 128 caracteres');
@@ -317,11 +331,12 @@ const activarCuenta = h(async (req, res) => {
     const llave = 'activar:' + req.ip;
     if (bloqueado(llave, 8)) return bad(res, 'Demasiados intentos. Espera 15 minutos.', 429);
     const cuenta = await usuarios.findOne({ _id: `${rol}:${curp}`, rol });
-    if (!cuenta || !cuenta.debeCambiarPassword) {
+    if (!cuenta || !cuenta.debeCambiarPassword || !codigoCoincide(codigo, cuenta.activationCodeHash)) {
         fallo(llave); return bad(res, 'No se pudo validar la cuenta. Revisa tu CURP o solicita ayuda a Servicios Escolares.', 401);
     }
     const hp = hashPw(password);
-    await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date(), activadaPorUsuario: true } });
+    const activada = await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true, activationCodeHash: cuenta.activationCodeHash }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date(), activadaPorUsuario: true }, $unset: { activationCodeHash: '' } });
+    if (!activada.modifiedCount) return bad(res, 'El código ya fue utilizado o la cuenta ya se activó.', 409);
     fallos.delete(llave);
     res.json({ ok: true, mensaje: 'Contraseña creada. Ya puedes iniciar sesión desde cualquier dispositivo con tu CURP.' });
 });
@@ -571,7 +586,7 @@ app.get('/api/asistencia/autorizaciones', auth, h(async (req, res) => {
 app.post('/api/asistencias', auth, h(async (req, res) => {
     if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
     const a = req.body || {}, curp = s(a.curp).toUpperCase();
-    if (!RX.curp.test(curp) || !/^[\w-]{8,64}$/.test(s(a.uid)) || !/^\d{4}-\d{2}-\d{2}$/.test(s(a.fecha)) || minutosDeHora(s(a.hora)) === null || !limpiaMat(a.materia))
+    if (!RX.curp.test(curp) || !/^[\w-]{8,64}$/.test(s(a.uid)) || !fechaValida(s(a.fecha)) || minutosDeHora(s(a.hora)) === null || !limpiaMat(a.materia))
         return bad(res, 'Datos de asistencia inválidos');
     const materia = limpiaMat(a.materia), key = materia.toLowerCase();
     const alumno = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
@@ -641,7 +656,7 @@ app.post('/api/asistencias', auth, h(async (req, res) => {
         return res.status(202).json({ ok: true, revisionPendiente: true, fecha: decision.fecha, horaDeclarada: s(a.hora) });
     }
     try {
-        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: decision.fecha, hora: decision.hora, estado: 'asistio', materia, materiaKey: key, horaInicio: decision.bloque.inicio, horaFin: decision.bloque.fin, docente: req.u.id, docenteNombre: s(req.u.nombre) });
+        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: decision.fecha, hora: decision.hora, estado: 'asistio', materia, materiaKey: key, claseId: String(cl._id), horaInicio: decision.bloque.inicio, horaFin: decision.bloque.fin, docente: req.u.id, docenteNombre: s(req.u.nombre) });
     } catch (e) {
         if (e.code !== 11000) throw e;
         const duplicada = await asistencias.findOne({ _id: uid });
@@ -649,7 +664,8 @@ app.post('/api/asistencias', auth, h(async (req, res) => {
             return res.json({ ok: true, revisionPendiente: false, fecha: duplicada.fecha, hora: duplicada.hora });
         return bad(res, 'Ya registrada', 409);
     }
-    await asistencias.deleteOne({ _id: `F:${curp}:${decision.fecha}:${key}` });   // si estaba marcada falta, ya no
+    await asistencias.deleteOne({ _id: `F:${curp}:${decision.fecha}:${key}:${cl._id}` });
+    await asistencias.deleteOne({ _id: `F:${curp}:${decision.fecha}:${key}` });
     await avisar(alumno, 'asistio', decision.hora, decision.fecha, s(a.uid), materia);
     res.status(201).json({ ok: true, fecha: decision.fecha, hora: decision.hora });
 }));
@@ -702,6 +718,7 @@ app.post('/api/asistencias/pendientes/:uid/resolver', auth, h(async (req, res) =
                 curp: pendiente.curp,
                 fecha: pendiente.fecha,
                 materiaKey: pendiente.materiaKey,
+                claseId: pendiente.claseId,
                 estado: 'asistio'
             });
             if (duplicada && duplicada._id !== uid) throw Object.assign(new Error('Ya existe otra asistencia confirmada para este alumno, materia y fecha'), { status: 409 });
@@ -713,6 +730,7 @@ app.post('/api/asistencias/pendientes/:uid/resolver', auth, h(async (req, res) =
                 estado: 'asistio',
                 materia: pendiente.materia,
                 materiaKey: pendiente.materiaKey,
+                claseId: pendiente.claseId,
                 horaInicio: pendiente.horaInicio,
                 horaFin: pendiente.horaFin,
                 docente: pendiente.docente,
@@ -775,12 +793,12 @@ app.post('/api/cierres/pendientes/:uid/resolver', auth, h(async (req, res) => {
             const hora = ultimo.fin;
             const aprobados = await permisos.find({ estado: 'aprobado' }).toArray();
             const alumnos = await usuarios.find({ rol: 'alumno', area: pendiente.area, semestre: pendiente.semestre, grupo: pendiente.grupo }).toArray();
-            const presentes = new Set((await asistencias.find({ fecha: pendiente.fecha, estado: 'asistio', materiaKey: pendiente.materiaKey }).toArray()).map(a => a.curp));
+            const presentes = new Set((await asistencias.find({ fecha: pendiente.fecha, estado: 'asistio', $or: [{ claseId: String(clase._id) }, { claseId: { $exists: false }, docente: pendiente.docente, materiaKey: pendiente.materiaKey }] }).toArray()).map(a => a.curp));
             for (const alumno of alumnos.filter(x => !presentes.has(x.curp))) {
                 const permiso = aprobados.find(x => x.curp === alumno.curp && x.desde <= pendiente.fecha && pendiente.fecha <= x.hasta);
                 try {
                     await asistencias.insertOne({
-                        _id: `F:${alumno.curp}:${pendiente.fecha}:${pendiente.materiaKey}`,
+                        _id: `F:${alumno.curp}:${pendiente.fecha}:${pendiente.materiaKey}:${pendiente.claseId}`,
                         curp: alumno.curp,
                         fecha: pendiente.fecha,
                         hora,
@@ -788,6 +806,7 @@ app.post('/api/cierres/pendientes/:uid/resolver', auth, h(async (req, res) => {
                         motivo: permiso ? 'Permiso: ' + permiso.motivo : undefined,
                         materia: pendiente.materia,
                         materiaKey: pendiente.materiaKey,
+                        claseId: pendiente.claseId,
                         horaInicio: primero.inicio,
                         horaFin: ultimo.fin,
                         docente: pendiente.docente,
@@ -822,7 +841,7 @@ app.post('/api/cierre', auth, h(async (req, res) => {
     if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
     const b = req.body || {}, area = s(b.area), semestre = s(b.semestre), grupo = s(b.grupo);
     const materia = limpiaMat(b.materia), key = materia.toLowerCase(), fechaDeclarada = s(b.fecha), horaDeclarada = s(b.hora);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaDeclarada) || minutosDeHora(horaDeclarada) === null || !area || !semestre || !grupo || !materia) return bad(res, 'Datos inválidos');
+    if (!fechaValida(fechaDeclarada) || minutosDeHora(horaDeclarada) === null || !area || !semestre || !grupo || !materia) return bad(res, 'Datos inválidos');
     const cl = await miClase(req.u.id, area, semestre, grupo, materia);
     if (!cl) return bad(res, 'Esa clase no es tuya', 403);
     if (b.claseId && s(b.claseId) !== String(cl._id)) return bad(res, 'La clase del cierre no coincide con tu horario', 403);
@@ -886,12 +905,12 @@ app.post('/api/cierre', auth, h(async (req, res) => {
     const bl = bloquesHoy.sort((x, y) => x.inicio.localeCompare(y.inicio))[0], hr = bl.inicio ? ` (${bl.inicio} a ${bl.fin})` : '';
     const aprobados = await permisos.find({ estado: 'aprobado' }).toArray();
     const alumnos = await usuarios.find({ rol: 'alumno', area, semestre, grupo }).toArray();
-    const presentes = new Set((await asistencias.find({ fecha, estado: 'asistio', materiaKey: key }).toArray()).map(a => a.curp));
+    const presentes = new Set((await asistencias.find({ fecha, estado: 'asistio', $or: [{ claseId: String(cl._id) }, { claseId: { $exists: false }, docente: req.u.id, materiaKey: key }] }).toArray()).map(a => a.curp));
     const faltas = [];
     for (const al of alumnos.filter(x => !presentes.has(x.curp))) {
         const p = aprobados.find(x => x.curp === al.curp && x.desde <= fecha && fecha <= x.hasta);
         try {
-            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}`, curp: al.curp, fecha, hora, estado: p ? 'justificada' : 'falta', motivo: p ? 'Permiso: ' + p.motivo : undefined, materia, materiaKey: key, horaInicio: bl.inicio, horaFin: bl.fin, docente: req.u.id, docenteNombre: s(req.u.nombre) });
+            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}:${cl._id}`, curp: al.curp, fecha, hora, estado: p ? 'justificada' : 'falta', motivo: p ? 'Permiso: ' + p.motivo : undefined, materia, materiaKey: key, claseId: String(cl._id), horaInicio: bl.inicio, horaFin: bl.fin, docente: req.u.id, docenteNombre: s(req.u.nombre) });
             if (!p) faltas.push(al.nombre);
         } catch (e) { if (e.code !== 11000) throw e; }
         if (p) await avisar(al, 'justificada', hora, fecha, `${al.curp}:${fecha}:${key}`, materia, `${al.nombre} no asistió a ${materia}: justificado por permiso`);
@@ -952,14 +971,15 @@ app.post('/api/admin/recuperaciones/:id/resolver', auth, soloAdmin, h(async (req
     if (accion !== 'restablecer') return bad(res, 'Acción inválida');
     const cuenta = await usuarios.findOne({ _id: `${solicitud.rol}:${solicitud.curp}` });
     if (!cuenta) return bad(res, 'La cuenta ya no existe', 404);
-    const cambioPassword = await usuarios.updateOne({ _id: cuenta._id }, { $set: { debeCambiarPassword: true, passwordActualizada: new Date(), sessionId: null }, $unset: { salt: '', hash: '' } });
+    const codigoActivacion = nuevoCodigoActivacion();
+    const cambioPassword = await usuarios.updateOne({ _id: cuenta._id }, { $set: { debeCambiarPassword: true, passwordActualizada: new Date(), sessionId: null, activationCodeHash: hashCodigoActivacion(codigoActivacion) }, $unset: { salt: '', hash: '' } });
     if (!cambioPassword.matchedCount) return bad(res, 'No se pudo restablecer la contraseña de esa cuenta', 409);
     await solicitudesRecuperacion.deleteOne({ _id: solicitud._id, estado: 'pendiente' });
     await registrarCambio(req, 'Restablecimiento de contraseña', `${solicitud.rol} · ${solicitud.curp}`);
     const mensajeAviso = 'Servicios Escolares restableció tu contraseña. Entra con tu CURP y crea una nueva.';
     await avisos.insertOne({ _id: 'password:' + solicitud.curp + ':' + Date.now(), para: solicitud.curp, curp: solicitud.curp, tipo: 'password', texto: mensajeAviso, fecha: new Date().toISOString().slice(0,10), creado: new Date() });
     await enviarPush(solicitud.rol, solicitud.curp, 'Contraseña restablecida', mensajeAviso, '/');
-    res.json({ ok: true });
+    res.json({ ok: true, codigoActivacion });
 }));
 const ROLES_CUENTA = { alumno: 'alumno', docente: 'docente', tutor: 'tutor' };
 const MAX_ALUMNOS_TUTOR = 3;
@@ -984,14 +1004,15 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     if (s(d.nombre).length < 3) return bad(res, 'Escribe el nombre completo');
     const previa = await conflictoCurp(rol, id);
     if (previa) return bad(res, textoConflicto(rol, previa), 409);
-    const doc = { _id: `${rol}:${id}`, rol, id, curp: id, nombre: s(d.nombre), debeCambiarPassword: true, creado: new Date() };
+    const codigoActivacion = nuevoCodigoActivacion();
+    const doc = { _id: `${rol}:${id}`, rol, id, curp: id, nombre: s(d.nombre), debeCambiarPassword: true, activationCodeHash: hashCodigoActivacion(codigoActivacion), creado: new Date() };
     if (rol === 'alumno') {            // el grupo se crea solo la primera vez que se usa
         const semestre = s(d.semestre).slice(0, 20), area = s(d.area).slice(0, 40), grupo = s(d.grupo).toUpperCase().slice(0, 3);
         if (!semestre || !area || !['A', 'B', 'C'].includes(grupo)) return bad(res, 'Elige el semestre, el área y el grupo (A, B o C)');
         Object.assign(doc, { area, semestre, grupo, tutores: [] });
     }
     if (rol === 'tutor') doc.hijos = [];
-    let tutorId = '', tutorNuevo = null, tutorPrevio = null;
+    let tutorId = '', tutorNuevo = null, tutorPrevio = null, codigoTutorActivacion = '';
     if (rol === 'alumno' && s(d.tutorCurp)) {   // el tutor se crea (o se enlaza si ya existe) junto con el alumno
         tutorId = s(d.tutorCurp).toUpperCase();
         if (!RX.curp.test(tutorId)) return bad(res, 'La CURP del tutor es inválida (18 letras y números)');
@@ -1004,7 +1025,8 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
             const docente = await usuarios.findOne({ _id: `docente:${tutorId}` }, { projection: { nombre: 1 } });
             const nombreTutor = s(d.tutorNombre) || docente?.nombre || '';
             if (nombreTutor.length < 3) return bad(res, 'Escribe el nombre completo del tutor');
-            tutorNuevo = { _id: `tutor:${tutorId}`, rol: 'tutor', id: tutorId, curp: tutorId, nombre: nombreTutor, hijos: [id], debeCambiarPassword: true, creado: new Date() };
+            codigoTutorActivacion = nuevoCodigoActivacion();
+            tutorNuevo = { _id: `tutor:${tutorId}`, rol: 'tutor', id: tutorId, curp: tutorId, nombre: nombreTutor, hijos: [id], debeCambiarPassword: true, activationCodeHash: hashCodigoActivacion(codigoTutorActivacion), creado: new Date() };
         } else if (hijosDe(tutorPrevio).filter(x => x !== id).length >= MAX_ALUMNOS_TUTOR) {
             return bad(res, `Ese tutor ya tiene ${MAX_ALUMNOS_TUTOR} alumnos vinculados, que es el máximo.`, 409);
         }
@@ -1020,14 +1042,14 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     }
     if (rol === 'alumno') await grupos.updateOne({ _id: `${doc.semestre}|${doc.area}|${doc.grupo}` }, { $set: { semestre: doc.semestre, area: doc.area, grupo: doc.grupo, nombre: `${doc.semestre} ${doc.area} ${doc.grupo}` } }, { upsert: true });
     await registrarCambio(req, 'Cuenta creada', `${rol} · ${id}`);
-    res.status(201).json({ ok: true, tutor: tutorId ? (tutorNuevo ? 'creado' : 'vinculado') : '' });
+    res.status(201).json({ ok: true, tutor: tutorId ? (tutorNuevo ? 'creado' : 'vinculado') : '', codigosActivacion: [{ curp: id, codigo: codigoActivacion }, ...(tutorNuevo ? [{ curp: tutorId, codigo: codigoTutorActivacion }] : [])] });
 }));
 app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => {
     const filas = req.body?.cuentas;
     if (!Array.isArray(filas) || !filas.length || filas.length > 500) return bad(res, 'Envía entre 1 y 500 cuentas para importar.');
     const semestresValidos = ['1-2 semestre', '3-4 semestre', '5-6 semestre'];
     const areasValidas = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'];
-    const documentos = [], curps = new Set(), gruposNuevos = new Map(), rolesEnArchivo = new Map();
+    const documentos = [], codigosActivacion = [], curps = new Set(), gruposNuevos = new Map(), rolesEnArchivo = new Map();
     for (let i = 0; i < filas.length; i++) {
         const d = filas[i] || {}, rol = s(d.rol), id = s(d.id).toUpperCase(), nombre = s(d.nombre).replace(/\s+/g, ' ');
         if (!['alumno', 'docente', 'tutor'].includes(rol)) return bad(res, `Fila ${i + 1}: rol inválido.`);
@@ -1039,7 +1061,9 @@ app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => 
         if (previosArchivo.has(rol) || (rol === 'alumno' && previosArchivo.size) || previosArchivo.has('alumno')) return bad(res, `Fila ${i + 1}: CURP repetida en el archivo.`);
         previosArchivo.add(rol); rolesEnArchivo.set(id, previosArchivo);
         curps.add(id);
-        const doc = { _id, rol, id, curp: id, nombre, debeCambiarPassword: true, creado: new Date() };
+        const codigo = nuevoCodigoActivacion();
+        const doc = { _id, rol, id, curp: id, nombre, debeCambiarPassword: true, activationCodeHash: hashCodigoActivacion(codigo), creado: new Date() };
+        codigosActivacion.push({ curp: id, rol, codigo });
         if (rol === 'alumno') {
             const semestre = s(d.semestre), area = s(d.area), grupo = s(d.grupo).toUpperCase();
             if (!semestresValidos.includes(semestre) || !areasValidas.includes(area) || !['A', 'B', 'C'].includes(grupo)) return bad(res, `Fila ${i + 1}: semestre, área o grupo inválido.`);
@@ -1066,7 +1090,17 @@ app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => 
         throw e;
     } finally { await session.endSession(); }
     if (conflictos.length) return bad(res, `No se creó ninguna cuenta. Estas CURP ya están registradas: ${conflictos.join(', ')}.`, 409);
-    res.status(201).json({ ok: true, creadas: documentos.length });
+    res.status(201).json({ ok: true, creadas: documentos.length, codigosActivacion });
+}));
+app.post('/api/admin/usuarios/:rol/:id/codigo-activacion', auth, soloAdmin, h(async (req, res) => {
+    const rol = s(req.params.rol), id = s(req.params.id).toUpperCase();
+    if (!['alumno', 'docente', 'tutor'].includes(rol)) return bad(res, 'Tipo de cuenta inválido');
+    const cuenta = await usuarios.findOne({ _id: `${rol}:${id}`, debeCambiarPassword: true });
+    if (!cuenta) return bad(res, 'La cuenta no existe o ya fue activada', 404);
+    const codigo = nuevoCodigoActivacion();
+    await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true }, { $set: { activationCodeHash: hashCodigoActivacion(codigo) } });
+    await registrarCambio(req, 'Código de activación emitido', `${rol} · ${id}`);
+    res.json({ ok: true, codigo, curp: id });
 }));
 app.post('/api/admin/editar', auth, soloAdmin, h(async (req, res) => {
     const id = 'alumno:' + s(req.body.id).toUpperCase(), c = {};
@@ -1328,6 +1362,13 @@ app.post('/api/admin/periodos', auth, adminDe('control'), h(async (req, res) => 
     );
     const detalle = `Ciclo ${ciclo}: ${config.inicioClases} a ${config.finClases}; ${config.parciales.length} parciales y ${config.diasSinClase.length} días sin clases.`;
     await registrarCambio(req, 'Configuración de periodo escolar actualizada', detalle);
+    const diasAnteriores = new Map((anterior?.diasSinClase || []).map(d => [d.fecha, d.motivo]));
+    for (const dia of config.diasSinClase) {
+        if (diasAnteriores.get(dia.fecha) === dia.motivo) continue;
+        const texto = `Día sin clases programado para el ${dia.fecha}: ${dia.motivo}. Ciclo ${ciclo}.`;
+        const idAviso = `dia-sin-clase:${cicloId}:${dia.fecha}`;
+        await avisos.updateOne({ _id: idAviso }, { $set: { para: ADMIN_ID, tipo: 'calendario-sara', texto, fecha: dia.fecha, creado: new Date() } }, { upsert: true });
+    }
     res.json(vistaPeriodo(await periodos.findOne({ _id: cicloId })));
 }));
 
@@ -1340,6 +1381,9 @@ app.post('/api/admin/periodos/:n/estado', auth, adminDe('control'), h(async (req
     if (!periodo) return bad(res, 'Primero configura el ciclo escolar y sus parciales.', 409);
     const parcial = periodo.parciales.find(x => Number(x.n) === n);
     if (!parcial) return bad(res, 'El parcial no existe en el ciclo activo.', 404);
+    const vistaActual = estadoPeriodo(periodo, fechaHoraMexico().fecha);
+    if (!vistaActual.parciales.find(x => x.n === n)?.habilitado)
+        return bad(res, 'Este parcial se habilita cuando termina el parcial anterior.', 409);
     const registrarEvento = async eventoUid => {
         const accion = estado === 'abierto' ? 'abierto manualmente' : 'cerrado manualmente';
         try {
@@ -1406,7 +1450,7 @@ app.post('/api/calificaciones', auth, h(async (req, res) => {
                 ? 'El parcial no está configurado. La calificación se guardó fuera de una ventana escolar definida.'
                 : 'La calificación se guardó fuera de la ventana de captura configurada.'
         : '';
-    const publicada = parcial?.estado === 'cerrado';
+    const publicada = !!parcial?.califPublicada;
     let n = 0;
     for (const x of notas.slice(0, 200)) {
         const curp = s(x.curp).toUpperCase(), nota = Number(x.nota);
@@ -1436,7 +1480,7 @@ app.get('/api/calificaciones', auth, h(async (req, res) => {
     if (req.u.rol === 'alumno' || req.u.rol === 'tutor') {
         const periodo = await periodoActivo();
         const publicadas = periodo
-            ? estadoPeriodo(periodo, fechaHoraMexico().fecha).parciales.filter(x => x.estado === 'cerrado').map(x => x.n)
+            ? estadoPeriodo(periodo, fechaHoraMexico().fecha).parciales.filter(x => x.califPublicada).map(x => x.n)
             : [];
         if (!publicadas.length) return res.json([]);
         q.parcial = { $in: publicadas };
@@ -1452,7 +1496,7 @@ app.post('/api/permisos', auth, h(async (req, res) => {
     const al = c.includes(curp) ? await usuarios.findOne({ _id: 'alumno:' + curp }) : null;
     if (!al) return bad(res, 'Elige un alumno vinculado a tu cuenta', 404);
     const desde = s(req.body.desde), hasta = s(req.body.hasta), motivo = s(req.body.motivo).slice(0, 200);
-    if (!FECHA.test(desde) || !FECHA.test(hasta) || hasta < desde || !motivo) return bad(res, 'Revisa las fechas y escribe el motivo');
+    if (!fechaValida(desde) || !fechaValida(hasta) || hasta < desde || !motivo) return bad(res, 'Revisa las fechas y escribe el motivo');
     if ((new Date(hasta) - new Date(desde)) / 864e5 > 30) return bad(res, 'El permiso no puede durar más de 30 días');
     const id = crypto.randomBytes(5).toString('hex').toUpperCase();
     await permisos.insertOne({ _id: id, curp: al.curp, alumno: al.nombre, area: al.area, semestre: al.semestre, grupo: al.grupo, tutor: req.u.id, desde, hasta, motivo, estado: 'pendiente', creado: new Date() });
@@ -1499,7 +1543,7 @@ app.get('/api/citatorios', auth, h(async (req, res) => {
 }));
 app.post('/api/admin/citatorios', auth, adminDe('sara', 'control'), h(async (req, res) => {
     const curp = s(req.body.curp).toUpperCase(), fecha = s(req.body.fecha), motivo = s(req.body.motivo).trim().slice(0, 1000);
-    if (!RX.curp.test(curp) || !FECHA.test(fecha) || !motivo) return bad(res, 'Elige alumno, fecha y motivo del citatorio');
+    if (!RX.curp.test(curp) || !fechaValida(fecha) || !motivo) return bad(res, 'Elige alumno, fecha y motivo del citatorio');
     const alumno = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
     if (!alumno) return bad(res, 'No se encontró ese alumno', 404);
     const id = crypto.randomBytes(6).toString('hex').toUpperCase();
@@ -1519,7 +1563,9 @@ app.delete('/api/admin/citatorios/:id', auth, adminDe('sara', 'control'), h(asyn
 }));
 
 app.get('/api/avisos', auth, h(async (req, res) => {
-    const lista = await avisos.find({ para: req.u.id }).sort({ creado: -1 }).limit(100).toArray();
+    const filtro = { para: req.u.id };
+    if (req.u.rol === 'admin' && req.u.adminArea !== 'sara') filtro.tipo = { $ne: 'calendario-sara' };
+    const lista = await avisos.find(filtro).sort({ creado: -1 }).limit(100).toArray();
     res.json(lista.map(({ _id, para, ...r }) => ({ id: _id, ...r })));
 }));
 
@@ -1579,6 +1625,8 @@ async function iniciarServidor() {
         suscripcionesPush = db.collection('suscripcionesPush');
         recordatoriosPush = db.collection('recordatoriosPush');
         solicitudesRecuperacion = db.collection('solicitudesRecuperacion');
+        intentosLogin = db.collection('intentosLogin');
+        await intentosLogin.createIndex({ vence: 1 }, { expireAfterSeconds: 0 });
         auditoria = db.collection('auditoria');
         avisosLeidos = db.collection('avisosLeidos');
         reportesConducta = db.collection('reportesConducta');

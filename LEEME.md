@@ -101,9 +101,11 @@ Los grupos se crean cuando se registra o importa un alumno, o cuando se agrega u
 ### Ciclo escolar y parciales
 
 - Control Escolar configura en **Periodos** el ciclo activo, sus fechas, los tres parciales, sus ventanas de captura y los días sin clases. No se inventan fechas: la asistencia permanece bloqueada hasta registrar el calendario oficial.
+- El nombre sugerido del ciclo se calcula con el año escolar vigente en `America/Mexico_City`; las fechas oficiales siguen siendo capturadas por Control Escolar. La aplicación elige entre los ciclos guardados según sus fechas y envía los días sin clases nuevos a las notificaciones de Lic. Sara.
+- Los parciales se habilitan por orden y fecha: el siguiente queda bloqueado hasta que termine el anterior y llegue su fecha de inicio.
 - El estado de cada parcial se calcula como **Próximo**, **En curso** o **Cerrado**; **Abrir ahora** y **Cerrar ahora** aplican un estado manual persistente, dejan auditoría y generan avisos idempotentes para docentes.
 - La captura docente fuera de la ventana muestra una advertencia, pero no se bloquea. La asistencia sí se bloquea fuera del ciclo y en días sin clases; las asistencias offline no verificables permanecen sujetas a revisión.
-- Alumnos y tutores solo consultan las calificaciones de parciales cerrados. No se envían avisos con notas antes de que el parcial se publique.
+- Alumnos y tutores consultan las calificaciones cuando termina la ventana de captura configurada para cada parcial. No se envían avisos antes de esa fecha.
 - Cada ciclo escolar se conserva en MongoDB. Al cambiar el ciclo activo no se limpian ni migran asistencias, grupos, calificaciones ni registros existentes.
 
 ## Importante sobre la seguridad

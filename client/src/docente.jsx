@@ -161,7 +161,7 @@ export function CalifDocente() {
     try {
       const r = await post('/api/calificaciones', { materia: c.materia, parcial: p, notas: Object.entries(vals).filter(([, v]) => v !== '').map(([curp, v]) => ({ curp, nota: +v })) });
       ban(r.advertencia ? 'warn' : 'ok', r.advertencia ? 'Guardadas fuera de ventana' : 'Guardadas',
-        `${r.guardadas} calificaciones. ${r.publicada ? 'Se notificó a los alumnos.' : 'Los alumnos verán las notas cuando se cierre el parcial.'}${r.advertencia ? ` ${r.advertencia}` : ''}`);
+        `${r.guardadas} calificaciones. ${r.publicada ? 'Se notificó a los alumnos.' : 'Las notas se publicarán al cerrar la ventana de captura.'}${r.advertencia ? ` ${r.advertencia}` : ''}`);
       cargarNotas();
     } catch (e) { ban('err', 'No se pudo guardar', msgErr(e)); }
   }
@@ -170,7 +170,7 @@ export function CalifDocente() {
     descargar(XL.calificaciones({ titulo: 'CBTIS 170 · TIBURONES', subtitulo: `Calificaciones · ${c.semestre} ${c.area} ${c.grupo} · Parcial ${p}`, materias: mats, filas }), `calificaciones-${c.semestre}${c.area}${c.grupo}-P${p}.xlsx`);
   }
   return (<>
-    <Hero titulo="Calificaciones" sub="Captura tu asignatura; los alumnos verán las notas cuando se cierre el parcial." /><Banner b={b} />
+    <Hero titulo="Calificaciones" sub="Captura tu asignatura; las notas se publican al cerrar la ventana de captura." /><Banner b={b} />
     <Card title="Clase y parcial">
       <select value={c ? c.id : ''} onChange={e => { setCid(e.target.value); setMats(null); }}>{lc.map(x => <option key={x.id} value={x.id}>{x.materia} · {x.semestre} {x.area} {x.grupo}</option>)}{!lc.length && <option value="">No tienes clases asignadas</option>}</select>
       <select value={p} onChange={e => { setP(+e.target.value); setMats(null); }}><option value="1">Parcial 1</option><option value="2">Parcial 2</option><option value="3">Parcial 3</option></select>
