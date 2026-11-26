@@ -5,10 +5,7 @@ import Logo from './Logo.jsx';
 
 export default function Login({ onOk, onInstall, installMessage }) {
   const controlEscolar = location.pathname.replace(/\/+$/, '') === '/control-escolar';
-  const [rol, setRol] = useState(() => {
-    if (controlEscolar) { const area = localStorage.getItem('sd_admin_area'); return ['portero', 'sara', 'gabriela', 'control'].includes(area) ? area : 'control'; }
-    return '';
-  });
+  const [rol, setRol] = useState('');
   const [enLinea, setEnLinea] = useState(navigator.onLine);
   const [u, setU] = useState(''), [password, setPassword] = useState(''), [msg, setMsg] = useState('');
   const [etapa, setEtapa] = useState('curp'), [modo, setModo] = useState('login');
@@ -31,7 +28,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
   }
   async function entrar(e) {
     e.preventDefault(); setMsg(''); setCargando(true);
-    try { await SD.login(controlEscolar ? 'admin' : rol, u, password, controlEscolar ? rol : ''); localStorage.setItem('sd_rol', controlEscolar ? 'admin' : rol); if (controlEscolar) localStorage.setItem('sd_admin_area', rol); onOk(); }
+    try { await SD.login(controlEscolar ? 'admin' : rol, u, password); localStorage.setItem('sd_rol', controlEscolar ? 'admin' : rol); onOk(); }
     catch (err) { setMsg(err.message); }
     finally { setCargando(false); }
   }
@@ -54,9 +51,8 @@ export default function Login({ onOk, onInstall, installMessage }) {
       <p className="sub" style={{ textAlign: 'center' }}>{controlEscolar ? 'CBTIS 170 · Portal administrativo' : 'CBTIS 170 · TIBURONES'}</p>
       <Card>
         {controlEscolar ? <form onSubmit={entrar}>
-          <label htmlFor="rol">Entrar como</label><select id="rol" value={rol} onChange={e => setRol(e.target.value)}><option value="control">Control Escolar</option><option value="sara">Lic. Sara</option><option value="gabriela">Ing. Gabriela</option><option value="portero">Portero</option></select>
           <label htmlFor="pw">Contraseña de acceso</label><input id="pw" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
-          <button className="btn" type="submit" disabled={cargando}>{cargando ? 'VERIFICANDO…' : 'ENTRAR A CONTROL ESCOLAR'}</button><p className="msg" role="alert">{msg}</p>
+          <button className="btn" type="submit" disabled={cargando}>{cargando ? 'VERIFICANDO…' : 'ENTRAR'}</button><p className="msg" role="alert">{msg}</p>
         </form> : modo === 'recuperar' ? <form onSubmit={pedir}>
           <h2>Recuperar contraseña</h2>
           {!enviado ? <><p className="sub">La solicitud llegará a Servicios Escolares para su revisión.</p>

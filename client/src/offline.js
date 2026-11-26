@@ -1,5 +1,6 @@
 const PUBLIC_KEY = process.env.OFFLINE_PUBLIC_KEY || '';
 const ITERACIONES = 310000;
+const AREAS_ADMIN = ['control', 'sara', 'gabriela', 'portero'];
 export const offlineDisponible = !!PUBLIC_KEY && typeof crypto !== 'undefined' && !!crypto.subtle;
 const utf8 = new TextEncoder();
 const b64url = s => {
@@ -42,7 +43,7 @@ export async function validarTicket(ticket) {
   const correcta = await crypto.subtle.verify({ name: 'Ed25519' }, key, desdeB64url(firma), utf8.encode(payload));
   if (!correcta) throw new Error('Credencial offline inválida.');
   const claims = JSON.parse(new TextDecoder().decode(desdeB64url(payload)));
-  if (claims.v !== 1 || !claims.sub || !['alumno', 'tutor', 'docente', 'admin'].includes(claims.rol) || !claims.usuario || claims.usuario.id !== claims.sub || claims.usuario.rol !== claims.rol) {
+  if (claims.v !== 1 || !claims.sub || !['alumno', 'tutor', 'docente', 'admin'].includes(claims.rol) || !claims.usuario || claims.usuario.id !== claims.sub || claims.usuario.rol !== claims.rol || (claims.rol === 'admin' && !AREAS_ADMIN.includes(claims.usuario.adminArea))) {
     throw new Error('Credencial offline inválida.');
   }
   return claims;

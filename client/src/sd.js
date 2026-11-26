@@ -1,5 +1,8 @@
 /* TIBURONES · núcleo offline: IndexedDB + cola de sincronización + QR (generar y leer) */
 import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDisponible } from './offline.js';
+import asistenciaReglas from './asistencia-reglas.js';
+const AREAS_ADMIN = ['control', 'sara', 'gabriela', 'portero'];
+const { fechaHoraMexico } = asistenciaReglas;
   /* ---------- Base de datos local ---------- */
   const CAMPOS_ID = { usuarios: '_id', alumnos: 'curp', asistencias: 'uid', cola: 'qid', avisos: 'id' };
   const PROTEGIDAS = Object.keys(CAMPOS_ID);
@@ -66,7 +69,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     }
   }
   const setSes = u => { sesionMemoria = {
-    rol: u.rol, id: u.id, nombre: u.nombre, curp: u.curp, area: u.area, semestre: u.semestre,
+    rol: u.rol, id: u.id, adminArea: u.adminArea || (u.rol === 'admin' ? localStorage.getItem('sd_admin_area') : null), nombre: u.nombre, curp: u.curp, area: u.area, semestre: u.semestre,
     grupo: u.grupo, curpAlumno: u.curpAlumno, debeCambiarPassword: !!u.debeCambiarPassword,
     offline: !!u.offline, offlineExpiresAt: u.offlineExpiresAt || null, token: u.token || null
   }; if (llaveDatos) guardarSesionPersistente().catch(() => {}); return sesionMemoria; };
@@ -175,15 +178,19 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
     return { rol: roles[0], tienePassword: true };
   }
 
-  async function login(rol, id, password, adminArea = 'control') {
+  async function login(rol, id, password) {
     id = String(id || (rol === 'admin' ? localStorage.getItem('sd_admin_id') : '') || '').trim().toUpperCase();
     if (!navigator.onLine) return loginOffline(rol, id, password);
     let r;
-    try { r = await api('/api/login', { method: 'POST', body: { rol: rol || '', id, password, adminArea } }); }
+    try { r = await api('/api/login', { method: 'POST', body: { rol: rol || '', id, password } }); }
     catch (e) { if (!e.status) return loginOffline(rol, id, password); throw e; }
     rol = r.usuario.rol;
     const uid = r.usuario.id || id;
-    if (rol === 'admin') localStorage.setItem('sd_admin_id', uid);
+    if (rol === 'admin') {
+      if (!AREAS_ADMIN.includes(r.usuario.adminArea)) throw new Error('El servidor no indicó un área administrativa válida.');
+      localStorage.setItem('sd_admin_id', uid);
+      localStorage.setItem('sd_admin_area', r.usuario.adminArea);
+    }
     const keyId = `${rol}:${uid}`;
     let claims = null;
     try {
@@ -235,15 +242,17 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
       const claims = await validarTicket(datos.ticket);
       if (claims.exp <= Date.now()) throw new Error('La credencial offline venció. Conéctate e inicia sesión para renovarla.');
       if (claims.sub !== id || claims.rol !== rol) throw new Error('La cuenta no coincide con esta credencial.');
+      if (rol === 'admin' && !AREAS_ADMIN.includes(claims.usuario.adminArea)) throw new Error('La credencial administrativa offline no contiene un área válida.');
       await cambioDeUsuario(rol, id);
       llaveDatos = key;
       c.fallos = 0; c.bloqueadaHasta = 0; await guardarCredencial(c);
       const u = { ...claims.usuario, offline: true, offlineExpiresAt: claims.exp, token: null };
+      if (rol === 'admin') localStorage.setItem('sd_admin_area', u.adminArea);
       setSes(u); await guardarSesionPersistente();
       refrescarBadge();
       return u;
     } catch (e) {
-      if (/venció|instalación todavía/.test(e.message)) throw e;
+      if (/venció|instalación todavía|área válida/.test(e.message)) throw e;
       if (/navegador no admite/.test(e.message)) throw e;
       c.fallos = (c.fallos || 0) + 1;
       if (c.fallos >= 5) { c.fallos = 0; c.bloqueadaHasta = Date.now() + 15 * 60e3; }
@@ -344,6 +353,11 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
         const ticket = c && await descifrar(c, guardada.llave);
         const claims = ticket && await validarTicket(ticket.ticket);
         if (!claims || claims.exp <= Date.now() || claims.sub !== usuario.id || claims.rol !== usuario.rol) throw new Error('Credencial offline inválida');
+        if (usuario.rol === 'admin') {
+          if (!AREAS_ADMIN.includes(claims.usuario.adminArea)) throw new Error('Credencial administrativa offline inválida');
+          usuario.adminArea = claims.usuario.adminArea;
+          localStorage.setItem('sd_admin_area', usuario.adminArea);
+        }
       } catch { await del('session', 'active'); return null; }
     }
     llaveDatos = guardada.llave;
@@ -358,15 +372,27 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
   /* ---------- Asistencias y consulta ---------- */
   const mat = m => String(m || '').trim().replace(/\s+/g, ' ').slice(0, 60);
   async function asistencia(curp, clase) {
-    const s = ses(), n = new Date(), materia = mat(clase.materia), k = materia.toLowerCase();
-    const fecha = n.toLocaleDateString('sv-SE');           // YYYY-MM-DD en hora local
-    const hora = n.toTimeString().slice(0, 5);
+    const s = ses(), momento = fechaHoraMexico(), materia = mat(clase.materia), k = materia.toLowerCase();
+    let fecha = momento.fecha;
+    let listaAutorizaciones = await cacheLeer('asistencia_autorizaciones', []);
+    if (!s?.offline && navigator.onLine) {
+      try {
+        listaAutorizaciones = await api('/api/asistencia/autorizaciones');
+        await cacheGuardar('asistencia_autorizaciones', listaAutorizaciones);
+      } catch (e) { if (e.status === 401 || e.status === 403) throw e; }
+    }
+    const permiso = listaAutorizaciones.find(x => x.claseId === clase.id && x.fecha === momento.fecha);
+    if (!permiso) throw new Error('No hay autorización firmada vigente para esta clase y fecha. Sincroniza el horario mientras tengas conexión.');
+    fecha = permiso.fecha;
+    const autorizacion = permiso.autorizacion;
+    const hora = momento.hora;
     const ya = (await all('asistencias')).find(a => a.curp === curp && a.fecha === fecha && a.estado !== 'falta' && mat(a.materia).toLowerCase() === k);
     if (ya) return { duplicada: true, asistencia: ya };
     await del('asistencias', `F:${curp}:${fecha}:${k}`);
-    const a = { uid: crypto.randomUUID(), curp, fecha, hora, estado: 'asistio', materia, horaInicio: clase.horaInicio || '', horaFin: clase.horaFin || '', docente: s.id, docenteNombre: s.nombre, pendiente: true };
+    const capturaOffline = !!s.offline || !navigator.onLine;
+    const a = { uid: crypto.randomUUID(), curp, fecha, hora, estado: 'asistio', materia, horaInicio: clase.horaInicio || '', horaFin: clase.horaFin || '', docente: s.id, docenteNombre: s.nombre, pendiente: true, capturaOffline };
     await put('asistencias', a);
-    await put('cola', { tipo: 'asistencia', uid: a.uid, datos: a });
+    await put('cola', { tipo: 'asistencia', uid: a.uid, datos: { ...a, autorizacion } });
     refrescarBadge();
     sync();
     return { duplicada: false, asistencia: a };
@@ -374,17 +400,19 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
 
   /* Cierre de lista de una clase: quien no asistió a esa materia hoy queda con falta */
   async function cierre(clase) {
-    const s = ses(), n = new Date(), fecha = n.toLocaleDateString('sv-SE'), hora = n.toTimeString().slice(0, 5);
-    const materia = mat(clase.materia), k = materia.toLowerCase();
-    if (navigator.onLine) { try { for (const x of await api('/api/alumnos')) await put('alumnos', x); } catch (e) {} }
-    const d = await datos(), presentes = new Set(d.asistencias.filter(a => a.fecha === fecha && a.estado !== 'falta' && mat(a.materia).toLowerCase() === k).map(a => a.curp));
-    const ausentes = d.alumnos.filter(x => x.area === clase.area && x.semestre === clase.semestre && x.grupo === clase.grupo && !presentes.has(x.curp));
-    let ap = []; if (navigator.onLine) { try { ap = (await api('/api/permisos')).filter(p => p.estado === 'aprobado'); } catch (e) {} }
-    const just = x => ap.some(p => p.curp === x.curp && p.desde <= fecha && fecha <= p.hasta);
-    for (const x of ausentes) await put('asistencias', { uid: `F:${x.curp}:${fecha}:${k}`, curp: x.curp, fecha, hora, estado: just(x) ? 'justificada' : 'falta', materia, horaInicio: clase.horaInicio || '', horaFin: clase.horaFin || '', docente: s.id, docenteNombre: s.nombre, pendiente: true });
-    await put('cola', { tipo: 'cierre', datos: { area: clase.area, semestre: clase.semestre, grupo: clase.grupo, materia, fecha, hora, docenteNombre: s.nombre } });
-    refrescarBadge(); sync();
-    return ausentes.filter(x => !just(x)).map(x => x.nombre);
+    const s = ses(), momento = fechaHoraMexico(), materia = mat(clase.materia);
+    const base = { area: clase.area, semestre: clase.semestre, grupo: clase.grupo, materia, claseId: clase.id, fecha: momento.fecha, hora: momento.hora, docenteNombre: s.nombre };
+    if (s.offline || !navigator.onLine) {
+      const lista = await cacheLeer('asistencia_autorizaciones', []);
+      const permiso = lista.find(x => x.claseId === clase.id && x.fecha === momento.fecha);
+      if (!permiso) throw new Error('No hay autorización offline vigente para cerrar esta clase y fecha. Sincroniza el horario mientras tengas conexión.');
+      await put('cola', { tipo: 'cierre', datos: { ...base, uid: crypto.randomUUID(), fecha: permiso.fecha, autorizacion: permiso.autorizacion } });
+      refrescarBadge(); sync();
+      return { revisionPendiente: true, faltas: [] };
+    }
+    const resultado = await api('/api/cierre', { method: 'POST', body: { ...base, uid: crypto.randomUUID() } });
+    await sync();
+    return { revisionPendiente: !!resultado.revisionPendiente, faltas: resultado.faltas || [] };
   }
 
   /* Corregir (solo con internet): justificar una falta o quitar un registro */
@@ -423,13 +451,14 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
       const pendientes = (await all('cola')).sort((a, b) => a.qid - b.qid);
       if (pendientes.some(q => q.estado === 'conflicto')) errorSync = 'Hay cambios que requieren revisión y no se enviaron.';
       for (const q of pendientes.filter(x => x.estado !== 'conflicto')) {
+        let resultado = null;
         try {
           if (q.tipo === 'registro') {
-            await api('/api/registro', { method: 'POST', body: { rol: q.rol, datos: q.datos } });
+            resultado = await api('/api/registro', { method: 'POST', body: { rol: q.rol, datos: q.datos } });
           } else if (q.tipo === 'cierre') {
-            await api('/api/cierre', { method: 'POST', body: q.datos });
+            resultado = await api('/api/cierre', { method: 'POST', body: q.datos });
           } else if (q.tipo === 'asistencia') {
-            await api('/api/asistencias', { method: 'POST', body: q.datos });
+            resultado = await api('/api/asistencias', { method: 'POST', body: q.datos });
           }
         } catch (e) {
           if (!e.status) errorSync = 'Sin conexión estable; los pendientes siguen guardados.';
@@ -448,7 +477,7 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
           if (a) { a.pendiente = false; await put('alumnos', a); }
         } else if (q.tipo === 'asistencia') {
           const a = await get('asistencias', q.uid);
-          if (a) { a.pendiente = false; await put('asistencias', a); }
+          if (a) { a.pendiente = false; a.revisionPendiente = !!resultado?.revisionPendiente; await put('asistencias', a); }
         }
       }
       const s = ses();
@@ -469,8 +498,16 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
       if (s && s.token) {                              // descarga lo que este rol puede ver
         for (const a of await api('/api/alumnos')) await put('alumnos', a);
         const lista = await api('/api/asistencias'), ids = new Set(lista.map(x => x.uid));
+        let pendientesAsistencia = [];
+        if (s.rol === 'docente') {
+          pendientesAsistencia = await api('/api/asistencias/pendientes');
+          await cacheGuardar('asistencias_pendientes', pendientesAsistencia);
+        }
+        const pendientesIds = new Set(pendientesAsistencia.filter(x => x.tipo === 'asistencia').map(x => x.uid));
         for (const a of lista) await put('asistencias', { ...a, pendiente: false });
-        for (const l of await all('asistencias')) if (!l.pendiente && !ids.has(l.uid)) await del('asistencias', l.uid);   // quitadas en el servidor
+        for (const a of pendientesAsistencia.filter(x => x.tipo === 'asistencia'))
+          await put('asistencias', { ...a, hora: a.horaDeclarada, estado: 'asistio', pendiente: false, revisionPendiente: true });
+        for (const l of await all('asistencias')) if (!l.pendiente && !ids.has(l.uid) && !pendientesIds.has(l.uid)) await del('asistencias', l.uid);   // quitadas o revisadas en el servidor
         for (const [k, path] of [
           ['clases', '/api/clases'], ['horario', '/api/horarios'], ['calif', '/api/calificaciones'],
           ['permisos', '/api/permisos'], ['reportes_conducta', '/api/reportes-conducta'], ['anuncios', '/api/anuncios']
@@ -485,6 +522,10 @@ import { cifrar, descifrar, derivarClave, nuevaSal, validarTicket, offlineDispon
             ['admin_horarios', '/api/horarios'], ['admin_historial', '/api/admin/historial'],
             ['admin_recuperaciones', '/api/admin/recuperaciones'], ['admin_permisos', '/api/permisos'], ['admin_anuncios', '/api/anuncios']
           ]) { try { await cacheGuardar(k, await api(path)); } catch (e) { if (e.status === 401 || e.status === 403) throw e; } }
+        }
+        if (s.rol === 'docente') {
+          try { await cacheGuardar('asistencia_autorizaciones', await api('/api/asistencia/autorizaciones')); }
+          catch (e) { if (e.status === 401 || e.status === 403) throw e; }
         }
       }
     } catch (e) { errorSync = 'No se pudo completar la sincronización. Los datos pendientes se conservaron.'; console.warn('Sync:', e.message); }

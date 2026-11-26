@@ -7,6 +7,7 @@ import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } fr
 import { Inicio, PerfilAlumno, PerfilesTutor, PerfilDocente, AsistenciaVer, Horario, CalifVer, Permisos, Avisos, Cuenta, Opciones } from './paginas.jsx';
 import { AsistenciaDocente, CalifDocente } from './docente.jsx';
 import { InicioAdmin, Cuentas, Grupos, Clases, Horarios, Escaner, CalificacionesAdmin, ReportesAdmin, Citatorios, CitatoriosAlumno } from './servicios.jsx';
+import Periodos from './Periodos.jsx';
 import ReportesConducta from './ReportesConducta.jsx';
 import TutorialInteractivo from './TutorialInteractivo.jsx';
 import QRAlumno from './QRAlumno.jsx';
@@ -27,6 +28,7 @@ const ICONOS_MENU = {
   horarios: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
   escaner: <><path d="M4 8V4h4m8 0h4v4M20 16v4h-4M8 20H4v-4M4 12h16" /></>,
   historial: <><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5m4-1v5l3 2" /></>,
+  periodos: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18M8 14h3m-3 3h7" /></>,
   citatorios: <><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 12h7M9 16h5" /><path d="M4 7H3v14h12v-1" /></>
 };
 const IconoMenu = ({ nombre }) => <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONOS_MENU[nombre]}</svg>;
@@ -35,9 +37,10 @@ const MENU = {
   alumno: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['citatorios', 'Citatorios'], ['opciones', 'Opciones']],
   tutor: [['inicio', 'Inicio'], ['asistencia', 'Asistencia'], ['permisos', 'Permisos'], ['horario', 'Horario'], ['calificaciones', 'Calificaciones'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['opciones', 'Opciones']],
   docente: [['inicio', 'Inicio'], ['horario', 'Horario'], ['asistencia', 'Asistencia'], ['reportes', 'Reportes'], ['avisos', 'Notificaciones'], ['calificaciones', 'Calificaciones'], ['permisos', 'Permisos'], ['opciones', 'Opciones']],
-  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['horarios', 'Horarios'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
+  admin: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['permisos', 'Permisos'], ['avisos', 'Notificaciones'], ['reportes', 'Reportes'], ['escaner', 'Escáner'], ['opciones', 'Opciones']]
 };
-const MENU_ADMIN = { portero: [['inicio', 'Inicio'], ['escaner', 'Escáner']], sara: [['inicio', 'Inicio'], ['permisos', 'Permisos'], ['reportes', 'Reportes'], ['citatorios', 'Citatorios'], ['avisos', 'Notificaciones']], gabriela: [['inicio', 'Inicio'], ['horarios', 'Horarios']], control: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['horarios', 'Horarios'], ['calificaciones', 'Calificaciones']] };
+const MENU_ADMIN = { portero: [['inicio', 'Inicio'], ['escaner', 'Escáner']], sara: [['inicio', 'Inicio'], ['permisos', 'Permisos'], ['reportes', 'Reportes'], ['citatorios', 'Citatorios'], ['avisos', 'Notificaciones']], gabriela: [['inicio', 'Inicio'], ['horarios', 'Horarios']], control: [['inicio', 'Inicio'], ['cuentas', 'Cuentas'], ['grupos', 'Grupos'], ['escaner', 'Escáner'], ['calificaciones', 'Calificaciones'], ['periodos', 'Periodos']] };
+const NOMBRE_AREA_ADMIN = { control: 'Control Escolar', sara: 'Lic. Sara', gabriela: 'Ing. Gabriela', portero: 'Portero' };
 const INICIO = { alumno: 'inicio', tutor: 'inicio', docente: 'inicio', admin: 'inicio' };
 const PAGINAS = {
   inicio: { alumno: Inicio, tutor: Inicio, docente: Inicio, admin: InicioAdmin },
@@ -50,7 +53,7 @@ const PAGINAS = {
   reportes: { alumno: ReportesConducta, tutor: ReportesConducta, docente: ReportesConducta, admin: ReportesConducta },
   opciones: { alumno: Opciones, tutor: Opciones, docente: Opciones, admin: Opciones },
   cuenta: { alumno: Cuenta, tutor: Cuenta, docente: Cuenta, admin: Cuenta },
-  cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, citatorios: { admin: Citatorios, alumno: CitatoriosAlumno }
+  cuentas: { admin: Cuentas }, grupos: { admin: Grupos }, clases: { admin: Clases }, horarios: { admin: Horarios }, escaner: { admin: Escaner }, periodos: { admin: Periodos }, citatorios: { admin: Citatorios, alumno: CitatoriosAlumno }
 };
 
 const useRuta = () => {
@@ -138,7 +141,7 @@ function BarraInferior({ rol, menu, ruta, onMas, abierto, onQr, noLeidas }) {
 }
 
 function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, installMessage }) {
-  const rol = ses.rol, menu = rol === 'admin' ? (MENU_ADMIN[localStorage.getItem('sd_admin_area')] || MENU_ADMIN.portero) : MENU[rol], [abre, setAbre] = useState(false), [tutorial, setTutorial] = useState(false), [qrBarra, setQrBarra] = useState(false);
+  const rol = ses.rol, areaAdmin = rol === 'admin' ? localStorage.getItem('sd_admin_area') : '', menu = rol === 'admin' ? (MENU_ADMIN[areaAdmin] || MENU_ADMIN.portero) : MENU[rol], [abre, setAbre] = useState(false), [tutorial, setTutorial] = useState(false), [qrBarra, setQrBarra] = useState(false);
   const ruta = useRuta() || INICIO[rol];
   const noLeidas = useNoLeidas(ses, ruta), enBarra = clavesBarra(rol, menu), menuLateral = menu.filter(([k]) => !enBarra.includes(k));
   const [yo, setYo] = useState(null), [vinc, setVinc] = useState([]), [activo, setActivo] = useState(sessionStorage.getItem('sd_alumno') || '');
@@ -158,6 +161,9 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
   const rutaPermitida = menu.some(([clave]) => clave === ruta) || (rutasPerfil.includes(ruta) && !!(PAGINAS[ruta] || {})[rol]);
   const Pag = rutaPermitida ? (PAGINAS[ruta] || {})[rol] : null;
   const iniciarTutorial = () => { setTutorial(true); location.hash = '#/inicio'; };
+  const tipoCuenta = rol === 'admin' ? 'Control Escolar' : ROL[rol];
+  const nombreCuenta = rol === 'admin' ? (NOMBRE_AREA_ADMIN[areaAdmin] || 'Control Escolar') : ses.nombre;
+  const iconoCampana = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>;
   const paginaProps = ruta === 'opciones' ? { tema, setTema, tamanoFuente, setTamanoFuente, rol, onTutorial: iniciarTutorial } : ruta === 'inicio' ? { onTutorial: iniciarTutorial } : {};
   const ok = vinc.filter(v => v.estado === 'vinculado');
   return (
@@ -179,10 +185,20 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
           </aside>
           <div className={'velo' + (abre ? ' abre' : '')} onClick={() => setAbre(false)} />
           <div className="contenido">
-            <div className="top"><button aria-label="Abrir menú" aria-expanded={abre} onClick={() => setAbre(true)}>☰</button><span className="top-logo" data-intro-destino=""><img src="/img/icono-tiburon.png" alt="" aria-hidden="true" /></span><b>{rol === 'admin' ? 'CONTROL ESCOLAR' : 'TIBURONES'}</b>{rol !== 'admin' && menu.some(([c]) => c === 'avisos') && <a className="campana" href="#/avisos" aria-label={noLeidas ? `Notificaciones: ${noLeidas} sin leer` : 'Notificaciones'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg><Insignia n={noLeidas} /></a>}</div>
+            <div className="top">
+              <div className="top-primary">
+                <button type="button" aria-label="Abrir menú" aria-expanded={abre} onClick={() => setAbre(true)}>☰</button>
+                <span className="top-logo" data-intro-destino=""><img src="/img/icono-tiburon.png" alt="" aria-hidden="true" /></span>
+                <b>TIBURONES</b>
+                {menu.some(([c]) => c === 'avisos')
+                  ? <a className="campana" href="#/avisos" aria-label={noLeidas ? `Notificaciones: ${noLeidas} sin leer` : 'Notificaciones'}>{iconoCampana}<Insignia n={noLeidas} /></a>
+                  : <span className="campana" role="img" aria-label="Notificaciones">{iconoCampana}</span>}
+              </div>
+              <div className="top-info"><span>{tipoCuenta}</span><b className="top-persona" title={nombreCuenta}>{nombreCuenta}</b></div>
+            </div>
             {toast && <div className="toast">{toast}</div>}
             <main>
-              {rol === 'tutor' && ok.length > 1 && ruta !== 'perfiles' && (
+              {rol === 'tutor' && ok.length > 1 && ruta !== 'perfiles' && ruta !== 'inicio' && (
                 <div style={{ marginBottom: 14 }}><label style={{ marginTop: 0 }}>Alumno que estás viendo</label>
                   <select value={alumno ? alumno.curp : ''} onChange={e => elegir(e.target.value)}>{ok.map(v => <option key={v.curp} value={v.curp}>{v.nombre}</option>)}</select></div>
               )}

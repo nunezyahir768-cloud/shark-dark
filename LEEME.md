@@ -1,7 +1,7 @@
 # SHARK DARK · CBTIS 170
 
-Portal escolar: asistencia con QR, horarios, calificaciones, permisos y avisos.
-Funciona en celular, tablet y computadora (se instala como app) y sigue sirviendo sin internet.
+Portal escolar: asistencia con QR, entradas y salidas escolares, horarios, periodos escolares, calificaciones, permisos y avisos.
+Funciona en celular, tablet y computadora (se instala como app); la consulta de datos y la asistencia docente admiten uso offline. El registro de accesos del portero requiere conexión para validar la cuenta y usar la hora oficial del servidor.
 
 ## Las 6 herramientas (explicadas fácil)
 
@@ -29,6 +29,7 @@ shark-dark/
 │   ├── paginas.jsx    ← alumno y tutor (y pantallas comunes)
 │   ├── docente.jsx    ← asistencia, calificaciones y reportes del docente
 │   ├── servicios.jsx  ← Servicios Escolares (cuentas, grupos, clases, horarios)
+│   ├── Periodos.jsx   ← configuración del ciclo y parciales (Control Escolar)
 │   ├── sd.js          ← lo que guarda datos sin internet y sincroniza
 │   └── styles.css     ← colores y diseño
 └── public/            ← lo que ve el navegador (el resultado de React queda aquí)
@@ -78,6 +79,7 @@ Render detecta el cambio solo y publica la nueva versión en unos minutos.
 
 - Alumnos, tutores y docentes escriben su **CURP**; el sistema identifica el tipo de cuenta y después pide la contraseña si ya existe.
 - Control Escolar entra en `/control-escolar` solo con la variable secreta `ADMIN_ACCESS_PASSWORD`, configurada en Render Environment.
+- Las áreas de Lic. Sara, Ing. Gabriela y Portero usan sus respectivas variables de contraseña independientes; Portero registra entradas y salidas desde **Escáner**.
 - El administrador da de alta primero la cuenta. La persona activa su cuenta con su CURP y crea una contraseña propia (mínimo 4 caracteres). Solo puede hacerlo una vez mientras la cuenta esté pendiente de activación.
 - La contraseña se guarda protegida con `scrypt`, nunca en texto plano. Alumnos pueden usar la misma CURP y contraseña en otros dispositivos conectados a internet.
 - Configura `ADMIN_ACCESS_PASSWORD` en Render con el password elegido para Control Escolar. Al cambiarla, reinicia o vuelve a desplegar el servicio.
@@ -94,7 +96,15 @@ Orden recomendado para empezar:
 4. **Horarios** (el descanso de 9:30 a 10:00 ya está fijo)
 5. **Avisos** y **Permisos** cuando haga falta
 
-**Grupos** solo muestra los grupos; ahí se puede **eliminar un grupo con todas sus cuentas**.
+Los grupos se crean cuando se registra o importa un alumno, o cuando se agrega un horario para un grupo nuevo. Los grupos existentes no se eliminan automáticamente. En **Grupos** se pueden eliminar cuentas de alumnos, pero se conservan el grupo, sus materias y horarios.
+
+### Ciclo escolar y parciales
+
+- Control Escolar configura en **Periodos** el ciclo activo, sus fechas, los tres parciales, sus ventanas de captura y los días sin clases. No se inventan fechas: la asistencia permanece bloqueada hasta registrar el calendario oficial.
+- El estado de cada parcial se calcula como **Próximo**, **En curso** o **Cerrado**; **Abrir ahora** y **Cerrar ahora** aplican un estado manual persistente, dejan auditoría y generan avisos idempotentes para docentes.
+- La captura docente fuera de la ventana muestra una advertencia, pero no se bloquea. La asistencia sí se bloquea fuera del ciclo y en días sin clases; las asistencias offline no verificables permanecen sujetas a revisión.
+- Alumnos y tutores solo consultan las calificaciones de parciales cerrados. No se envían avisos con notas antes de que el parcial se publique.
+- Cada ciclo escolar se conserva en MongoDB. Al cambiar el ciclo activo no se limpian ni migran asistencias, grupos, calificaciones ni registros existentes.
 
 ## Importante sobre la seguridad
 
@@ -140,5 +150,6 @@ El envío push requiere estas variables en el entorno del servidor: `VAPID_PUBLI
 - Cada usuario (alumno, tutor, docente o Control Escolar) debe iniciar sesión online una vez en ese dispositivo. La app guarda un ticket firmado con vigencia de 24 horas y cifrado con AES-GCM; la clave se deriva de la contraseña mediante PBKDF2. No guarda la contraseña ni el token de acceso en `localStorage`.
 - Los datos escolares y cachés locales de la app se cifran en IndexedDB o `localStorage`. Al abrir o recargar, se pide la contraseña para desbloquearlos. Cerrar sesión borra la sesión de memoria y conserva la credencial offline hasta su vencimiento.
 - La sesión offline permite consultar datos ya sincronizados. Docentes pueden dejar asistencias pendientes; el indicador muestra cuántas faltan. Al recuperar internet, la app vuelve al login y exige validación online antes de sincronizar. Las acciones administrativas no se autorizan offline.
+- El Portero registra entradas y salidas con acciones explícitas, hora del servidor e historial inmutable. Si no hay internet, el registro se bloquea; cada evento confirmado genera avisos para tutores vinculados.
 - Una cuenta revocada o una contraseña cambiada no se pueden conocer mientras el dispositivo está desconectado. Al volver internet se requiere un login online y el servidor aplica el estado actual; sin conexión, el ticket puede permitir consulta hasta que venza (máximo 24 horas).
 - El cifrado protege los datos guardados frente a lectura casual del almacenamiento del navegador, pero un dispositivo controlado por el usuario no es una bóveda confiable: malware, extensiones o código malicioso ejecutado en el sitio pueden acceder a datos mientras la sesión está abierta. Protege el dispositivo y mantén el sitio libre de XSS.

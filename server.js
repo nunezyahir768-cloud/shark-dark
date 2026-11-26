@@ -9,6 +9,10 @@ const path = require('node:path');
 const express = require('express');
 const { MongoClient } = require('mongodb');
 const { crearTicketOffline } = require('./offline-auth');
+const { areasCoincidentes, areasDuplicadas } = require('./admin-auth');
+const { tipoAccesoValido, esMismoAcceso, decidirAcceso, crearRegistroAcceso } = require('./acceso-escolar');
+const { fechaHoraMexico, minutosDeHora, decidirRegistroAsistencia, validarAutorizacionCierre } = require('./client/src/asistencia-reglas');
+const { validarPeriodo, estadoPeriodo, eventosAutomaticosPeriodo } = require('./periodos-reglas');
 const webpush = require('web-push');
 
 const app = express();
@@ -72,7 +76,7 @@ const adminDe = (...areas) => (req, res, next) => req.u.rol === 'admin' && areas
 const soloAdmin = adminDe('control');
 const publico = ({ salt, hash, _id, accessEnvHash, sessionId, sessionId_control, sessionId_sara, sessionId_gabriela, sessionId_portero, ...r }) => r;
 
-let usuarios, asistencias, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, solicitudesRecuperacion, auditoria, avisosLeidos, reportesConducta, citatorios, suscripcionesPush;
+let usuarios, asistencias, asistenciasPendientes, cierresPendientes, accesosEscuela, accesosEscuelaBloqueos, avisos, calificaciones, grupos, clases, permisos, anuncios, horarios, periodos, solicitudesRecuperacion, auditoria, avisosLeidos, reportesConducta, citatorios, suscripcionesPush;
 let recordatoriosPush;
 const PUSH_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const PUSH_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
@@ -140,9 +144,52 @@ async function revisarRecordatoriosClase() {
 const intentosRecuperacion = new Map();
 const validaPassword = pw => typeof pw === 'string' && pw.length >= 4 && pw.length <= 128;
 const generaTemporal = () => crypto.randomBytes(9).toString('base64url');
-const registrarCambio = (req, accion, detalle) => auditoria.insertOne({
+const registrarCambio = (req, accion, detalle, id) => auditoria.insertOne({
+    ...(id ? { _id: id } : {}),
     accion, detalle, actor: req.u.id, actorNombre: req.u.nombre || 'Servicios Escolares', creado: new Date()
 });
+
+async function periodoActivo() {
+    const activo = await periodos.findOne({ _id: 'activo' });
+    return activo?.cicloId ? periodos.findOne({ _id: activo.cicloId }) : null;
+}
+
+function vistaPeriodo(periodo, fecha = fechaHoraMexico().fecha) {
+    const estado = periodo ? estadoPeriodo(periodo, fecha) : null;
+    return periodo
+        ? {
+            ciclo: periodo.ciclo,
+            inicioClases: periodo.inicioClases,
+            finClases: periodo.finClases,
+            diasSinClase: periodo.diasSinClase,
+            configurado: true,
+            estado,
+            parciales: estado.parciales
+        }
+        : { configurado: false, estado: { configurado: false, enCiclo: false, mensaje: 'Servicios Escolares aún no configura el calendario escolar.', parciales: [] } };
+}
+
+async function notificarDocentesPeriodo(periodo, parcial, estado, eventoId, fecha = fechaHoraMexico().fecha) {
+    const docentes = await usuarios.find({ rol: 'docente' }).project({ id: 1, nombre: 1 }).toArray();
+    const accion = estado === 'abierto' ? 'se abrió' : 'se cerró';
+    const texto = `El parcial ${parcial.n} del ciclo ${periodo.ciclo} ${accion}.`;
+    for (const docente of docentes) {
+        const id = `periodo:${eventoId}:${docente.id}`;
+        const resultado = await avisos.updateOne(
+            { _id: id },
+            { $setOnInsert: { para: docente.id, tipo: 'periodo', texto, fecha, creado: new Date() } },
+            { upsert: true }
+        );
+        if (resultado.upsertedCount) await enviarPush('docente', docente.id, 'TIBURONES · Periodo escolar', texto, '/#/calificaciones');
+    }
+}
+
+async function revisarAvisosPeriodo() {
+    const periodo = await periodoActivo();
+    if (!periodo) return;
+    for (const evento of eventosAutomaticosPeriodo(periodo, fechaHoraMexico().fecha))
+        await notificarDocentesPeriodo(periodo, evento.parcial, evento.estado, evento.id);
+}
 
 /* CURPs que cada rol puede ver: docente = todas, alumno = la suya, tutor = la de su alumno */
 async function permitidas(u) {
@@ -163,8 +210,8 @@ async function ligados(t) {
 
 /* Crea un aviso para cada tutor vinculado al alumno (idempotente) */
 const bloqueDe = async (cl, fecha) => {
-    const dia = new Date(fecha + 'T12:00:00').getDay();
-    const b = (await horarios.find({ claseId: cl._id }).toArray()).find(x => x.dia === dia);
+    const dia = new Date(`${fecha}T12:00:00Z`).getUTCDay();
+    const b = (await horarios.find({ claseId: cl._id, dia }).toArray()).find(x => x.tipo !== 'descanso');
     return b ? { inicio: b.inicio, fin: b.fin } : { inicio: '', fin: '' };
 };
 const miClase = async (doc, area, semestre, grupo, materia) => (await clases.find({ docente: doc }).toArray())
@@ -208,14 +255,16 @@ app.post('/api/login', h(async (req, res) => {
     const llave = 'ip:' + req.ip;
     if (bloqueado(llave, 40)) return bad(res, 'Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo', 429);
     if (rol === 'admin') {
-        const adminArea = s(req.body.adminArea).toLowerCase();
-        const acceso = ADMIN_ACCESS_PASSWORDS[adminArea];
-        if (typeof acceso !== 'string' || acceso.length < 4) return bad(res, 'La password de este perfil no esta configurada en Render.', 503);
-        const esperado = Buffer.from(acceso), recibido = Buffer.from(password);
+        const configuradas = Object.values(ADMIN_ACCESS_PASSWORDS).some(acceso => acceso.length >= 4);
+        const coincidencias = areasCoincidentes(password, ADMIN_ACCESS_PASSWORDS);
+        if (!configuradas) return bad(res, 'El acceso administrativo no está configurado en el servidor.', 503);
+        if (coincidencias.length > 1) return bad(res, 'Configuración inválida: la contraseña está asignada a más de un área administrativa.', 503);
+        if (!coincidencias.length) { fallo(llave); return bad(res, 'Contraseña incorrecta.', 401); }
+        const adminArea = coincidencias[0];
         const admin = await usuarios.findOne({ _id: 'admin:' + ADMIN_ID, rol: 'admin' });
-        if (!admin || esperado.length !== recibido.length || !crypto.timingSafeEqual(esperado, recibido)) {
+        if (!admin) {
             fallo(llave);
-            return bad(res, 'Password incorrecto', 401);
+            return bad(res, 'No se encontró la cuenta administrativa.', 401);
         }
         fallos.delete(llave);
         const sid = crypto.randomBytes(24).toString('base64url');
@@ -333,6 +382,88 @@ app.get('/api/alumno/:curp', auth, h(async (req, res) => {
     res.json(publico(a));
 }));
 
+app.get('/api/accesos', auth, h(async (req, res) => {
+    const curp = s(req.query.curp).toUpperCase();
+    if (!RX.curp.test(curp)) return bad(res, 'CURP inválida.');
+    const u = req.u;
+    if (u.rol === 'alumno' && u.id !== curp) return bad(res, 'Sin permiso', 403);
+    if (u.rol === 'tutor' && !(await permitidas(u)).includes(curp)) return bad(res, 'Sin permiso', 403);
+    if (u.rol === 'admin' && !['control', 'portero'].includes(u.adminArea)) return bad(res, 'Sin permiso', 403);
+    if (!['alumno', 'tutor', 'admin'].includes(u.rol)) return bad(res, 'Sin permiso', 403);
+    const registros = await accesosEscuela.find({ curp }).sort({ creado: -1 }).limit(30).toArray();
+    res.json(registros.map(({ _id, ...registro }) => registro));
+}));
+
+app.post('/api/portero/escanear', auth, adminDe('portero', 'control'), h(async (req, res) => {
+    const curp = s(req.body.curp).toUpperCase(), tipo = s(req.body.tipo), uid = s(req.body.uid).toLowerCase();
+    if (!RX.curp.test(curp)) return bad(res, 'Escanea un QR de alumno válido.');
+    if (!tipoAccesoValido(tipo)) return bad(res, 'Elige entrada o salida.');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(uid))
+        return bad(res, 'Identificador de evento inválido.');
+    const alumno = await usuarios.findOne({ _id: `alumno:${curp}`, rol: 'alumno' });
+    if (!alumno) return bad(res, 'No se encontró una cuenta de alumno para esta CURP.', 404);
+    const anterior = await accesosEscuela.findOne({ _id: uid });
+    if (anterior) {
+        if (!esMismoAcceso(anterior, { curp, tipo })) return bad(res, 'El identificador ya pertenece a otro registro.', 409);
+        const { _id, ...respuesta } = anterior;
+        return res.json({ ...respuesta, duplicada: true });
+    }
+
+    const ahora = new Date(), fecha = fechaHoraMexico(ahora).fecha;
+    let bloqueoAdquirido = false;
+    try {
+        try {
+            const bloqueo = await accesosEscuelaBloqueos.updateOne(
+                { _id: curp, liberadoHasta: { $lte: ahora } },
+                { $set: { liberadoHasta: new Date(ahora.getTime() + 30000), uid } },
+                { upsert: true }
+            );
+            bloqueoAdquirido = bloqueo.modifiedCount === 1 || bloqueo.upsertedCount === 1;
+        } catch (e) {
+            if (e.code !== 11000) throw e;
+            const ultimo = await accesosEscuela.find({ curp, fecha }).sort({ creado: -1 }).limit(1).next();
+            const decision = decidirAcceso(ultimo, ahora, tipo);
+            if (decision.estado === 'espera') {
+                const mensaje = `Ya registró su ${decision.ultimo.tipo} a las ${decision.ultimo.hora}. Podrá registrar su ${decision.esperado} en ${decision.minutosRestantes} min.`;
+                return bad(res, mensaje, 409);
+            }
+            return bad(res, 'Hay otra lectura de este alumno en proceso. Espera un momento e inténtalo de nuevo.', 409);
+        }
+        if (!bloqueoAdquirido) return bad(res, 'Hay otra lectura de este alumno en proceso. Espera un momento e inténtalo de nuevo.', 409);
+
+        const ultimo = await accesosEscuela.find({ curp, fecha }).sort({ creado: -1 }).limit(1).next();
+        const decision = decidirAcceso(ultimo, ahora, tipo);
+        if (decision.estado === 'espera') {
+            const mensaje = `Ya registró su ${decision.ultimo.tipo} a las ${decision.ultimo.hora}. Podrá registrar su ${decision.esperado} en ${decision.minutosRestantes} min.`;
+            return bad(res, mensaje, 409);
+        }
+        if (decision.estado !== 'registrar') {
+            const esperado = decision.esperado || (ultimo ? (ultimo.tipo === 'entrada' ? 'salida' : 'entrada') : 'entrada');
+            return bad(res, `El siguiente evento debe ser ${esperado}.`, 409);
+        }
+
+        const registro = crearRegistroAcceso({ uid, curp, alumno, tipo, actor: req.u, creado: ahora });
+        try { await accesosEscuela.insertOne(registro); }
+        catch (e) {
+            if (e.code !== 11000) throw e;
+            const duplicado = await accesosEscuela.findOne({ _id: uid });
+            if (!esMismoAcceso(duplicado, { curp, tipo }))
+                return bad(res, 'El identificador ya pertenece a otro registro.', 409);
+            const { _id, ...respuesta } = duplicado;
+            return res.json({ ...respuesta, duplicada: true });
+        }
+        const texto = `${alumno.nombre} ${tipo === 'entrada' ? 'entró' : 'salió'} de la escuela a las ${registro.hora}.`;
+        await avisar(alumno, tipo, registro.hora, fecha, uid, '', texto);
+        const { _id, ...respuesta } = registro;
+        res.json({ ...respuesta, duplicada: false });
+    } finally {
+        if (bloqueoAdquirido) {
+            try { await accesosEscuelaBloqueos.deleteOne({ _id: curp, uid }); }
+            catch (e) { console.warn('No se pudo liberar el bloqueo de acceso; expirará automáticamente:', e.message); }
+        }
+    }
+}));
+
 /* ---------- Reportes de conducta ---------- */
 app.get('/api/reportes-conducta/alumnos', auth, h(async (req, res) => {
     let lista;
@@ -411,43 +542,357 @@ app.delete('/api/reportes-conducta/:id', auth, adminDe('sara', 'control'), h(asy
 }));
 
 /* ---------- Asistencias (idempotentes por uid) ---------- */
+app.get('/api/asistencia/autorizaciones', auth, h(async (req, res) => {
+    if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
+    const momento = fechaHoraMexico();
+    const calendario = await periodoActivo();
+    if (!calendario || !estadoPeriodo(calendario, momento.fecha).enCiclo) return res.json([]);
+    const idsClase = (await clases.find({ docente: req.u.id }).project({ _id: 1 }).toArray()).map(x => x._id);
+    const bloques = idsClase.length ? await horarios.find({ claseId: { $in: idsClase }, dia: momento.dia }).toArray() : [];
+    const porClase = new Map();
+    for (const b of bloques) {
+        if (b.tipo === 'descanso' || !b.claseId || !/^\d{2}:\d{2}$/.test(s(b.inicio)) || !/^\d{2}:\d{2}$/.test(s(b.fin))) continue;
+        if (!porClase.has(String(b.claseId))) porClase.set(String(b.claseId), []);
+        porClase.get(String(b.claseId)).push({ inicio: b.inicio, fin: b.fin });
+    }
+    res.json([...porClase].map(([claseId, autorizados]) => ({
+        claseId,
+        fecha: momento.fecha,
+        autorizacion: firmar({
+            tipo: 'asistencia-offline',
+            docente: req.u.id,
+            claseId,
+            fecha: momento.fecha,
+            bloques: autorizados,
+            exp: Date.now() + 30 * 24 * 3600e3
+        })
+    })));
+}));
 app.post('/api/asistencias', auth, h(async (req, res) => {
     if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
     const a = req.body || {}, curp = s(a.curp).toUpperCase();
-    if (!RX.curp.test(curp) || !/^[\w-]{8,64}$/.test(s(a.uid)) || !/^\d{4}-\d{2}-\d{2}$/.test(s(a.fecha)) || !/^\d{2}:\d{2}$/.test(s(a.hora)) || !limpiaMat(a.materia))
+    if (!RX.curp.test(curp) || !/^[\w-]{8,64}$/.test(s(a.uid)) || !/^\d{4}-\d{2}-\d{2}$/.test(s(a.fecha)) || minutosDeHora(s(a.hora)) === null || !limpiaMat(a.materia))
         return bad(res, 'Datos de asistencia inválidos');
     const materia = limpiaMat(a.materia), key = materia.toLowerCase();
     const alumno = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
     if (!alumno) return bad(res, 'Alumno no encontrado', 404);
     const cl = await miClase(req.u.id, alumno.area, alumno.semestre, alumno.grupo, materia);
     if (!cl) return bad(res, 'Esa materia no es tuya o el alumno no es de ese grupo', 403);
-    const bl = await bloqueDe(cl, s(a.fecha));
+    const uid = s(a.uid), existente = await asistencias.findOne({ _id: uid });
+    if (existente) {
+        if (existente.curp !== curp || existente.docente !== req.u.id || existente.materiaKey !== key) return bad(res, 'El identificador ya pertenece a otro registro', 409);
+        return res.json({ ok: true, revisionPendiente: false, fecha: existente.fecha, hora: existente.hora });
+    }
+    const pendienteExistente = await asistenciasPendientes.findOne({ _id: uid });
+    if (pendienteExistente) {
+        if (pendienteExistente.curp !== curp || pendienteExistente.docente !== req.u.id || pendienteExistente.materiaKey !== key) return bad(res, 'El identificador ya pertenece a otro registro', 409);
+        if (pendienteExistente.estado !== 'pendiente' && pendienteExistente.estado !== 'revisando') return bad(res, 'El registro ya fue revisado', 409);
+        return res.status(202).json({ ok: true, revisionPendiente: true, fecha: pendienteExistente.fecha, horaDeclarada: pendienteExistente.horaDeclarada });
+    }
+    const momento = fechaHoraMexico(), bloques = await horarios.find({ claseId: cl._id, dia: momento.dia }).toArray();
+    const decision = decidirRegistroAsistencia({
+        bloquesActuales: bloques,
+        momento,
+        autorizacion: leer(s(a.autorizacion)),
+        docenteId: req.u.id,
+        claseId: String(cl._id),
+        fechaDeclarada: s(a.fecha),
+        horaDeclarada: s(a.hora),
+        ahoraMs: Date.now()
+    });
+    if (!decision) return bad(res, 'La asistencia está fuera del horario permitido y no tiene una autorización offline válida.', 403);
+    const calendario = await periodoActivo();
+    if (!calendario || !estadoPeriodo(calendario, decision.fecha).enCiclo)
+        return bad(res, 'No se permite registrar asistencia fuera del ciclo escolar o en un día sin clases.', 403);
+    if (decision.estado === 'revision') {
+        const repetida = await asistenciasPendientes.findOne({
+            curp,
+            claseId: String(cl._id),
+            fecha: decision.fecha,
+            estado: { $in: ['pendiente', 'revisando', 'confirmada'] }
+        });
+        if (repetida) return bad(res, 'Ya existe un registro pendiente o revisado para este alumno, clase y fecha', 409);
+        const registroPendiente = {
+            _id: uid,
+            curp,
+            fecha: decision.fecha,
+            hora: s(a.hora),
+            horaDeclarada: s(a.hora),
+            estado: 'pendiente',
+            materia,
+            materiaKey: key,
+            horaInicio: decision.bloque.inicio,
+            horaFin: decision.bloque.fin,
+            docente: req.u.id,
+            docenteNombre: s(req.u.nombre),
+            alumnoNombre: s(alumno.nombre),
+            area: alumno.area,
+            semestre: alumno.semestre,
+            grupo: alumno.grupo,
+            claseId: String(cl._id),
+            recibido: new Date()
+        };
+        try { await asistenciasPendientes.insertOne(registroPendiente); }
+        catch (e) {
+            if (e.code !== 11000) throw e;
+            const existente = await asistenciasPendientes.findOne({ _id: registroPendiente._id });
+            if (existente?.curp !== curp || existente?.docente !== req.u.id || existente?.materiaKey !== key) return bad(res, 'El identificador ya pertenece a otro registro', 409);
+        }
+        return res.status(202).json({ ok: true, revisionPendiente: true, fecha: decision.fecha, horaDeclarada: s(a.hora) });
+    }
     try {
-        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: a.fecha, hora: a.hora, estado: 'asistio', materia, materiaKey: key, horaInicio: bl.inicio, horaFin: bl.fin, docente: req.u.id, docenteNombre: s(a.docenteNombre) });
-    } catch (e) { if (e.code === 11000) return bad(res, 'Ya registrada', 409); throw e; }
-    await asistencias.deleteOne({ _id: `F:${curp}:${a.fecha}:${key}` });   // si estaba marcada falta, ya no
-    await avisar(alumno, 'asistio', a.hora, a.fecha, s(a.uid), materia);
-    res.status(201).json({ ok: true });
+        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: decision.fecha, hora: decision.hora, estado: 'asistio', materia, materiaKey: key, horaInicio: decision.bloque.inicio, horaFin: decision.bloque.fin, docente: req.u.id, docenteNombre: s(req.u.nombre) });
+    } catch (e) {
+        if (e.code !== 11000) throw e;
+        const duplicada = await asistencias.findOne({ _id: uid });
+        if (duplicada?.curp === curp && duplicada?.docente === req.u.id && duplicada?.materiaKey === key)
+            return res.json({ ok: true, revisionPendiente: false, fecha: duplicada.fecha, hora: duplicada.hora });
+        return bad(res, 'Ya registrada', 409);
+    }
+    await asistencias.deleteOne({ _id: `F:${curp}:${decision.fecha}:${key}` });   // si estaba marcada falta, ya no
+    await avisar(alumno, 'asistio', decision.hora, decision.fecha, s(a.uid), materia);
+    res.status(201).json({ ok: true, fecha: decision.fecha, hora: decision.hora });
+}));
+
+app.get('/api/asistencias/pendientes', auth, h(async (req, res) => {
+    const esControl = req.u.rol === 'admin' && req.u.adminArea === 'control';
+    if (req.u.rol !== 'docente' && !esControl) return bad(res, 'No tienes permiso para revisar asistencias', 403);
+    await asistenciasPendientes.updateMany(
+        { estado: 'revisando', revisionIniciada: { $lt: new Date(Date.now() - 5 * 60e3) } },
+        { $set: { estado: 'pendiente' }, $unset: { revisionIniciada: '' } }
+    );
+    await cierresPendientes.updateMany(
+        { estado: 'revisando', revisionIniciada: { $lt: new Date(Date.now() - 5 * 60e3) } },
+        { $set: { estado: 'pendiente' }, $unset: { revisionIniciada: '' } }
+    );
+    const q = { estado: 'pendiente' };
+    if (req.u.rol === 'docente') q.docente = req.u.id;
+    const [asistenciasPendientesLista, cierresPendientesLista] = await Promise.all([
+        asistenciasPendientes.find(q).sort({ recibido: -1 }).limit(500).toArray(),
+        cierresPendientes.find(q).sort({ recibido: -1 }).limit(500).toArray()
+    ]);
+    res.json([
+        ...asistenciasPendientesLista.map(({ _id, ...r }) => ({ uid: _id, tipo: 'asistencia', ...r })),
+        ...cierresPendientesLista.map(({ _id, ...r }) => ({ uid: _id, tipo: 'cierre', ...r }))
+    ].sort((a, b) => new Date(b.recibido) - new Date(a.recibido)).slice(0, 500));
+}));
+
+app.post('/api/asistencias/pendientes/:uid/resolver', auth, h(async (req, res) => {
+    const esControl = req.u.rol === 'admin' && req.u.adminArea === 'control';
+    if (req.u.rol !== 'docente' && !esControl) return bad(res, 'No tienes permiso para revisar asistencias', 403);
+    const uid = s(req.params.uid), accion = s(req.body.accion);
+    if (!['confirmar', 'rechazar'].includes(accion)) return bad(res, 'Elige confirmar o rechazar');
+    const pendiente = await asistenciasPendientes.findOne({ _id: uid });
+    if (!pendiente) return bad(res, 'El registro pendiente no existe', 404);
+    if (req.u.rol === 'docente' && pendiente.docente !== req.u.id) return bad(res, 'Solo puedes revisar tus propios registros', 403);
+    if (pendiente.estado !== 'pendiente') return bad(res, 'El registro ya fue revisado o está en proceso', 409);
+
+    const revisionIniciada = new Date();
+    const reclamo = await asistenciasPendientes.updateOne(
+        { _id: uid, estado: 'pendiente' },
+        { $set: { estado: 'revisando', revisionIniciada, revisionAccion: accion, revisionPor: req.u.id } }
+    );
+    if (!reclamo.modifiedCount) return bad(res, 'El registro ya fue revisado o está en proceso', 409);
+    try {
+        if (accion === 'confirmar') {
+            const calendario = await periodoActivo();
+            if (!calendario || !estadoPeriodo(calendario, pendiente.fecha).enCiclo)
+                throw Object.assign(new Error('No se puede confirmar la asistencia fuera del ciclo escolar o en un día sin clases.'), { status: 403 });
+            const duplicada = await asistencias.findOne({
+                curp: pendiente.curp,
+                fecha: pendiente.fecha,
+                materiaKey: pendiente.materiaKey,
+                estado: 'asistio'
+            });
+            if (duplicada && duplicada._id !== uid) throw Object.assign(new Error('Ya existe otra asistencia confirmada para este alumno, materia y fecha'), { status: 409 });
+            if (!duplicada) await asistencias.insertOne({
+                _id: uid,
+                curp: pendiente.curp,
+                fecha: pendiente.fecha,
+                hora: pendiente.horaDeclarada,
+                estado: 'asistio',
+                materia: pendiente.materia,
+                materiaKey: pendiente.materiaKey,
+                horaInicio: pendiente.horaInicio,
+                horaFin: pendiente.horaFin,
+                docente: pendiente.docente,
+                docenteNombre: pendiente.docenteNombre,
+                revisionOrigen: 'offline',
+                revisadoEn: revisionIniciada,
+                revisadoPor: req.u.id
+            });
+            const alumno = await usuarios.findOne({ _id: 'alumno:' + pendiente.curp, rol: 'alumno' });
+            if (alumno) await avisar(alumno, 'asistio', pendiente.horaDeclarada, pendiente.fecha, uid, pendiente.materia);
+        }
+        const estado = accion === 'confirmar' ? 'confirmada' : 'rechazada';
+        const actualizacion = await asistenciasPendientes.updateOne(
+            { _id: uid, estado: 'revisando', revisionIniciada },
+            { $set: { estado, revisadoEn: new Date(), revisadoPor: req.u.id, motivoRevision: s(req.body.motivo).slice(0, 300) }, $unset: { revisionIniciada: '' } }
+        );
+        if (!actualizacion.modifiedCount) throw new Error('No se pudo guardar el resultado de la revisión');
+        await registrarCambio(req, `Asistencia offline ${estado}`, `${pendiente.alumnoNombre} · ${pendiente.materia} · ${pendiente.fecha} ${pendiente.horaDeclarada}`);
+        res.json({ ok: true, estado });
+    } catch (e) {
+        await asistenciasPendientes.updateOne(
+            { _id: uid, estado: 'revisando', revisionIniciada },
+            { $set: { estado: 'pendiente' }, $unset: { revisionIniciada: '', revisionAccion: '', revisionPor: '' } }
+        );
+        if (e.status) return bad(res, e.message, e.status);
+        throw e;
+    }
+}));
+
+app.post('/api/cierres/pendientes/:uid/resolver', auth, h(async (req, res) => {
+    const esControl = req.u.rol === 'admin' && req.u.adminArea === 'control';
+    if (req.u.rol !== 'docente' && !esControl) return bad(res, 'No tienes permiso para revisar cierres', 403);
+    const uid = s(req.params.uid), accion = s(req.body.accion);
+    if (!['confirmar', 'rechazar'].includes(accion)) return bad(res, 'Elige confirmar o rechazar');
+    const pendiente = await cierresPendientes.findOne({ _id: uid });
+    if (!pendiente) return bad(res, 'El cierre pendiente no existe', 404);
+    if (req.u.rol === 'docente' && pendiente.docente !== req.u.id) return bad(res, 'Solo puedes revisar tus propios cierres', 403);
+    if (pendiente.estado !== 'pendiente') return bad(res, 'El cierre ya fue revisado o está en proceso', 409);
+
+    const revisionIniciada = new Date();
+    const reclamo = await cierresPendientes.updateOne(
+        { _id: uid, estado: 'pendiente' },
+        { $set: { estado: 'revisando', revisionIniciada, revisionAccion: accion, revisionPor: req.u.id } }
+    );
+    if (!reclamo.modifiedCount) return bad(res, 'El cierre ya fue revisado o está en proceso', 409);
+    try {
+        let faltas = 0;
+        if (accion === 'confirmar') {
+            const clase = await clases.findOne({ _id: pendiente.claseId, docente: pendiente.docente });
+            if (!clase || `${clase.area}|${clase.semestre}|${clase.grupo}` !== `${pendiente.area}|${pendiente.semestre}|${pendiente.grupo}`)
+                throw Object.assign(new Error('La clase ya no coincide con los datos del cierre'), { status: 409 });
+            const calendario = await periodoActivo();
+            if (!calendario || !estadoPeriodo(calendario, pendiente.fecha).enCiclo)
+                throw Object.assign(new Error('No se puede confirmar un cierre fuera del ciclo escolar o en un día sin clases.'), { status: 403 });
+            const dia = new Date(`${pendiente.fecha}T12:00:00Z`).getUTCDay();
+            const bloques = (await horarios.find({ claseId: clase._id, dia }).toArray()).filter(b => b.tipo !== 'descanso');
+            if (!bloques.length) throw Object.assign(new Error('La clase ya no está programada para la fecha del cierre'), { status: 409 });
+            const primero = bloques.slice().sort((a, b) => a.inicio.localeCompare(b.inicio))[0];
+            const ultimo = bloques.slice().sort((a, b) => b.fin.localeCompare(a.fin))[0];
+            const hora = ultimo.fin;
+            const aprobados = await permisos.find({ estado: 'aprobado' }).toArray();
+            const alumnos = await usuarios.find({ rol: 'alumno', area: pendiente.area, semestre: pendiente.semestre, grupo: pendiente.grupo }).toArray();
+            const presentes = new Set((await asistencias.find({ fecha: pendiente.fecha, estado: 'asistio', materiaKey: pendiente.materiaKey }).toArray()).map(a => a.curp));
+            for (const alumno of alumnos.filter(x => !presentes.has(x.curp))) {
+                const permiso = aprobados.find(x => x.curp === alumno.curp && x.desde <= pendiente.fecha && pendiente.fecha <= x.hasta);
+                try {
+                    await asistencias.insertOne({
+                        _id: `F:${alumno.curp}:${pendiente.fecha}:${pendiente.materiaKey}`,
+                        curp: alumno.curp,
+                        fecha: pendiente.fecha,
+                        hora,
+                        estado: permiso ? 'justificada' : 'falta',
+                        motivo: permiso ? 'Permiso: ' + permiso.motivo : undefined,
+                        materia: pendiente.materia,
+                        materiaKey: pendiente.materiaKey,
+                        horaInicio: primero.inicio,
+                        horaFin: ultimo.fin,
+                        docente: pendiente.docente,
+                        docenteNombre: pendiente.docenteNombre
+                    });
+                    if (!permiso) faltas++;
+                } catch (e) { if (e.code !== 11000) throw e; }
+                if (permiso) await avisar(alumno, 'justificada', hora, pendiente.fecha, `${alumno.curp}:${pendiente.fecha}:${pendiente.materiaKey}`, pendiente.materia, `${alumno.nombre} no asistió a ${pendiente.materia}: justificado por permiso`);
+                else await avisar(alumno, 'falta', hora, pendiente.fecha, `${alumno.curp}:${pendiente.fecha}:${pendiente.materiaKey}`, pendiente.materia, `${alumno.nombre} faltó a ${pendiente.materia} (${primero.inicio} a ${ultimo.fin}) el ${pendiente.fecha.split('-').reverse().join('/')}`);
+            }
+        }
+        const estado = accion === 'confirmar' ? 'confirmado' : 'rechazado';
+        const actualizacion = await cierresPendientes.updateOne(
+            { _id: uid, estado: 'revisando', revisionIniciada },
+            { $set: { estado, faltasGeneradas: faltas, revisadoEn: new Date(), revisadoPor: req.u.id, motivoRevision: s(req.body.motivo).slice(0, 300) }, $unset: { revisionIniciada: '' } }
+        );
+        if (!actualizacion.modifiedCount) throw new Error('No se pudo guardar el resultado de la revisión');
+        await registrarCambio(req, `Cierre offline ${estado}`, `${pendiente.materia} · ${pendiente.semestre} ${pendiente.area} ${pendiente.grupo} · ${pendiente.fecha}`);
+        res.json({ ok: true, estado, faltas });
+    } catch (e) {
+        await cierresPendientes.updateOne(
+            { _id: uid, estado: 'revisando', revisionIniciada },
+            { $set: { estado: 'pendiente' }, $unset: { revisionIniciada: '', revisionAccion: '', revisionPor: '' } }
+        );
+        if (e.status) return bad(res, e.message, e.status);
+        throw e;
+    }
 }));
 
 /* Cierre de lista: quien no tenga asistencia ese día en ese grupo queda con falta y se avisa al tutor */
 app.post('/api/cierre', auth, h(async (req, res) => {
     if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
-    const { area, semestre, grupo, fecha, hora } = req.body || {};
-    const materia = limpiaMat((req.body || {}).materia), key = materia.toLowerCase();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(s(fecha)) || !/^\d{2}:\d{2}$/.test(s(hora)) || !area || !semestre || !grupo || !materia) return bad(res, 'Datos inválidos');
-    const cl = await miClase(req.u.id, s(area), s(semestre), s(grupo), materia);
+    const b = req.body || {}, area = s(b.area), semestre = s(b.semestre), grupo = s(b.grupo);
+    const materia = limpiaMat(b.materia), key = materia.toLowerCase(), fechaDeclarada = s(b.fecha), horaDeclarada = s(b.hora);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaDeclarada) || minutosDeHora(horaDeclarada) === null || !area || !semestre || !grupo || !materia) return bad(res, 'Datos inválidos');
+    const cl = await miClase(req.u.id, area, semestre, grupo, materia);
     if (!cl) return bad(res, 'Esa clase no es tuya', 403);
-    const bl = await bloqueDe(cl, s(fecha)), hr = bl.inicio ? ` (${bl.inicio} a ${bl.fin})` : '';
+    if (b.claseId && s(b.claseId) !== String(cl._id)) return bad(res, 'La clase del cierre no coincide con tu horario', 403);
+    const momento = fechaHoraMexico(), autorizacion = leer(s(b.autorizacion));
+    if (s(b.autorizacion)) {
+        if (!validarAutorizacionCierre(autorizacion, {
+            docenteId: req.u.id,
+            claseId: String(cl._id),
+            fechaDeclarada,
+            fechaActual: momento.fecha,
+            ahoraMs: Date.now()
+        })) return bad(res, 'El cierre offline no tiene una autorización válida para esta clase y fecha', 403);
+        const calendario = await periodoActivo();
+        if (!calendario || !estadoPeriodo(calendario, autorizacion.fecha).enCiclo)
+            return bad(res, 'No se permite cerrar listas fuera del ciclo escolar o en un día sin clases.', 403);
+        const uid = s(b.uid);
+        if (!/^[\w-]{8,64}$/.test(uid)) return bad(res, 'Identificador de cierre inválido');
+        const cierrePrevio = await cierresPendientes.findOne({
+            claseId: String(cl._id),
+            fecha: autorizacion.fecha,
+            estado: { $in: ['pendiente', 'revisando', 'confirmado'] }
+        });
+        if (cierrePrevio && cierrePrevio._id !== uid)
+            return res.status(202).json({ ok: true, revisionPendiente: cierrePrevio.estado !== 'confirmado', fecha: autorizacion.fecha });
+        const registro = {
+            _id: uid,
+            claseId: String(cl._id),
+            docente: req.u.id,
+            docenteNombre: s(req.u.nombre),
+            area,
+            semestre,
+            grupo,
+            materia,
+            materiaKey: key,
+            fecha: autorizacion.fecha,
+            horaDeclarada,
+            estado: 'pendiente',
+            recibido: new Date()
+        };
+        try { await cierresPendientes.insertOne(registro); }
+        catch (e) {
+            if (e.code !== 11000) throw e;
+            const existente = await cierresPendientes.findOne({ _id: uid });
+            if (existente?.docente !== req.u.id || existente?.claseId !== String(cl._id) || existente?.fecha !== autorizacion.fecha
+                || !['pendiente', 'revisando', 'confirmado'].includes(existente.estado))
+                return bad(res, 'El identificador ya pertenece a otro cierre', 409);
+            return res.status(202).json({ ok: true, revisionPendiente: existente.estado !== 'confirmado', fecha: existente.fecha });
+        }
+        return res.status(202).json({ ok: true, revisionPendiente: true, fecha: autorizacion.fecha });
+    }
+
+    if (fechaDeclarada !== momento.fecha) return bad(res, 'Solo puedes cerrar la lista del día escolar actual', 403);
+    const calendario = await periodoActivo();
+    if (!calendario || !estadoPeriodo(calendario, momento.fecha).enCiclo)
+        return bad(res, 'No se permite cerrar listas fuera del ciclo escolar o en un día sin clases.', 403);
+    const bloquesHoy = (await horarios.find({ claseId: cl._id, dia: momento.dia }).toArray()).filter(x => x.tipo !== 'descanso');
+    if (!bloquesHoy.length) return bad(res, 'Esta clase no está programada para hoy', 403);
+    const finUltimoBloque = Math.max(...bloquesHoy.map(x => minutosDeHora(x.fin)).filter(Number.isInteger));
+    if (!Number.isFinite(finUltimoBloque) || momento.minuto < finUltimoBloque) return bad(res, 'La clase aún no termina según el horario escolar', 403);
+    const fecha = momento.fecha, hora = momento.hora;
+    const bl = bloquesHoy.sort((x, y) => x.inicio.localeCompare(y.inicio))[0], hr = bl.inicio ? ` (${bl.inicio} a ${bl.fin})` : '';
     const aprobados = await permisos.find({ estado: 'aprobado' }).toArray();
-    const alumnos = await usuarios.find({ rol: 'alumno', area: s(area), semestre: s(semestre), grupo: s(grupo) }).toArray();
+    const alumnos = await usuarios.find({ rol: 'alumno', area, semestre, grupo }).toArray();
     const presentes = new Set((await asistencias.find({ fecha, estado: 'asistio', materiaKey: key }).toArray()).map(a => a.curp));
-    let faltas = 0;
+    const faltas = [];
     for (const al of alumnos.filter(x => !presentes.has(x.curp))) {
         const p = aprobados.find(x => x.curp === al.curp && x.desde <= fecha && fecha <= x.hasta);
         try {
-            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}`, curp: al.curp, fecha, hora, estado: p ? 'justificada' : 'falta', motivo: p ? 'Permiso: ' + p.motivo : undefined, materia, materiaKey: key, horaInicio: bl.inicio, horaFin: bl.fin, docente: req.u.id, docenteNombre: s(req.body.docenteNombre) });
-            if (!p) faltas++;
+            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}`, curp: al.curp, fecha, hora, estado: p ? 'justificada' : 'falta', motivo: p ? 'Permiso: ' + p.motivo : undefined, materia, materiaKey: key, horaInicio: bl.inicio, horaFin: bl.fin, docente: req.u.id, docenteNombre: s(req.u.nombre) });
+            if (!p) faltas.push(al.nombre);
         } catch (e) { if (e.code !== 11000) throw e; }
         if (p) await avisar(al, 'justificada', hora, fecha, `${al.curp}:${fecha}:${key}`, materia, `${al.nombre} no asistió a ${materia}: justificado por permiso`);
         else await avisar(al, 'falta', hora, fecha, `${al.curp}:${fecha}:${key}`, materia, `${al.nombre} faltó a ${materia}${hr} el ${fecha.split('-').reverse().join('/')}`);
@@ -689,7 +1134,10 @@ app.post('/api/admin/clases/borrar', auth, soloAdmin, h(async (req, res) => {
 /* ---------- Horarios (los captura Servicios Escolares) ---------- */
 app.get('/api/horarios', auth, h(async (req, res) => {
     let l = await horarios.find({}).limit(5000).toArray();
-    if (req.u.rol === 'docente') l = l.filter(b => b.docente === req.u.id);
+    if (req.u.rol === 'docente') {
+        const ids = new Set((await clases.find({ docente: req.u.id }).project({ _id: 1 }).toArray()).map(x => String(x._id)));
+        l = l.filter(b => b.docente === req.u.id || ids.has(String(b.claseId)));
+    }
     else if (req.u.rol !== 'admin') {
         const gs = new Set();
         for (const c of await permitidas(req.u)) { const al = await usuarios.findOne({ _id: 'alumno:' + c }); if (al) gs.add(`${al.area}|${al.semestre}|${al.grupo}`); }
@@ -701,7 +1149,6 @@ app.post('/api/admin/horarios', auth, adminDe('gabriela', 'control'), h(async (r
     const b = req.body || {}, area = s(b.area), semestre = s(b.semestre), grupo = s(b.grupo).toUpperCase(), dia = Number(b.dia), tipo = b.tipo === 'descanso' ? 'descanso' : 'clase', HM = /^\d{2}:\d{2}$/;
     const SEM_OK = ['1-2 semestre', '3-4 semestre', '5-6 semestre'], AREAS_OK = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'];
     if (!SEM_OK.includes(semestre) || !AREAS_OK.includes(area) || !['A', 'B', 'C'].includes(grupo)) return bad(res, 'Grupo inválido');
-    await grupos.updateOne({ _id: `${semestre}|${area}|${grupo}` }, { $setOnInsert: { semestre, area, grupo, nombre: `${semestre} ${area} ${grupo}` } }, { upsert: true });
     if (tipo === 'clase' && s(b.inicio) < '10:00' && s(b.fin) > '09:30') return bad(res, 'Ese horario choca con el descanso fijo (9:30 a 10:00)');
     if (!(dia >= 1 && dia <= 6) || !HM.test(s(b.inicio)) || !HM.test(s(b.fin)) || s(b.fin) <= s(b.inicio)) return bad(res, 'Revisa el día y las horas');
     const doc = { _id: crypto.randomBytes(5).toString('hex'), area, semestre, grupo, dia, inicio: s(b.inicio), fin: s(b.fin), tipo, materia: 'Descanso', claseId: '', docente: '', docenteNombre: '' };
@@ -723,51 +1170,11 @@ app.post('/api/admin/horarios', auth, adminDe('gabriela', 'control'), h(async (r
         if (!cl || `${cl.area}|${cl.semestre}|${cl.grupo}` !== `${area}|${semestre}|${grupo}`) return bad(res, 'Elige una clase de ese grupo');
         Object.assign(doc, { materia: cl.materia, claseId: cl._id, docente: cl.docente, docenteNombre: cl.docenteNombre });
     }
+    await grupos.updateOne({ _id: `${semestre}|${area}|${grupo}` }, { $setOnInsert: { semestre, area, grupo, nombre: `${semestre} ${area} ${grupo}` } }, { upsert: true });
     await horarios.insertOne(doc);
     const diaNombre = ['', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][dia];
     await registrarCambio(req, 'Horario añadido', `${diaNombre} · ${doc.materia} · ${semestre} ${area} ${grupo} · ${doc.inicio}-${doc.fin}`);
     res.status(201).json({ ok: true });
-}));
-app.post('/api/admin/horarios/importar', auth, adminDe('gabriela', 'control'), h(async (req, res) => {
-    const filas = req.body?.bloques;
-    if (!Array.isArray(filas) || !filas.length || filas.length > 500) return bad(res, 'Envía entre 1 y 500 clases para importar.');
-    const SEM_OK = ['1-2 semestre', '3-4 semestre', '5-6 semestre'], AREAS_OK = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'], HM = /^\d{2}:\d{2}$/;
-    const errores = [], lista = [];
-    const docIds = [...new Set(filas.map(f => s(f?.docente).toUpperCase()))];
-    const docs = new Map((await usuarios.find({ rol: 'docente', id: { $in: docIds } }).toArray()).map(d => [d.id, d]));
-    const choca = (a, b) => a.dia === b.dia && a.inicio < b.fin && b.inicio < a.fin;
-    const existentes = await horarios.find({ tipo: { $ne: 'descanso' } }).limit(5000).toArray();
-    filas.forEach((f, i) => {
-        const n = Number(f?.fila) || i + 2, b = { dia: Number(f?.dia), inicio: s(f?.inicio), fin: s(f?.fin), semestre: s(f?.semestre), area: s(f?.area), grupo: s(f?.grupo).toUpperCase(), docente: s(f?.docente).toUpperCase(), materia: limpiaMat(f?.materia) };
-        const err = m => errores.push(`Fila ${n}: ${m}`);
-        if (!SEM_OK.includes(b.semestre) || !AREAS_OK.includes(b.area) || !['A', 'B', 'C'].includes(b.grupo)) return err('grupo inválido');
-        if (!(b.dia >= 1 && b.dia <= 6) || !HM.test(b.inicio) || !HM.test(b.fin) || b.fin <= b.inicio) return err('revisa el día y las horas');
-        if (b.inicio < '10:00' && b.fin > '09:30') return err('choca con el descanso (9:30 a 10:00)');
-        if (b.materia.length < 2) return err('falta la materia');
-        const dc = docs.get(b.docente);
-        if (!dc) return err(`no existe un docente con la CURP ${b.docente}`);
-        const g = `${b.semestre}|${b.area}|${b.grupo}`;
-        const otro = [...existentes, ...lista].find(x => choca(x, b) && (`${x.semestre}|${x.area}|${x.grupo}` === g || x.docente === b.docente));
-        if (otro) return err(`${dc.nombre} o el grupo ya tiene clase el mismo día a esa hora (${otro.materia}, ${otro.inicio}-${otro.fin})`);
-        lista.push({ ...b, docenteNombre: dc.nombre });
-    });
-    if (errores.length) return bad(res, 'No se creó ninguna clase. ' + errores.slice(0, 8).join(' · ') + (errores.length > 8 ? ` · y ${errores.length - 8} errores más` : ''));
-    let materiasNuevas = 0;
-    const cache = new Map();
-    for (const b of lista) {
-        const g = `${b.semestre}|${b.area}|${b.grupo}`;
-        await grupos.updateOne({ _id: g }, { $setOnInsert: { semestre: b.semestre, area: b.area, grupo: b.grupo, nombre: `${b.semestre} ${b.area} ${b.grupo}` } }, { upsert: true });
-        const k = `${g}|${b.docente}|${b.materia.toLowerCase()}`;
-        let cl = cache.get(k);
-        if (!cl) {
-            cl = (await clases.find({ area: b.area, semestre: b.semestre, grupo: b.grupo, docente: b.docente }).toArray()).find(c => c.materia.toLowerCase() === b.materia.toLowerCase());
-            if (!cl) { cl = { _id: crypto.randomBytes(4).toString('hex').toUpperCase(), materia: b.materia, area: b.area, semestre: b.semestre, grupo: b.grupo, docente: b.docente, docenteNombre: b.docenteNombre, horaInicio: '', horaFin: '' }; await clases.insertOne(cl); materiasNuevas++; }
-            cache.set(k, cl);
-        }
-        await horarios.insertOne({ _id: crypto.randomBytes(5).toString('hex'), area: b.area, semestre: b.semestre, grupo: b.grupo, dia: b.dia, inicio: b.inicio, fin: b.fin, tipo: 'clase', materia: cl.materia, claseId: cl._id, docente: cl.docente, docenteNombre: cl.docenteNombre });
-    }
-    await registrarCambio(req, 'Horarios importados', `${lista.length} clases · ${materiasNuevas} materias nuevas`);
-    res.status(201).json({ ok: true, creadas: lista.length, materiasNuevas });
 }));
 app.post('/api/admin/horarios/borrar', auth, adminDe('gabriela', 'control'), h(async (req, res) => {
     const id = s(req.body.id), bloque = await horarios.findOne({ _id: id });
@@ -870,12 +1277,137 @@ app.post('/api/cuenta/datos', auth, h(async (req, res) => {
     res.json({ ok: true });
 }));
 
+app.get('/api/periodos', auth, h(async (_req, res) => {
+    res.json(vistaPeriodo(await periodoActivo()));
+}));
+
+app.post('/api/admin/periodos', auth, adminDe('control'), h(async (req, res) => {
+    const body = req.body || {};
+    const ciclo = s(body.ciclo);
+    const config = {
+        ciclo,
+        inicioClases: s(body.inicioClases),
+        finClases: s(body.finClases),
+        parciales: Array.isArray(body.parciales) ? body.parciales.map(p => p && typeof p === 'object' ? ({
+            n: Number(p.n),
+            inicio: s(p.inicio),
+            fin: s(p.fin),
+            califAbre: s(p.califAbre),
+            califCierra: s(p.califCierra)
+        }) : null) : body.parciales,
+        diasSinClase: Array.isArray(body.diasSinClase) ? body.diasSinClase.map(d => d && typeof d === 'object' ? ({ fecha: s(d.fecha), motivo: s(d.motivo) }) : null) : body.diasSinClase
+    };
+    const error = validarPeriodo(config);
+    if (error) return bad(res, error);
+
+    const cicloId = `ciclo:${crypto.createHash('sha256').update(ciclo).digest('hex').slice(0, 24)}`;
+    const anterior = await periodos.findOne({ _id: cicloId });
+    const parciales = config.parciales.map(parcial => {
+        const previo = anterior?.parciales?.find(x => Number(x.n) === parcial.n);
+        return {
+            ...parcial,
+            ...(previo?.manualEstado ? {
+                manualEstado: previo.manualEstado,
+                manualEventoUid: previo.manualEventoUid,
+                manualEventoEstado: previo.manualEventoEstado,
+                manualActualizadoEn: previo.manualActualizadoEn,
+                versionManual: Number(previo.versionManual) || 0
+            } : { versionManual: 0 })
+        };
+    });
+    const actualizado = new Date();
+    await periodos.updateOne(
+        { _id: cicloId },
+        { $set: { ...config, parciales, actualizado, actualizadoPor: req.u.id } },
+        { upsert: true }
+    );
+    await periodos.updateOne(
+        { _id: 'activo' },
+        { $set: { cicloId, actualizado, actualizadoPor: req.u.id } },
+        { upsert: true }
+    );
+    const detalle = `Ciclo ${ciclo}: ${config.inicioClases} a ${config.finClases}; ${config.parciales.length} parciales y ${config.diasSinClase.length} días sin clases.`;
+    await registrarCambio(req, 'Configuración de periodo escolar actualizada', detalle);
+    res.json(vistaPeriodo(await periodos.findOne({ _id: cicloId })));
+}));
+
+app.post('/api/admin/periodos/:n/estado', auth, adminDe('control'), h(async (req, res) => {
+    const n = Number(req.params.n), estado = s(req.body?.estado), uid = s(req.body?.uid), versionEsperada = Number(req.body?.versionManual);
+    if (![1, 2, 3].includes(n) || !['abierto', 'cerrado'].includes(estado) || !/^[\w-]{8,64}$/.test(uid)
+        || !Number.isInteger(versionEsperada) || versionEsperada < 0)
+        return bad(res, 'La acción del parcial no es válida.');
+    const periodo = await periodoActivo();
+    if (!periodo) return bad(res, 'Primero configura el ciclo escolar y sus parciales.', 409);
+    const parcial = periodo.parciales.find(x => Number(x.n) === n);
+    if (!parcial) return bad(res, 'El parcial no existe en el ciclo activo.', 404);
+    const registrarEvento = async eventoUid => {
+        const accion = estado === 'abierto' ? 'abierto manualmente' : 'cerrado manualmente';
+        try {
+            await registrarCambio(req, `Parcial ${accion}`, `${periodo.ciclo} · parcial ${n}`, `periodo:${eventoUid}`);
+        } catch (e) {
+            if (e.code !== 11000) throw e;
+        }
+        await notificarDocentesPeriodo(periodo, parcial, estado, `manual:${eventoUid}`);
+    };
+
+    if (parcial.manualEventoUid === uid && parcial.manualEventoEstado === estado) {
+        await registrarEvento(uid);
+        return res.json({ ok: true, duplicada: true, periodo: vistaPeriodo(periodo) });
+    }
+    if (parcial.manualEstado === estado) {
+        if (parcial.manualEventoUid && parcial.manualEventoEstado === estado)
+            await registrarEvento(parcial.manualEventoUid);
+        return res.json({ ok: true, sinCambios: true, periodo: vistaPeriodo(periodo) });
+    }
+
+    const actualizado = new Date();
+    const resultado = await periodos.updateOne(
+        { _id: periodo._id },
+        {
+            $set: {
+                'parciales.$[parcial].manualEstado': estado,
+                'parciales.$[parcial].manualEventoUid': uid,
+                'parciales.$[parcial].manualEventoEstado': estado,
+                'parciales.$[parcial].manualActualizadoEn': actualizado,
+                'parciales.$[parcial].versionManual': versionEsperada + 1,
+                actualizado,
+                actualizadoPor: req.u.id
+            }
+        },
+        { arrayFilters: [{ 'parcial.n': n, 'parcial.manualEstado': { $ne: estado }, 'parcial.versionManual': versionEsperada }] }
+    );
+    const actualizadoPeriodo = await periodos.findOne({ _id: periodo._id });
+    const actualizadoParcial = actualizadoPeriodo?.parciales?.find(x => Number(x.n) === n);
+    if (!resultado.modifiedCount) {
+        if (actualizadoParcial?.manualEventoUid === uid && actualizadoParcial.manualEventoEstado === estado) {
+            await registrarEvento(uid);
+            return res.json({ ok: true, duplicada: true, periodo: vistaPeriodo(actualizadoPeriodo) });
+        }
+        if (actualizadoParcial?.manualEstado === estado)
+            return res.json({ ok: true, sinCambios: true, periodo: vistaPeriodo(actualizadoPeriodo) });
+        return bad(res, 'El periodo cambió mientras se guardaba. Vuelve a intentarlo.', 409);
+    }
+
+    await registrarEvento(uid);
+    res.json({ ok: true, periodo: vistaPeriodo(actualizadoPeriodo) });
+}));
+
 /* ---------- Calificaciones ---------- */
 app.post('/api/calificaciones', auth, h(async (req, res) => {
     if (req.u.rol !== 'docente' && !(req.u.rol === 'admin' && req.u.adminArea === 'control')) return bad(res, 'No tienes permiso para subir calificaciones', 403);
     const m = limpiaMat(req.body.materia), key = m.toLowerCase(), p = Number(req.body.parcial), notas = req.body.notas;
     if (!m || ![1, 2, 3].includes(p) || !Array.isArray(notas)) return bad(res, 'Datos inválidos');
-    const hoy = new Date().toISOString().slice(0, 10); let n = 0;
+    const hoy = fechaHoraMexico().fecha, periodo = await periodoActivo(), estadoHoy = periodo ? estadoPeriodo(periodo, hoy) : null;
+    const parcial = estadoHoy?.parciales.find(x => x.n === p);
+    const advertencia = req.u.rol === 'docente' && !parcial?.califAbierta
+        ? !periodo
+            ? 'Aún no se configura el ciclo escolar. La calificación se guardó, pero revisa la ventana de captura.'
+            : !parcial
+                ? 'El parcial no está configurado. La calificación se guardó fuera de una ventana escolar definida.'
+                : 'La calificación se guardó fuera de la ventana de captura configurada.'
+        : '';
+    const publicada = parcial?.estado === 'cerrado';
+    let n = 0;
     for (const x of notas.slice(0, 200)) {
         const curp = s(x.curp).toUpperCase(), nota = Number(x.nota);
         if (!RX.curp.test(curp) || !(nota >= 0 && nota <= 10)) continue;
@@ -884,15 +1416,31 @@ app.post('/api/calificaciones', auth, h(async (req, res) => {
         if (req.u.rol === 'docente' && !await miClase(req.u.id, al.area, al.semestre, al.grupo, m)) continue;
         if (req.u.rol === 'admin' && (al.area !== req.body.area || al.semestre !== req.body.semestre || al.grupo !== req.body.grupo)) continue;
         await calificaciones.updateOne({ _id: `C:${curp}:${key}:${p}` }, { $set: { curp, materia: m, materiaKey: key, parcial: p, nota, docente: req.u.id } }, { upsert: true });
-        const texto = `Ya subieron tu calificaci?n de ${m}, parcial ${p}: ${nota}.`;
-        await avisos.insertOne({ _id: `calif:${curp}:${key}:${p}:${Date.now()}`, para: curp, curp, tipo: 'calif', texto, materia: m, fecha: hoy, creado: new Date() });
-        await enviarPush('alumno', curp, 'Calificaci?n subida', texto, '/');
-        await avisar(al, 'calif', '', hoy, `C:${curp}:${key}:${p}:${nota}`, m, `${al.nombre}: ${m}, parcial ${p}: ${nota}`); n++;
+        if (publicada) {
+            const texto = `Ya se publicó tu calificación de ${m}, parcial ${p}: ${nota}.`;
+            const avisoId = `calif:${curp}:${key}:${p}:${nota}`;
+            const aviso = await avisos.updateOne(
+                { _id: avisoId },
+                { $setOnInsert: { para: curp, curp, tipo: 'calif', texto, materia: m, fecha: hoy, creado: new Date() } },
+                { upsert: true }
+            );
+            if (aviso.upsertedCount) await enviarPush('alumno', curp, 'Calificación publicada', texto, '/#/calificaciones');
+            await avisar(al, 'calif', '', hoy, `C:${curp}:${key}:${p}:${nota}`, m, `${al.nombre}: ${m}, parcial ${p}: ${nota}`);
+        }
+        n++;
     }
-    res.json({ ok: true, guardadas: n });
+    res.json({ ok: true, guardadas: n, advertencia, publicada });
 }));
 app.get('/api/calificaciones', auth, h(async (req, res) => {
     const c = await permitidas(req.u), q = c ? { curp: { $in: c } } : {};
+    if (req.u.rol === 'alumno' || req.u.rol === 'tutor') {
+        const periodo = await periodoActivo();
+        const publicadas = periodo
+            ? estadoPeriodo(periodo, fechaHoraMexico().fecha).parciales.filter(x => x.estado === 'cerrado').map(x => x.n)
+            : [];
+        if (!publicadas.length) return res.json([]);
+        q.parcial = { $in: publicadas };
+    }
     res.json((await calificaciones.find(q).limit(5000).toArray()).map(({ _id, ...r }) => r));
 }));
 
@@ -989,6 +1537,9 @@ app.get('*', (req, res, next) => {
 
 /* ---------- Arranque ---------- */
 async function iniciarServidor() {
+    for (const areas of areasDuplicadas(ADMIN_ACCESS_PASSWORDS)) {
+        console.error(`Error de configuración: hay contraseñas iguales en las áreas administrativas ${areas.join(', ')}. Configura una contraseña distinta para cada área.`);
+    }
     if (!MONGODB_URI) { console.error('Error: No se encontró MONGODB_URI en el archivo .env'); process.exit(1); }
     if (!Object.values(ADMIN_ACCESS_PASSWORDS).some(password => password.length >= 4)) console.warn('Aviso: define ADMIN_ACCESS_PASSWORD en Render para habilitar Control Escolar.');
     if (!SECRET || SECRET.length < 16) { console.error('Error: define TOKEN_SECRET (mínimo 16 caracteres) en .env'); process.exit(1); }
@@ -1013,18 +1564,18 @@ async function iniciarServidor() {
             }
         }
         asistencias = db.collection('asistencias');
+        asistenciasPendientes = db.collection('asistenciasPendientes');
+        cierresPendientes = db.collection('cierresPendientes');
+        accesosEscuela = db.collection('accesosEscuela');
+        accesosEscuelaBloqueos = db.collection('accesosEscuelaBloqueos');
         calificaciones = db.collection('calificaciones');
         grupos = db.collection('grupos');
         clases = db.collection('clases');
         permisos = db.collection('permisos');
         anuncios = db.collection('anuncios');
         horarios = db.collection('horarios');
+        periodos = db.collection('periodos');
         avisos = db.collection('avisos');
-        const areasBase = ['Programaci\u00f3n', 'Ofim\u00e1tica', 'Enfermer\u00eda', 'Electricidad', 'Laboratorios Qu\u00edmicos', 'Administraci\u00f3n'];
-        for (const semestre of ['1-2 semestre', '3-4 semestre', '5-6 semestre']) for (const area of areasBase) for (const grupo of ['A', 'B', 'C']) {
-            const id = `${semestre}|${area}|${grupo}`;
-            await grupos.updateOne({ _id: id }, { $setOnInsert: { semestre, area, grupo, nombre: `${semestre} ${area} ${grupo}` } }, { upsert: true });
-        }
         suscripcionesPush = db.collection('suscripcionesPush');
         recordatoriosPush = db.collection('recordatoriosPush');
         solicitudesRecuperacion = db.collection('solicitudesRecuperacion');
@@ -1032,24 +1583,11 @@ async function iniciarServidor() {
         avisosLeidos = db.collection('avisosLeidos');
         reportesConducta = db.collection('reportesConducta');
         citatorios = db.collection('citatorios');
-        const [reportesAnulados, citatoriosAnulados] = await Promise.all([
-            reportesConducta.find({ estado: 'anulado' }).project({ _id: 1 }).toArray(),
-            citatorios.find({ estado: 'anulado' }).project({ _id: 1 }).toArray()
-        ]);
-        if (reportesAnulados.length || citatoriosAnulados.length) {
-            await Promise.all([
-                reportesConducta.deleteMany({ estado: 'anulado' }),
-                citatorios.deleteMany({ estado: 'anulado' })
-            ]);
-            const origenes = [
-                ...reportesAnulados.flatMap(x => [`reporte:${x._id}`, `reporte-confirmado:${x._id}`]),
-                ...citatoriosAnulados.map(x => `citatorio:${x._id}`)
-            ];
-            if (origenes.length) await avisos.deleteMany({ $or: [{ origenId: { $in: origenes } }, { _id: { $in: origenes } }] });
-            console.log(`Se eliminaron ${reportesAnulados.length} reportes y ${citatoriosAnulados.length} citatorios anulados antiguos.`);
-        }
         await solicitudesRecuperacion.createIndex({ curp: 1, rol: 1, estado: 1 });
         await asistencias.createIndex({ curp: 1, fecha: -1 });
+        await asistenciasPendientes.createIndex({ docente: 1, estado: 1, recibido: -1 });
+        await cierresPendientes.createIndex({ docente: 1, estado: 1, recibido: -1 });
+        await accesosEscuela.createIndex({ curp: 1, fecha: 1 });
         await reportesConducta.createIndex({ curp: 1, creado: -1 });
         await reportesConducta.createIndex({ reportanteId: 1, creado: -1 });
         await avisosLeidos.createIndex({ anuncioId: 1, rol: 1, para: 1 }, { unique: true });
@@ -1060,6 +1598,8 @@ async function iniciarServidor() {
         app.listen(PORT, () => {
             console.log(`🚀 Shark Dark está disponible en http://localhost:${PORT}`);
             setInterval(() => revisarRecordatoriosClase().catch(e => console.warn('Recordatorios push:', e.message)), 20000);
+            revisarAvisosPeriodo().catch(e => console.warn('Avisos de periodos:', e.message));
+            setInterval(() => revisarAvisosPeriodo().catch(e => console.warn('Avisos de periodos:', e.message)), 60000);
         });
     } catch (error) {
         console.error('❌ Error al conectar con MongoDB Atlas:');

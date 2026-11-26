@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import SD from './sd.js';
-import { Card, Hero, Banner, useBanner, post, msgErr } from './ui.jsx';
+import { Card, Hero, Banner, useBanner, post, msgErr, PanelEmergente } from './ui.jsx';
 
 const grupoAlumno = a => [a.semestre, a.area, a.grupo && `Grupo ${a.grupo}`].filter(Boolean).join(' · ');
 
@@ -12,7 +12,8 @@ export default function ReportesConducta() {
   const [error, setError] = useState('');
   const [b, ban] = useBanner();
   const [form, setForm] = useState({ curp: '', lugar: '', descripcion: '', seguimiento: '' });
-  const [formAbierto, setFormAbierto] = useState(rol !== 'admin');
+  const [formAbierto, setFormAbierto] = useState(false);
+  const [errorFormulario, setErrorFormulario] = useState('');
   const [guardando, setGuardando] = useState(false);
   const curp = form.curp.trim().toUpperCase();
   const alumnoSeleccionado = alumnos.find(a => a.curp === curp);
@@ -34,14 +35,15 @@ export default function ReportesConducta() {
   async function crear(e) {
     e.preventDefault();
     setGuardando(true);
+    setErrorFormulario('');
     try {
       await post('/api/reportes-conducta', form);
       setForm({ curp: '', lugar: '', descripcion: '', seguimiento: '' });
-      if (rol === 'admin') setFormAbierto(false);
+      setFormAbierto(false);
       ban('ok', 'Reporte guardado', rol === 'admin' ? 'Quedó confirmado.' : 'La solicitud se envió a administración para confirmar su recepción.');
       await cargar();
     } catch (er) {
-      ban('err', 'No se pudo guardar el reporte', msgErr(er));
+      setErrorFormulario(msgErr(er));
     } finally {
       setGuardando(false);
     }
@@ -78,9 +80,12 @@ export default function ReportesConducta() {
     <Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
 
-    {puedeCrear && <Card className="reporte-panel" title={rol === 'admin' ? 'Nuevo reporte' : 'Registrar reporte de conducta'}>
-      {rol === 'admin' && <button className="btn reporte-accion desplegable-toggle" type="button" aria-expanded={formAbierto} aria-controls="reporte-form" onClick={() => setFormAbierto(v => !v)}><span>{formAbierto ? 'CERRAR FORMULARIO' : 'HACER UN REPORTE'}</span><span className={'desplegable-flecha' + (formAbierto ? ' abierta' : '')} aria-hidden="true">⌄</span></button>}
-      {puedeCrear && <div id="reporte-form" className={'desplegable-contenido' + (rol !== 'admin' || formAbierto ? ' abierto' : '')} aria-hidden={rol === 'admin' && !formAbierto} inert={rol === 'admin' && !formAbierto}><form className="reporte-form" onSubmit={crear}>
+    {puedeCrear && <>
+      <Card className="reporte-panel" title={rol === 'admin' ? 'Nuevo reporte' : 'Registrar reporte de conducta'}>
+        <button className="btn reporte-accion" type="button" aria-haspopup="dialog" onClick={() => { setErrorFormulario(''); setFormAbierto(true); }}>HACER UN REPORTE</button>
+      </Card>
+      <PanelEmergente abierto={formAbierto} titulo={rol === 'admin' ? 'Nuevo reporte' : 'Registrar reporte de conducta'} onCerrar={() => setFormAbierto(false)}>
+        <form className="reporte-form" onSubmit={crear}>
         <label htmlFor="reporte-curp">CURP del alumno</label>
         <input id="reporte-curp" value={form.curp} maxLength="18" autoCapitalize="characters" placeholder="Escribe la CURP (18 caracteres)" onChange={e => setForm({ ...form, curp: e.target.value.toUpperCase() })} required />
         {curp.length === 18 && <p className={'sub citatorio-validacion' + (alumnoSeleccionado ? ' valido' : ' invalido')}>{alumnoSeleccionado ? `Alumno encontrado: ${alumnoSeleccionado.nombre} · ${grupoAlumno(alumnoSeleccionado)}` : 'No encontramos un alumno con esa CURP en tus grupos.'}</p>}
@@ -91,10 +96,12 @@ export default function ReportesConducta() {
         <label htmlFor="reporte-seguimiento">Acción o seguimiento (opcional)</label>
         <textarea id="reporte-seguimiento" rows="3" value={form.seguimiento} onChange={e => setForm({ ...form, seguimiento: e.target.value })} maxLength="500" />
         <p className="sub">La fecha, hora y nombre de quien registra se guardan automáticamente.</p>
+        {errorFormulario && <p className="msg" role="alert">{errorFormulario}</p>}
         <button className="btn reporte-accion" type="submit" disabled={guardando || !alumnoSeleccionado || (rol === 'admin' && !formularioCompleto)}>{guardando ? 'GUARDANDO…' : rol === 'admin' ? 'CONFIRMAR REPORTE' : 'GUARDAR REPORTE'}</button>
-        {rol === 'admin' && <button className="btn sec reporte-accion" type="button" disabled={guardando} onClick={() => { setForm({ curp: '', lugar: '', descripcion: '', seguimiento: '' }); setFormAbierto(false); }}>CANCELAR</button>}
-      </form></div>}
-    </Card>}
+        <button className="btn sec reporte-accion" type="button" disabled={guardando} onClick={() => setFormAbierto(false)}>CERRAR</button>
+      </form>
+      </PanelEmergente>
+    </>}
 
     {rol === 'admin' && pendientes.length > 0 && (
       <div className="banner warn" role="status" aria-live="polite">

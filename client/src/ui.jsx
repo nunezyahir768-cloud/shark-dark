@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, useContext, useId, useRef, createContext } from 'react';
+import { createPortal } from 'react-dom';
 import SD from './sd.js';
 
 export const AlumnoCtx = createContext(null);
@@ -46,6 +47,53 @@ function IconoApartado({ titulo }) {
 export const Card = ({ title, children, className = '', style }) => (
   <div className={'card ' + className} style={style}>{title && <h2><IconoApartado titulo={title} /><span>{title}</span></h2>}{children}</div>
 );
+export function PanelEmergente({ abierto, titulo, onCerrar, children }) {
+  const id = useId(), panel = useRef(null), cerrarRef = useRef(onCerrar);
+  cerrarRef.current = onCerrar;
+  useEffect(() => {
+    if (!abierto) return;
+    const dialogo = panel.current, focoPrevio = document.activeElement, overflowPrevio = document.body.style.overflow;
+    const fondoApp = document.getElementById('root'), inertPrevio = fondoApp?.inert || false;
+    const selector = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    const enfocables = () => [...dialogo.querySelectorAll(selector)].filter(el => !el.closest('[inert]') && el.getAttribute('aria-hidden') !== 'true' && el.getClientRects().length);
+    document.body.style.overflow = 'hidden';
+    if (fondoApp) fondoApp.inert = true;
+    const frame = requestAnimationFrame(() => (enfocables()[0] || dialogo).focus({ preventScroll: true }));
+    const teclado = e => {
+      if (e.key === 'Escape') { e.preventDefault(); cerrarRef.current(); return; }
+      if (e.key !== 'Tab') return;
+      const lista = enfocables();
+      if (!lista.length) { e.preventDefault(); dialogo.focus(); return; }
+      const primero = lista[0], ultimo = lista[lista.length - 1];
+      if (e.shiftKey && (document.activeElement === primero || !dialogo.contains(document.activeElement))) {
+        e.preventDefault(); ultimo.focus();
+      } else if (!e.shiftKey && (document.activeElement === ultimo || !dialogo.contains(document.activeElement))) {
+        e.preventDefault(); primero.focus();
+      }
+    };
+    document.addEventListener('keydown', teclado);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', teclado);
+      document.body.style.overflow = overflowPrevio;
+      if (fondoApp) fondoApp.inert = inertPrevio;
+      if (focoPrevio instanceof HTMLElement && focoPrevio.isConnected) focoPrevio.focus({ preventScroll: true });
+    };
+  }, [abierto]);
+  if (!abierto) return null;
+  return createPortal(
+    <div className="panel-emergente-fondo" onClick={e => { if (e.target === e.currentTarget) cerrarRef.current(); }}>
+      <section ref={panel} className="panel-emergente" role="dialog" aria-modal="true" aria-labelledby={`panel-emergente-titulo-${id}`} tabIndex={-1}>
+        <header className="panel-emergente-encabezado">
+          <h2 id={`panel-emergente-titulo-${id}`}>{titulo}</h2>
+          <button type="button" className="panel-emergente-cerrar" aria-label="Cerrar panel" onClick={() => cerrarRef.current()}>×</button>
+        </header>
+        <div className="panel-emergente-contenido">{children}</div>
+      </section>
+    </div>,
+    document.body
+  );
+}
 export const Hero = ({ titulo, sub }) => <div className="hero"><h1><IconoApartado titulo={titulo} /><span>{titulo}</span></h1>{sub && <p className="sub">{sub}</p>}</div>;
 export const QR = ({ texto }) => <div className="qr" dangerouslySetInnerHTML={{ __html: SD.qr(texto) }} />;
 

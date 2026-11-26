@@ -1,9 +1,8 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import SD from './sd.js';
 import * as XL from './excel.js';
 import { descargarPlantillaCuentas, leerCuentasExcel } from './importar-cuentas.js';
-import { descargarPlantillaHorarios, leerHorariosExcel, nombreDia } from './importar-horarios.js';
-import { Card, Hero, Banner, useBanner, QR, DIAS, SEMESTRES, AREAS, hh, hoyISO, post, msgErr, nombreGrupo, conDescanso, descargar } from './ui.jsx';
+import { Card, Hero, Banner, useBanner, QR, DIAS, SEMESTRES, AREAS, hh, hoyISO, post, msgErr, nombreGrupo, conDescanso, descargar, PanelEmergente } from './ui.jsx';
 import { Camara } from './docente.jsx';
 import { InicioBienvenida } from './paginas.jsx';
 
@@ -19,15 +18,17 @@ function useServicios(cargarUsuarios = true) {
 }
 
 export function InicioAdmin({ onTutorial }) {
-  return <InicioBienvenida rol="admin" onTutorial={onTutorial} />;
+  return <InicioBienvenida onTutorial={onTutorial} />;
 }
 
 const sumar50 = h => { const [a, b] = (h || '').split(':').map(Number); if (Number.isNaN(a) || Number.isNaN(b)) return ''; const m = a * 60 + b + 50; return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 export function Cuentas() {
-  const { u, g, cargar, error } = useServicios(), [b, ban] = useBanner(), [q, setQ] = useState(''), [temp, setTemp] = useState(''), [solicitudes, setSolicitudes] = useState([]), [errorSolicitudes, setErrorSolicitudes] = useState('');
+  const { u, g, cargar, error } = useServicios(), [b, ban] = useBanner(), [solicitudes, setSolicitudes] = useState([]), [errorSolicitudes, setErrorSolicitudes] = useState('');
   const [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false);
   const [crearAbierto, setCrearAbierto] = useState(false), [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
-  const [filtroRol, setFiltroRol] = useState('todos'), [filtroGrupo, setFiltroGrupo] = useState('todos'), [filtroEstado, setFiltroEstado] = useState('todos');
+  const filtrosIniciales = { q: '', rol: 'todos', grupo: 'todos', estado: 'todos' };
+  const [filtros, setFiltros] = useState(filtrosIniciales), [filtrosEdicion, setFiltrosEdicion] = useState(filtrosIniciales);
+  const [errorCrear, setErrorCrear] = useState('');
   const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A', tutorNombre: '', tutorCurp: '', sinTutor: false });
   const cargarSolicitudes = async () => { try { setSolicitudes(await SD.cached('admin_recuperaciones', '/api/admin/recuperaciones')); setErrorSolicitudes(''); } catch (e) { setErrorSolicitudes(e.message || 'No se pudieron cargar las solicitudes.'); } };
   const borrarSolicitudes = async () => {
@@ -40,14 +41,15 @@ export function Cuentas() {
   const docenteTutor = f.rol === 'alumno' && f.tutorCurp.length === 18 && !tutorEncontrado ? u.find(x => x.rol === 'docente' && x.id === f.tutorCurp) : null;
   const crear = async e => {
     e.preventDefault();
+    setErrorCrear('');
     try {
       const { sinTutor, ...datos } = f;
       if (datos.rol !== 'alumno' || sinTutor) { delete datos.tutorCurp; delete datos.tutorNombre; }
       const r = await post('/api/admin/usuarios', datos);
       ban('ok', 'Cuenta creada', r.tutor === 'creado' ? 'Se crearon el alumno y su tutor, ya vinculados. Ambos entran con su CURP.' : r.tutor === 'vinculado' ? 'El alumno quedó vinculado a un tutor que ya existía.' : 'La persona puede entrar con su CURP y crear su contraseña.');
-      setF({ ...f, nombre: '', id: '', tutorNombre: '', tutorCurp: '' }); cargar();
+      setF({ ...f, nombre: '', id: '', tutorNombre: '', tutorCurp: '' }); setCrearAbierto(false); cargar();
     }
-    catch (er) { ban('err', 'No se pudo crear la cuenta', msgErr(er)); }
+    catch (er) { setErrorCrear(msgErr(er)); }
   };
   const leerExcel = async e => {
     const file = e.target.files?.[0]; e.target.value = '';
@@ -82,11 +84,13 @@ export function Cuentas() {
   };
   const l = u.filter(x => {
     const grupo = `${x.semestre}|${x.area}|${x.grupo}`;
-    return (!q || (x.nombre + ' ' + (x.curp || x.id)).toLowerCase().includes(q.toLowerCase()))
-      && (filtroRol === 'todos' || x.rol === filtroRol)
-      && (filtroGrupo === 'todos' || grupo === filtroGrupo)
-      && (filtroEstado === 'todos' || (filtroEstado === 'primer-acceso' ? x.debeCambiarPassword : !x.debeCambiarPassword));
+    return (!filtros.q || (x.nombre + ' ' + (x.curp || x.id)).toLowerCase().includes(filtros.q.toLowerCase()))
+      && (filtros.rol === 'todos' || x.rol === filtros.rol)
+      && (filtros.grupo === 'todos' || grupo === filtros.grupo)
+      && (filtros.estado === 'todos' || (filtros.estado === 'primer-acceso' ? x.debeCambiarPassword : !x.debeCambiarPassword));
   }).sort((a, b) => a.nombre.localeCompare(b.nombre)).slice(0, 100);
+  const aplicarFiltros = e => { e.preventDefault(); setFiltros({ ...filtrosEdicion }); setFiltrosAbiertos(false); };
+  const limpiarFiltros = () => { setFiltros(filtrosIniciales); setFiltrosEdicion(filtrosIniciales); setFiltrosAbiertos(false); };
   return (<>
     <Hero titulo="Cuentas" sub="Administra altas, accesos, grupos y solicitudes de recuperación." /><Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
@@ -104,8 +108,9 @@ export function Cuentas() {
         <button className="btn" type="button" onClick={crearDesdeExcel} disabled={creandoImportadas || importadas.some(x => x.errores.length)}>{creandoImportadas ? 'CREANDO CUENTAS…' : `CREAR CUENTAS (${importadas.length})`}</button>
       </>}
     </Card>
-    <button className="btn desplegable-toggle" type="button" aria-expanded={crearAbierto} aria-controls="cuentas-crear" onClick={() => setCrearAbierto(v => !v)}><span>{crearAbierto ? 'CERRAR CREAR CUENTA' : 'CREAR CUENTA'}</span><span className={'desplegable-flecha' + (crearAbierto ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
-    <div id="cuentas-crear" className={'desplegable-contenido' + (crearAbierto ? ' abierto' : '')} aria-hidden={!crearAbierto} inert={!crearAbierto}><Card title="Datos para crear cuenta"><form onSubmit={crear}>
+    <button className="btn" type="button" aria-haspopup="dialog" onClick={() => { setErrorCrear(''); setCrearAbierto(true); }}>CREAR CUENTA</button>
+    <PanelEmergente abierto={crearAbierto} titulo="Datos para crear cuenta" onCerrar={() => setCrearAbierto(false)}>
+      <form onSubmit={crear}>
       <select value={f.rol} onChange={e => setF({ ...f, rol: e.target.value })}><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select>
       <input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Nombre completo" required />
       <input value={f.id} onChange={e => setF({ ...f, id: e.target.value.toUpperCase() })} placeholder="CURP (18 caracteres)" maxLength="18" required />
@@ -123,7 +128,10 @@ export function Cuentas() {
               : <input value={f.tutorNombre} onChange={e => setF({ ...f, tutorNombre: e.target.value })} placeholder="Nombre completo del tutor" required />}
         </>}
         <label className="check"><input type="checkbox" checked={f.sinTutor} onChange={e => setF({ ...f, sinTutor: e.target.checked })} /> Todavía no tengo los datos del tutor</label></>}
-      <button className="btn" type="submit">CREAR CUENTA</button></form></Card></div>
+      {errorCrear && <p className="msg" role="alert">{errorCrear}</p>}
+      <button className="btn" type="submit">CREAR CUENTA</button>
+      </form>
+    </PanelEmergente>
     <Card className="solicitudes-card" title={`Solicitudes de restablecimiento · ${solicitudes.length}`}>
       <button className="mini rojo solicitudes-borrar" type="button" onClick={borrarSolicitudes} disabled={!solicitudes.length}>Borrar solicitudes</button>
       <p className="sub">Revisa la identidad del usuario antes de autorizar. Al aceptar, se elimina la contraseña y la persona tendrá que crear una nueva al entrar con su CURP.</p>
@@ -132,23 +140,29 @@ export function Cuentas() {
       {errorSolicitudes && <p className="msg" role="alert">{errorSolicitudes}</p>}
       {!solicitudes.length && !errorSolicitudes && <p className="vacio">No hay solicitudes pendientes.</p>}
     </Card>
-    <button className="btn rojo desplegable-toggle" type="button" aria-expanded={filtrosAbiertos} aria-controls="cuentas-filtros" onClick={() => setFiltrosAbiertos(v => !v)}><span>{filtrosAbiertos ? 'CERRAR FILTROS' : 'BUSCAR Y FILTRAR CUENTAS'}</span><span className={'desplegable-flecha' + (filtrosAbiertos ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
-    <div id="cuentas-filtros" className={'desplegable-contenido' + (filtrosAbiertos ? ' abierto' : '')} aria-hidden={!filtrosAbiertos} inert={!filtrosAbiertos}><div className="desplegable-inner"><Card title="Buscar y filtrar cuentas">
-      <label htmlFor="cuentas-buscar">Nombre o CURP</label><input id="cuentas-buscar" value={q} onChange={e => setQ(e.target.value)} placeholder="Escribe nombre o CURP" />
+    <button className="btn rojo" type="button" aria-haspopup="dialog" onClick={() => { setFiltrosEdicion({ ...filtros }); setFiltrosAbiertos(true); }}>BUSCAR Y FILTRAR CUENTAS</button>
+    <PanelEmergente abierto={filtrosAbiertos} titulo="Buscar y filtrar cuentas" onCerrar={() => setFiltrosAbiertos(false)}>
+      <form onSubmit={aplicarFiltros}>
+      <label htmlFor="cuentas-buscar">Nombre o CURP</label><input id="cuentas-buscar" value={filtrosEdicion.q} onChange={e => setFiltrosEdicion({ ...filtrosEdicion, q: e.target.value })} placeholder="Escribe nombre o CURP" />
       <div className="fila2">
-        <div><label htmlFor="cuentas-rol">Perfil</label><select id="cuentas-rol" value={filtroRol} onChange={e => setFiltroRol(e.target.value)}><option value="todos">Todos</option><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select></div>
-        <div><label htmlFor="cuentas-estado">Estado de acceso</label><select id="cuentas-estado" value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}><option value="todos">Todos</option><option value="primer-acceso">Primer acceso pendiente</option><option value="activa">Activa</option></select></div>
+        <div><label htmlFor="cuentas-rol">Perfil</label><select id="cuentas-rol" value={filtrosEdicion.rol} onChange={e => setFiltrosEdicion({ ...filtrosEdicion, rol: e.target.value })}><option value="todos">Todos</option><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select></div>
+        <div><label htmlFor="cuentas-estado">Estado de acceso</label><select id="cuentas-estado" value={filtrosEdicion.estado} onChange={e => setFiltrosEdicion({ ...filtrosEdicion, estado: e.target.value })}><option value="todos">Todos</option><option value="primer-acceso">Primer acceso pendiente</option><option value="activa">Activa</option></select></div>
       </div>
-      <label htmlFor="cuentas-grupo">Grupo</label><select id="cuentas-grupo" value={filtroGrupo} onChange={e => setFiltroGrupo(e.target.value)}><option value="todos">Todos los grupos</option>{g.map(k => <option key={k.id} value={`${k.semestre}|${k.area}|${k.grupo}`}>{nombreGrupo(k)}</option>)}</select>
+      <label htmlFor="cuentas-grupo">Grupo</label><select id="cuentas-grupo" value={filtrosEdicion.grupo} onChange={e => setFiltrosEdicion({ ...filtrosEdicion, grupo: e.target.value })}><option value="todos">Todos los grupos</option>{g.map(k => <option key={k.id} value={`${k.semestre}|${k.area}|${k.grupo}`}>{nombreGrupo(k)}</option>)}</select>
       <p className="sub" style={{ marginBottom: 0 }}>Se muestran hasta 100 resultados.</p>
-    </Card>
+      <div className="fila2 panel-emergente-acciones">
+        <button className="btn" type="submit">APLICAR</button>
+        <button className="btn sec" type="button" onClick={limpiarFiltros}>LIMPIAR</button>
+      </div>
+      </form>
+    </PanelEmergente>
     {l.map(x => (
       <Card key={x.rol + x.id}><b>{x.nombre}</b><span className="tag">{x.rol}</span><span className={'tag ' + (x.debeCambiarPassword ? '' : 'ok')}>{x.debeCambiarPassword ? 'Primer acceso pendiente' : 'Activa'}</span>
         <p className="sub" style={{ margin: '4px 0 8px' }}>{x.curp || x.id}{x.rol === 'alumno' ? ` · ${x.semestre} ${x.area} ${x.grupo}` : ''}{x.hijos && x.hijos.length ? ` · alumnos: ${x.hijos.join(', ')}` : ''}{x.tutores && x.tutores.length ? ` · tutores: ${x.tutores.join(', ')}` : ''}</p>
         {x.rol === 'alumno' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('grupo', x)}>Cambiar grupo</button>}
         {x.rol === 'tutor' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('vincular', x)}>Vincular alumno</button>}
         <button className={'mini rojo'} style={x.rol === 'docente' ? { marginLeft: 0 } : {}} onClick={() => acc('borrar', x)}>Borrar</button></Card>))}
-    {!l.length && <Card><p className="vacio">Sin resultados.</p></Card>}</div></div>
+    {!l.length && <Card><p className="vacio">Sin resultados.</p></Card>}
   </>);
 }
 
@@ -156,6 +170,8 @@ export function Grupos() {
   const { g, u, c, cargar, error } = useServicios(), [b, ban] = useBanner();
   const [ver, setVer] = useState('');
   const cuenta = k => u.filter(x => x.rol === 'alumno' && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length;
+  const grupoAbierto = g.find(k => k.id === ver);
+  const alumnosAbiertos = grupoAbierto ? u.filter(x => x.rol === 'alumno' && x.area === grupoAbierto.area && x.semestre === grupoAbierto.semestre && x.grupo === grupoAbierto.grupo).sort((a, b) => a.nombre.localeCompare(b.nombre)) : [];
   const borrar = async k => {
     if (!confirm(`¿Eliminar las ${cuenta(k)} cuentas de alumnos de ${nombreGrupo(k)}? El grupo, sus materias y horarios se conservarán.`)) return;
     try { const r = await post('/api/admin/grupos/eliminar-cuentas', { id: k.id }); ban('ok', 'Cuentas eliminadas', `${r.alumnos} cuentas de alumnos borradas. El grupo se conservó.`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); }
@@ -163,9 +179,11 @@ export function Grupos() {
   return (<>
     <Hero titulo="Grupos" sub="Consulta las cuentas y administra alumnos sin eliminar la estructura del grupo." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
     {g.map(k => { const alumnos = u.filter(x => x.rol === 'alumno' && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo); return <Card key={k.id}><b>{nombreGrupo(k)}</b><p className="sub" style={{ margin: '4px 0 8px' }}>{alumnos.length} alumnos · {c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length} materias</p>
-      <button className="mini desplegable-toggle" style={{ marginLeft: 0 }} aria-expanded={ver === k.id} aria-controls={'grupo-cuentas-' + k.id} onClick={() => setVer(ver === k.id ? '' : k.id)}><span>{ver === k.id ? 'Ocultar cuentas' : 'Ver cuentas'}</span><span className={'desplegable-flecha' + (ver === k.id ? ' abierta' : '')} aria-hidden="true">⌄</span></button><button className="mini rojo" onClick={() => borrar(k)}>Eliminar cuentas</button>
-      <div id={'grupo-cuentas-' + k.id} className={'desplegable-contenido' + (ver === k.id ? ' abierto' : '')} aria-hidden={ver !== k.id} inert={ver !== k.id}><div className="grupo-cuentas" aria-live="polite">{alumnos.length ? alumnos.sort((a,b) => a.nombre.localeCompare(b.nombre)).map(x => <div className="grupo-cuenta" key={x.id}><b>{x.nombre}</b><span>{x.curp || x.id}</span></div>) : <p className="vacio">Este grupo todavía no tiene cuentas.</p>}</div></div>
+      <button className="mini" type="button" aria-haspopup="dialog" aria-expanded={ver === k.id} onClick={() => setVer(k.id)}>Ver cuentas</button><button className="mini rojo" onClick={() => borrar(k)}>Eliminar cuentas</button>
     </Card>; })}
+    <PanelEmergente abierto={Boolean(grupoAbierto)} titulo={grupoAbierto ? `Cuentas · ${nombreGrupo(grupoAbierto)}` : 'Cuentas'} onCerrar={() => setVer('')}>
+      <div className="grupo-cuentas" aria-live="polite">{alumnosAbiertos.length ? alumnosAbiertos.map(x => <div className="grupo-cuenta" key={x.id}><b>{x.nombre}</b><span>{x.curp || x.id}</span></div>) : <p className="vacio">Este grupo todavía no tiene cuentas.</p>}</div>
+    </PanelEmergente>
     {!g.length && <Card><p className="vacio">Todavía no hay grupos. Crea la cuenta de un alumno y su grupo aparecerá aquí.</p></Card>}
   </>);
 }
@@ -178,14 +196,17 @@ export function Clases() {
   return (<>
     <Hero titulo="Materias" sub="Asigna cada materia a un grupo y a su docente." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
     <Card title="Nueva clase"><form onSubmit={crear}>
-      <select value={f.gi} onChange={e => setF({ ...f, gi: e.target.value })}>{g.map((k, i) => <option key={k.id} value={i}>{nombreGrupo(k)}</option>)}</select>
+      {!g.length && <p className="vacio">Todavía no hay grupos. Crea una cuenta de alumno o un horario para crear el primero.</p>}
+      <select value={f.gi} disabled={!g.length} onChange={e => setF({ ...f, gi: e.target.value })}>{g.map((k, i) => <option key={k.id} value={i}>{nombreGrupo(k)}</option>)}</select>
       <input value={f.materia} onChange={e => setF({ ...f, materia: e.target.value })} placeholder="Materia (ej. Matemáticas)" maxLength="60" required />
       <select value={f.docente} onChange={e => setF({ ...f, docente: e.target.value })}>{docs.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}{!docs.length && <option value="">Primero crea un docente</option>}</select>
       <button className="btn" type="submit">AÑADIR CLASE</button></form></Card>
-    <div id="clases-qr" className={'desplegable-contenido' + (qr ? ' abierto' : '')} aria-hidden={!qr} inert={!qr}><Card title="QR de la clase" style={{ textAlign: 'center' }}>{qr && <><QR texto={'CLASE:' + qr.id} /><p><b>{qr.materia}</b><br />{qr.semestre} {qr.area} {qr.grupo}</p><p className="sub">Imprímelo: el docente lo escanea y se abre esta clase.</p></>}</Card></div>
     {c.slice().sort((a, b) => (a.semestre + a.area + a.grupo + a.materia).localeCompare(b.semestre + b.area + b.grupo + b.materia)).map(k => (
       <Card key={k.id}><b>{k.materia}</b><p className="sub" style={{ margin: '2px 0 8px' }}>{k.semestre} {k.area} {k.grupo} · Prof. {k.docenteNombre || k.docente}</p>
-        <button className="mini desplegable-toggle" style={{ marginLeft: 0 }} aria-expanded={qr?.id === k.id} aria-controls="clases-qr" onClick={() => { setQr(qr?.id === k.id ? null : k); scrollTo(0, 0); }}><span>{qr?.id === k.id ? 'Ocultar QR' : 'Ver QR'}</span><span className={'desplegable-flecha' + (qr?.id === k.id ? ' abierta' : '')} aria-hidden="true">⌄</span></button><button className="mini rojo" onClick={() => borrar(k)}>Borrar</button></Card>))}
+        <button className="mini" type="button" aria-haspopup="dialog" aria-expanded={qr?.id === k.id} style={{ marginLeft: 0 }} onClick={() => setQr(k)}>Ver QR</button><button className="mini rojo" onClick={() => borrar(k)}>Borrar</button></Card>))}
+    <PanelEmergente abierto={Boolean(qr)} titulo="QR de la clase" onCerrar={() => setQr(null)}>
+      {qr && <div className="qr-clase-panel"><QR texto={'CLASE:' + qr.id} /><p><b>{qr.materia}</b><br />{qr.semestre} {qr.area} {qr.grupo}</p><p className="sub">Imprímelo: el docente lo escanea y se abre esta clase.</p></div>}
+    </PanelEmergente>
   </>);
 }
 
@@ -193,44 +214,33 @@ export function Horarios() {
   const { c, h, cargar, error } = useServicios(false), [b, ban] = useBanner();
   const [docentes, setDocentes] = useState([]);
   const [f, setF] = useState({ docente: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A', materia: '', dia: 1, inicio: '07:00', fin: '07:50' });
+  const [filtro, setFiltro] = useState({ semestre: '', area: '', grupo: '' });
+  const [formAbierto, setFormAbierto] = useState(false), [errorFormulario, setErrorFormulario] = useState('');
   useEffect(() => { SD.api('/api/admin/docentes').then(setDocentes).catch(e => ban('err', 'No se pudieron cargar los docentes', msgErr(e))); }, []);
   const docs = [...docentes].sort((x, y) => x.nombre.localeCompare(y.nombre));
-  const [excel, setExcel] = useState([]), [leyendo, setLeyendo] = useState(false), [importando, setImportando] = useState(false);
-  const leerExcel = async e => {
-    const file = e.target.files?.[0]; e.target.value = '';
-    if (!file) return;
-    setLeyendo(true); setExcel([]);
-    try { const bl = await leerHorariosExcel(file); setExcel(bl); ban('ok', 'Excel leído', `Se encontraron ${bl.length} clases para revisar.`); }
-    catch (er) { ban('err', 'No se pudo leer el Excel', er.message); }
-    finally { setLeyendo(false); }
-  };
-  const importar = async () => {
-    const malas = excel.filter(x => x.errores.length);
-    if (malas.length) return ban('err', 'Corrige el archivo', `Hay ${malas.length} filas con errores. No se creó ninguna clase.`);
-    if (!excel.length || !confirm(`¿Crear las ${excel.length} clases del Excel?`)) return;
-    setImportando(true);
-    try {
-      const r = await post('/api/admin/horarios/importar', { bloques: excel.map(({ errores, ...b }) => b) });
-      ban('ok', 'Horarios creados', `Se crearon ${r.creadas} clases y ${r.materiasNuevas} materias nuevas.`); setExcel([]); cargar();
-    } catch (er) { ban('err', 'No se crearon las clases', msgErr(er)); }
-    finally { setImportando(false); }
-  };
   const misMaterias = [...new Set(c.filter(x => x.docente === f.docente).map(x => x.materia))].sort();
-  const del = h.filter(x => x.area === f.area && x.semestre === f.semestre && x.grupo === f.grupo);
-  const bloques = conDescanso(del);
+  const filtroCompleto = Boolean(filtro.semestre && filtro.area && filtro.grupo);
+  const del = filtroCompleto ? h.filter(x => x.area === filtro.area && x.semestre === filtro.semestre && x.grupo === filtro.grupo) : [];
+  const tieneClases = del.some(x => x.tipo !== 'descanso');
+  const bloques = tieneClases ? conDescanso(del) : [];
   const añadir = async e => {
     e.preventDefault();
-    if (!f.docente) return ban('err', 'Elige al docente');
+    setErrorFormulario('');
+    if (!f.docente) return setErrorFormulario('Elige al docente.');
     try {
       await post('/api/admin/horarios', { area: f.area, semestre: f.semestre, grupo: f.grupo, dia: +f.dia, inicio: f.inicio, fin: f.fin, tipo: 'clase', docente: f.docente, materia: f.materia });
       ban('ok', 'Bloque añadido', `${f.materia} · ${DIAS[f.dia]} ${hh(f.inicio)} a ${hh(f.fin)}`);
+      setFiltro({ semestre: f.semestre, area: f.area, grupo: f.grupo });
+      setFormAbierto(false);
       const sig = f.fin === '09:30' ? '10:00' : f.fin; setF({ ...f, inicio: sig, fin: sumar50(sig) }); cargar();
-    } catch (er) { ban('err', 'No se pudo', msgErr(er)); }
+    } catch (er) { setErrorFormulario(msgErr(er)); }
   };
   const borrar = async x => { if (!confirm(`¿Quitar ${x.materia} del horario del ${DIAS[x.dia]}?`)) return; try { await post('/api/admin/horarios/borrar', { id: x.id }); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
   return (<>
     <Hero titulo="Horarios" sub="Elige docente, grupo y materia. La materia se crea sola. El descanso de 9:30 a 10:00 ya está fijo." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
-    <Card title="Añadir clase al horario"><form onSubmit={añadir}>
+    <button className="btn" type="button" aria-haspopup="dialog" onClick={() => { setErrorFormulario(''); setFormAbierto(true); }}>CREAR HORARIO</button>
+    <PanelEmergente abierto={formAbierto} titulo="Crear horario" onCerrar={() => setFormAbierto(false)}>
+      <form onSubmit={añadir}>
       <label>Docente</label><select value={f.docente} onChange={e => setF({ ...f, docente: e.target.value })} required><option value="">Selecciona un docente</option>{docs.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
       {!docs.length && <p className="sub">Primero crea la cuenta del docente en Cuentas.</p>}
       <label>Semestre</label><select value={f.semestre} onChange={e => setF({ ...f, semestre: e.target.value })}>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select>
@@ -240,24 +250,24 @@ export function Horarios() {
       <datalist id="materias-docente">{misMaterias.map(m => <option key={m} value={m} />)}</datalist>
       <label>Día</label><select value={f.dia} onChange={e => setF({ ...f, dia: e.target.value })}>{[1, 2, 3, 4, 5, 6].map(d => <option key={d} value={d}>{DIAS[d]}</option>)}</select>
       <div className="fila2"><div><label>De las</label><input type="time" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value, fin: sumar50(e.target.value) })} required /></div><div><label>A las</label><input type="time" value={f.fin} onChange={e => setF({ ...f, fin: e.target.value })} required /></div></div>
+      {errorFormulario && <p className="msg" role="alert">{errorFormulario}</p>}
       <button className="btn" type="submit">AÑADIR AL HORARIO</button>
-    </form></Card>
-    <Card title="Importar horarios desde Excel">
-      <p className="sub">Una fila por clase, con CURP del docente, semestre, área, grupo, materia, día(s) y horas. En "día" puedes poner varios, como <b>Lunes, Miércoles</b>. Se revisan todas las filas, y los cruces de horario, antes de crear.</p>
-      <button className="mini" type="button" onClick={descargarPlantillaHorarios}>Descargar plantilla Excel</button>
-      <label>Archivo Excel</label>
-      <input type="file" accept=".xlsx,.xls" onChange={leerExcel} disabled={leyendo || importando} />
-      {excel.length > 0 && <>
-        <div className="tabla"><table className="tb"><thead><tr><th className="izq">Materia</th><th>Grupo</th><th>Día</th><th>Hora</th><th>Revisión</th></tr></thead>
-          <tbody>{excel.slice(0, 60).map((x, i) => <tr key={i}><td className="izq">{x.materia || '–'}</td><td>{x.semestre.slice(0, 3)} {x.grupo}</td><td>{nombreDia(x.dia)}</td><td>{x.inicio}–{x.fin}</td><td>{x.errores.length ? <span className="tag err">{x.errores.join(', ')}</span> : <span className="tag ok">Listo</span>}</td></tr>)}</tbody></table></div>
-        {excel.length > 60 && <p className="sub">Se muestran 60 de {excel.length} filas.</p>}
-        <button className="btn" type="button" onClick={importar} disabled={importando || excel.some(x => x.errores.length)}>{importando ? 'CREANDO…' : `CREAR ${excel.length} CLASES`}</button>
-      </>}
+      </form>
+    </PanelEmergente>
+    <Card title="Ver horarios">
+      <label htmlFor="horario-consulta-semestre">Semestre</label><select id="horario-consulta-semestre" value={filtro.semestre} onChange={e => setFiltro({ ...filtro, semestre: e.target.value })}><option value="">Elige semestre</option>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select>
+      <label htmlFor="horario-consulta-area">Área</label><select id="horario-consulta-area" value={filtro.area} onChange={e => setFiltro({ ...filtro, area: e.target.value })}><option value="">Elige área</option>{AREAS.map(s => <option key={s}>{s}</option>)}</select>
+      <label htmlFor="horario-consulta-grupo">Grupo</label><select id="horario-consulta-grupo" value={filtro.grupo} onChange={e => setFiltro({ ...filtro, grupo: e.target.value })}><option value="">Elige grupo</option>{['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}</select>
     </Card>
-    <Card title={`Horario de ${f.semestre} · ${f.area} · Grupo ${f.grupo}`}><p className="sub" style={{ margin: 0 }}>Cambia semestre, área o grupo arriba para ver otro horario.</p></Card>
-    {[1, 2, 3, 4, 5, 6].filter(d => bloques.some(x => x.dia === d)).map(d => (
-      <Card key={d} title={DIAS[d]}><ul className="l">{bloques.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia}{x.docenteNombre ? ` · ${x.docenteNombre}` : ''}</span><span>{String(x.id).startsWith('desc') ? 'fijo' : <button className="mini rojo" onClick={() => borrar(x)}>Quitar</button>}</span></li>)}</ul></Card>))}
-    {!del.length && <Card><p className="vacio">Este grupo aún no tiene clases en su horario.</p></Card>}
+    {!filtroCompleto
+      ? <Card><p className="vacio">Elige semestre, área y grupo para ver su horario.</p></Card>
+      : tieneClases
+        ? <>
+          <Card title={`Horario de ${filtro.semestre} · ${filtro.area} · Grupo ${filtro.grupo}`} />
+          {[1, 2, 3, 4, 5, 6].filter(d => bloques.some(x => x.dia === d)).map(d => (
+            <Card key={d} title={DIAS[d]}><ul className="l">{bloques.filter(x => x.dia === d).sort((a, b) => a.inicio.localeCompare(b.inicio)).map(x => <li key={x.id}><span>{hh(x.inicio)} a {hh(x.fin)} - {x.materia}{x.docenteNombre ? ` · ${x.docenteNombre}` : ''}</span><span>{String(x.id).startsWith('desc') ? 'fijo' : <button className="mini rojo" onClick={() => borrar(x)}>Quitar</button>}</span></li>)}</ul></Card>))}
+          </>
+        : <Card><p className="vacio">Este grupo no existe o aún no tiene clases en su horario.</p></Card>}
   </>);
 }
 
@@ -272,22 +282,23 @@ export function CalificacionesAdmin() {
     setGuardando(true);
     try {
       const r = await post('/api/calificaciones', { materia: clase.materia, parcial: Number(parcial), area: grupo.area, semestre: grupo.semestre, grupo: grupo.grupo, notas: alumnos.filter(a => notas[a.curp] !== undefined && notas[a.curp] !== '').map(a => ({ curp: a.curp, nota: Number(notas[a.curp]) })) });
-      ban('ok', 'Calificaciones guardadas', `Se guardaron ${r.guardadas} calificaciones. Se avisó a cada alumno.`);
+      ban('ok', 'Calificaciones guardadas', `Se guardaron ${r.guardadas} calificaciones. ${r.publicada ? 'Se avisó a cada alumno.' : 'Los alumnos verán las notas cuando se cierre el parcial.'}`);
       SD.cached('admin_calificaciones', '/api/calificaciones');
     } catch (e) { ban('err', 'No se pudieron guardar', msgErr(e)); }
     finally { setGuardando(false); }
   };
   return <>
-    <Hero titulo="Subir calificaciones" sub="Elige semestre, área, grupo, materia y parcial. Cada alumno recibirá un aviso al guardar su calificación." /><Banner b={b} />
+    <Hero titulo="Subir calificaciones" sub="Elige semestre, área, grupo, materia y parcial. Los alumnos reciben aviso cuando el parcial ya está publicado." /><Banner b={b} />
     <Card title="Grupo y periodo">
-      <label>Semestre, área y grupo</label><select value={grupo ? grupo.id : ''} onChange={e => { setGrupoId(e.target.value); setClaseId(''); setNotas({}); }}>{g.map(x => <option key={x.id} value={x.id}>{nombreGrupo(x)}</option>)}</select>
-      <label>Materia</label><select value={clase ? clase.id : ''} onChange={e => setClaseId(e.target.value)}>{clases.map(x => <option key={x.id} value={x.id}>{x.materia}</option>)}</select>
+      {!g.length && <p className="vacio">Todavía no hay grupos. Crea una cuenta de alumno o un horario para crear el primero.</p>}
+      <label>Semestre, área y grupo</label><select disabled={!g.length} value={grupo ? grupo.id : ''} onChange={e => { setGrupoId(e.target.value); setClaseId(''); setNotas({}); }}>{g.map(x => <option key={x.id} value={x.id}>{nombreGrupo(x)}</option>)}</select>
+      <label>Materia</label><select disabled={!clases.length} value={clase ? clase.id : ''} onChange={e => setClaseId(e.target.value)}>{clases.map(x => <option key={x.id} value={x.id}>{x.materia}</option>)}</select>
       <label>Parcial</label><select value={parcial} onChange={e => setParcial(e.target.value)}><option value="1">Primer parcial</option><option value="2">Segundo parcial</option><option value="3">Tercer parcial</option></select>
     </Card>
     <Card title="Alumnos y calificaciones"><div className="tabla"><table className="tb"><thead><tr><th>No.</th><th className="izq">Alumno</th><th>Calificación (0–10)</th></tr></thead><tbody>
       {alumnos.map((a, i) => <tr key={a.id}><td>{i + 1}</td><td className="izq">{a.nombre}</td><td><input aria-label={`Calificación de ${a.nombre}`} type="number" min="0" max="10" step="0.1" value={notas[a.id] ?? ''} onChange={e => setNotas(v => ({ ...v, [a.id]: e.target.value }))} /></td></tr>)}
       {!alumnos.length && <tr><td colSpan={3}>No hay alumnos registrados en este grupo.</td></tr>}
-    </tbody></table></div><button className="btn" disabled={guardando || !clase || !alumnos.length} onClick={guardar}>{guardando ? 'GUARDANDO…' : 'GUARDAR Y AVISAR A LOS ALUMNOS'}</button></Card>
+    </tbody></table></div><button className="btn" disabled={guardando || !clase || !alumnos.length} onClick={guardar}>{guardando ? 'GUARDANDO…' : 'GUARDAR CALIFICACIONES'}</button></Card>
   </>;
 }
 
@@ -370,7 +381,7 @@ export function ReportesAdmin() {
           </tbody></table></div>
         <button className="btn" onClick={exportar}>EXPORTAR A EXCEL</button><button className="btn sec" onClick={() => window.print()}>IMPRIMIR</button>
       </Card>}
-      {!clase && <Card><p className="vacio">Elige un grupo con materias para generar un reporte.</p></Card>}
+      {!clase && <Card><p className="vacio">{grupos.length ? 'Elige un grupo con materias para generar un reporte.' : 'No hay grupos con alumnos para generar reportes todavía.'}</p></Card>}
     </>}
   </>;
 }
@@ -391,22 +402,64 @@ export function Historial() {
 }
 
 export function Escaner() {
-  const [curp, setCurp] = useState(''), [r, setR] = useState(null), [b, ban] = useBanner();
-  const ver = async t => { t = t.trim().toUpperCase(); setCurp(t); if (!/^[A-Z0-9]{18}$/.test(t)) return ban('err', 'QR no válido', 'No contiene una CURP.'); const x = await SD.consultar(t); x.alumno ? (setR(x), ban('ok', 'Alumno encontrado', x.alumno.nombre)) : (setR(null), ban('err', 'No encontrado')); };
+  const [curp, setCurp] = useState(''), [r, setR] = useState(null), [b, ban] = useBanner(), [registrando, setRegistrando] = useState('');
+  const [online, setOnline] = useState(navigator.onLine);
+  const reintentos = useRef(new Map()), sesion = SD.session() || {}, tieneAccesoEscolar = sesion.rol === 'admin' && ['portero', 'control'].includes(sesion.adminArea);
+  const enLinea = online && !sesion.offline;
+  useEffect(() => {
+    const revisar = () => setOnline(navigator.onLine);
+    addEventListener('online', revisar); addEventListener('offline', revisar);
+    return () => { removeEventListener('online', revisar); removeEventListener('offline', revisar); };
+  }, []);
+  const ver = async t => {
+    t = t.trim().toUpperCase(); setCurp(t);
+    if (!/^[A-Z0-9]{18}$/.test(t)) { setR(null); return ban('err', 'QR no válido', 'No contiene una CURP.'); }
+    if (tieneAccesoEscolar && !enLinea) { setR(null); return ban('err', 'Sin conexión', 'Para consultar y registrar accesos, vuelve a conectarte a internet.'); }
+    try {
+      const x = tieneAccesoEscolar
+        ? { alumno: await SD.api('/api/alumno/' + encodeURIComponent(t)), accesos: await SD.api('/api/accesos?curp=' + encodeURIComponent(t)) }
+        : await SD.consultar(t);
+      x.alumno ? (setR(x), ban('ok', 'Alumno encontrado', x.alumno.nombre)) : (setR(null), ban('err', 'No encontrado'));
+    } catch (e) { setR(null); ban('err', 'No se pudo consultar al alumno', msgErr(e)); }
+  };
+  const registrarAcceso = async tipo => {
+    if (!tieneAccesoEscolar || !r?.alumno) return;
+    if (!navigator.onLine || SD.session()?.offline) return ban('err', 'Sin conexión', 'No se registró el acceso. Vuelve a conectarte y reintenta.');
+    const alumnoCurp = r.alumno.curp, clave = `${alumnoCurp}:${tipo}`;
+    const uid = reintentos.current.get(clave) || crypto.randomUUID();
+    reintentos.current.set(clave, uid);
+    setRegistrando(tipo);
+    try {
+      const evento = await SD.api('/api/portero/escanear', { method: 'POST', body: { curp: alumnoCurp, tipo, uid } });
+      reintentos.current.delete(clave);
+      setR(actual => actual?.alumno?.curp === alumnoCurp ? { ...actual, accesos: [evento, ...(actual.accesos || []).filter(x => x.uid !== evento.uid)].slice(0, 20) } : actual);
+      const grupo = [evento.semestre, evento.area, evento.grupo].filter(Boolean).join(' ');
+      ban('ok', `${tipo === 'entrada' ? 'ENTRADA' : 'SALIDA'} registrada · ${evento.hora}`, `${evento.alumno} · ${grupo}${evento.duplicada ? ' · ya estaba registrada' : ''}`);
+    } catch (e) {
+      if (e.status === 409) ban('warn', 'Espera para registrar el siguiente evento', msgErr(e));
+      else ban('err', 'No se pudo registrar el acceso', msgErr(e));
+    }
+    finally { setRegistrando(''); }
+  };
   return (<>
-    <Hero titulo="Escáner" sub="Escanea el QR de un alumno, o escribe su CURP, para ver su ficha." /><Banner b={b} />
-    <Card><Camara onTexto={ver} onError={m => ban('err', 'Cámara', m)} />
+    <Hero titulo={tieneAccesoEscolar ? 'Entrada y salida escolar' : 'Escáner'} sub={tieneAccesoEscolar ? 'Escanea el QR del alumno y elige explícitamente qué evento registrar.' : 'Escanea el QR de un alumno, o escribe su CURP, para ver su ficha.'} /><Banner b={b} />
+    {tieneAccesoEscolar && !enLinea && <p className="msg" role="alert">Sin conexión: los accesos no se guardan sin validación del servidor.</p>}
+    <Card><Camara disabled={tieneAccesoEscolar && (!enLinea || !!registrando)} onTexto={ver} onError={m => ban('err', 'Cámara', m)} />
       <p className="sub" style={{ margin: '8px 0 0' }}>Después de cada lectura, apunta al siguiente código.</p>
-      <div className="fila2" style={{ marginTop: 12 }}><input value={curp} maxLength="18" placeholder="CURP" onChange={e => setCurp(e.target.value.toUpperCase())} style={{ marginTop: 0 }} /><button className="btn" style={{ flex: 'none', width: 80, margin: 0 }} onClick={() => ver(curp)}>OK</button></div></Card>
+      <div className="fila2" style={{ marginTop: 12 }}><input value={curp} maxLength="18" placeholder="CURP" disabled={tieneAccesoEscolar && !!registrando} onChange={e => setCurp(e.target.value.toUpperCase())} style={{ marginTop: 0 }} /><button className="btn" style={{ flex: 'none', width: 80, margin: 0 }} disabled={tieneAccesoEscolar && (!enLinea || !!registrando)} onClick={() => ver(curp)}>OK</button></div></Card>
     {r && <><Card title="Ficha"><dl><dt>Nombre</dt><dd>{r.alumno.nombre}</dd><dt>CURP</dt><dd>{r.alumno.curp}</dd><dt>Grupo</dt><dd>{r.alumno.semestre} {r.alumno.area} {r.alumno.grupo}</dd></dl></Card>
-      <Card title="Historial"><ul className="l">{r.asistencias.slice(0, 20).map(a => <li key={a.uid}><span>{a.fecha} · {a.hora}</span><span>{a.estado === 'falta' ? 'falta · ' : ''}{a.materia}</span></li>)}{!r.asistencias.length && <li className="vacio">Sin registros</li>}</ul></Card></>}
+      {tieneAccesoEscolar
+        ? <><Card title="Registrar acceso"><p className="sub">El servidor asigna la hora oficial y notifica a los tutores vinculados al confirmar el evento.</p><div className="fila2"><button className="btn" type="button" disabled={!enLinea || !!registrando} onClick={() => registrarAcceso('entrada')}>{registrando === 'entrada' ? 'REGISTRANDO…' : 'REGISTRAR ENTRADA'}</button><button className="btn sec" type="button" disabled={!enLinea || !!registrando} onClick={() => registrarAcceso('salida')}>{registrando === 'salida' ? 'REGISTRANDO…' : 'REGISTRAR SALIDA'}</button></div></Card>
+          <Card title="Entradas y salidas recientes"><ul className="l">{(r.accesos || []).map(a => <li key={a.uid}><span>{a.fecha} · {a.hora}</span><span>{a.tipo === 'entrada' ? 'Entrada' : 'Salida'}</span></li>)}{!r.accesos?.length && <li className="vacio">Sin registros de acceso.</li>}</ul></Card></>
+        : <Card title="Historial"><ul className="l">{r.asistencias.slice(0, 20).map(a => <li key={a.uid}><span>{a.fecha} · {a.hora}</span><span>{a.estado === 'falta' ? 'falta · ' : ''}{a.materia}</span></li>)}{!r.asistencias.length && <li className="vacio">Sin registros</li>}</ul></Card>}
+      </>}
   </>);
 }
 
 export function Citatorios() {
   const [alumnos, setAlumnos] = useState([]);
   const [lista, setLista] = useState([]), [error, setError] = useState(''), [b, ban] = useBanner();
-  const [f, setF] = useState({ curp: '', fecha: hoyISO(), motivo: '' }), [formAbierto, setFormAbierto] = useState(false);
+  const [f, setF] = useState({ curp: '', fecha: hoyISO(), motivo: '' }), [formAbierto, setFormAbierto] = useState(false), [errorFormulario, setErrorFormulario] = useState('');
   const curp = f.curp.trim().toUpperCase();
   const alumno = alumnos.find(x => String(x.curp || x.id || '').trim().toUpperCase() === curp);
   const cargar = useCallback(() => SD.cached('admin_citatorios', '/api/admin/citatorios').then(setLista).catch(e => setError(e.message || 'No se pudieron cargar los citatorios.')), []);
@@ -416,8 +469,9 @@ export function Citatorios() {
   }, [cargar]);
   const crear = async e => {
     e.preventDefault();
+    setErrorFormulario('');
     try { await post('/api/admin/citatorios', { ...f, curp }); setF({ ...f, curp: '', motivo: '' }); setFormAbierto(false); ban('ok', 'Citatorio creado', 'Quedó registrado para el alumno.'); cargar(); }
-    catch (e) { ban('err', 'No se pudo crear', msgErr(e)); }
+    catch (e) { setErrorFormulario(msgErr(e)); }
   };
   const eliminar = async x => {
     if (!window.confirm(`¿Eliminar definitivamente el citatorio de ${x.alumno}? Esta acción no se puede deshacer.`)) return;
@@ -428,13 +482,18 @@ export function Citatorios() {
     <Hero titulo="Citatorios" sub="Registra citatorios para alumnos y consulta los anteriores." /><Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
     <Card title="Nuevo citatorio">
-      <button className="btn sec desplegable-toggle" type="button" aria-expanded={formAbierto} aria-controls="citatorio-form" onClick={() => setFormAbierto(v => !v)}><span>{formAbierto ? 'CERRAR FORMULARIO' : 'CREAR CITATORIO'}</span><span className={'desplegable-flecha' + (formAbierto ? ' abierta' : '')} aria-hidden="true">⌄</span></button>
-      <div id="citatorio-form" className={'desplegable-contenido' + (formAbierto ? ' abierto' : '')} aria-hidden={!formAbierto} inert={!formAbierto}><form onSubmit={crear}>
+      <button className="btn sec" type="button" aria-haspopup="dialog" onClick={() => { setErrorFormulario(''); setFormAbierto(true); }}>CREAR CITATORIO</button>
+    </Card>
+    <PanelEmergente abierto={formAbierto} titulo="Nuevo citatorio" onCerrar={() => setFormAbierto(false)}>
+      <form onSubmit={crear}>
       <label htmlFor="citatorio-curp">CURP del alumno</label><input id="citatorio-curp" value={f.curp} maxLength="18" autoCapitalize="characters" placeholder="Escribe la CURP (18 caracteres)" onChange={e => setF({ ...f, curp: e.target.value.toUpperCase() })} required />
       {curp.length === 18 && <p className={'sub citatorio-validacion' + (alumno ? ' valido' : ' invalido')}>{alumno ? `Cuenta encontrada: ${alumno.nombre} · ${alumno.semestre || ''} ${alumno.area || ''} ${alumno.grupo || ''}` : 'No encontramos una cuenta de alumno con esa CURP.'}</p>}
       <label htmlFor="citatorio-fecha">Fecha de cita</label><input id="citatorio-fecha" type="date" value={f.fecha} onChange={e => setF({ ...f, fecha: e.target.value })} required />
       <label htmlFor="citatorio-motivo">Motivo</label><textarea id="citatorio-motivo" rows="4" maxLength="1000" value={f.motivo} onChange={e => setF({ ...f, motivo: e.target.value })} required />
-      <button className="btn" disabled={!alumno}>REGISTRAR CITATORIO</button></form></div></Card>
+      {errorFormulario && <p className="msg" role="alert">{errorFormulario}</p>}
+      <button className="btn" disabled={!alumno}>REGISTRAR CITATORIO</button>
+      </form>
+    </PanelEmergente>
     {lista.map(x => <Card key={x.id} title={`${x.alumno} · ${x.fecha}`}><p>{x.motivo}</p><p className="sub">{x.semestre} {x.area} {x.grupo} · Registrado por {x.creadoPor}</p>{x.estado === 'anulado' && <p><span className="tag">Anulado</span></p>}<button className="btn sec" type="button" onClick={() => eliminar(x)}>ELIMINAR CITATORIO</button></Card>)}
     {!lista.length && <Card><p className="vacio">Aún no hay citatorios registrados.</p></Card>}
   </>;

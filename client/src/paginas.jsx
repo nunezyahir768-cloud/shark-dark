@@ -1,7 +1,8 @@
 import { useState, useEffect, useContext } from 'react';
 import SD from './sd.js';
-import QRAlumno from './QRAlumno.jsx';
-import { conDescanso, Card, Hero, Banner, useBanner, QR, useDatos, useCached, useAlumno, TutorCtx, DIAS, hh, fmtF, hoyISO, post, msgErr, delGrupo, estadoHorario, resumenAsistencia, ListaFaltas, nombreGrupo } from './ui.jsx';
+import { conDescanso, Card, Hero, Banner, useBanner, QR, useDatos, useCached, useAlumno, TutorCtx, DIAS, hh, fmtF, hoyISO, post, msgErr, delGrupo, estadoHorario, resumenAsistencia, ListaFaltas, nombreGrupo, PanelEmergente } from './ui.jsx';
+import asistenciaReglas from './asistencia-reglas.js';
+const { fechaHoraMexico } = asistenciaReglas;
 
 const Sin = () => <Card><p className="vacio">No tienes un alumno vinculado. Pide a Servicios Escolares que vinculen a tu alumno con tu cuenta.</p></Card>;
 
@@ -54,60 +55,32 @@ export function ClaseAhora({ bl }) {
   );
 }
 
-export function InicioBienvenida({ rol, onTutorial, alumno, qrAbierto, onAbrirQr, onSalirQr }) {
-  return (<>
+export function InicioBienvenida({ onTutorial }) {
+  return (
     <div className="bienvenida">
       <Hero titulo="¡Bienvenido a TIBURONES!" />
       <div className="bienvenida-acciones">
         <button className="btn bienvenida-accion" type="button" onClick={onTutorial}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11L13 8z" /></svg>Ver tutorial</button>
-        {rol === 'alumno' && alumno && <button className="btn bienvenida-accion qr-acceso" type="button" onClick={onAbrirQr}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1h5v5H1zM10 1h5v5h-5zM1 10h5v5H1zM9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2z" /></svg>QR</button>}
       </div>
     </div>
-    {qrAbierto && alumno && <QRAlumno alumno={alumno} onSalir={onSalirQr} />}
-  </>);
-}
-
-function ResumenAlumno({ alumno, d }) {
-  const mes = hoyISO().slice(0, 7), rs = (d.asistencias || []).filter(r => r.curp === alumno.curp && (r.fecha || '').startsWith(mes));
-  const cuenta = e => rs.filter(r => r.estado === e).length;
-  const avisos = [...(d.avisos || [])].filter(x => !x.curp || x.curp === alumno.curp).sort((x, y) => (y.fecha || '').localeCompare(x.fecha || '')).slice(0, 2);
-  return (<>
-    <Card title="Este mes"><div className="resumen">
-      <a href="#/asistencia"><b>{cuenta('asistio')}</b><span>Asistencias</span></a>
-      <a href="#/asistencia" className={cuenta('falta') ? 'alerta' : ''}><b>{cuenta('falta')}</b><span>Faltas</span></a>
-      <a href="#/asistencia"><b>{cuenta('justificada')}</b><span>Justificadas</span></a>
-    </div></Card>
-    <Card title="Avisos recientes">
-      {avisos.length ? <ul className="l">{avisos.map((x, i) => <li key={x.id || i}><span>{x.texto || x.titulo}</span></li>)}</ul> : <p className="vacio">No tienes avisos nuevos.</p>}
-      <a className="enlace-card" href="#/avisos">Ver todos los avisos ›</a>
-    </Card>
-  </>);
-}
-
-function ResumenDocente({ bl }) {
-  const [, tick] = useState(0);
-  useEffect(() => { const i = setInterval(() => tick(x => x + 1), 30000); return () => clearInterval(i); }, []);
-  const { hoy, ahora } = estadoHorario(bl), clases = hoy.filter(b => b.tipo !== 'descanso');
-  return (<>
-    <ClaseAhora bl={bl} />
-    {ahora && <a className="btn pasar-lista" href="#/asistencia">PASAR LISTA · {ahora.materia}</a>}
-    <Card title="Tus clases de hoy">
-      {clases.length ? <ul className="l">{clases.map(b => <li key={b.id}><span>{hh(b.inicio)} a {hh(b.fin)} · {b.materia}</span><span>{b.semestre} {b.grupo}</span></li>)}</ul> : <p className="vacio">Hoy no tienes clases.</p>}
-      <a className="enlace-card" href="#/horario">Ver horario completo ›</a>
-    </Card>
-  </>);
+  );
 }
 
 export function Inicio({ onTutorial }) {
   const ses = SD.session() || {};
-  const alumno = useAlumno(), [qrAbierto, setQrAbierto] = useState(false), d = useDatos();
+  const alumno = useAlumno();
   const [horario] = useCached('horario', '/api/horarios');
-  const familia = (ses.rol === 'alumno' || ses.rol === 'tutor') && alumno;
-  return <>
-    <InicioBienvenida rol={ses.rol} onTutorial={onTutorial} alumno={alumno} qrAbierto={qrAbierto} onAbrirQr={() => setQrAbierto(true)} onSalirQr={() => setQrAbierto(false)} />
-    {familia && <><ClaseAhora bl={conDescanso(delGrupo(horario, alumno))} /><ResumenAlumno alumno={alumno} d={d} /></>}
-    {ses.rol === 'docente' && <ResumenDocente bl={conDescanso(horario)} />}
-  </>;
+  const [periodo] = useCached('periodo', '/api/periodos');
+  if (ses.rol === 'alumno' || ses.rol === 'docente') {
+    if (!periodo) return <Card><p className="vacio">Consultando el calendario escolar…</p></Card>;
+    if (!periodo.configurado || !periodo.estado?.enCiclo)
+      return <Card title={periodo.configurado ? 'Sin clases hoy' : 'Ciclo escolar'}>
+        <p className="sub">{periodo.estado?.mensaje || 'Servicios Escolares aún no configura el calendario escolar.'}</p>
+      </Card>;
+  }
+  if (ses.rol === 'alumno') return <ClaseAhora bl={alumno ? conDescanso(delGrupo(horario, alumno)) : []} />;
+  if (ses.rol === 'docente') return <ClaseAhora bl={conDescanso(horario)} />;
+  return <InicioBienvenida onTutorial={onTutorial} />;
 }
 export function PerfilAlumno() {
   const al = useAlumno(), [tut, setTut] = useState([]);
@@ -164,12 +137,27 @@ export function AsistenciaVer() {
     <Card title="Asistencia a la escuela"><div className="tabla"><table className="tb"><thead><tr><th>Día</th><th>Mes</th><th>Año</th><th>¿Asistió?</th></tr></thead>
       <tbody>{diasEscuela.map(({ fecha, asistio }) => { const [anio, mes, dia] = fecha.split('-'); return <tr key={fecha}><td>{Number(dia)}</td><td>{Number(mes)}</td><td>{anio}</td><td aria-label={asistio ? 'Sí asistió' : 'No asistió'}>{asistio ? '☑' : '✕'}</td></tr>; })}
         {!diasEscuela.length && <tr><td colSpan="4">Sin registros todavía</td></tr>}</tbody></table></div></Card>
+    <AccesosEscuela curp={al.curp} />
     <Card title="Por clase"><div className="tabla"><table className="tb"><thead><tr><th className="izq">Materia</th><th>Asistió</th><th>Faltas</th><th>Justif.</th><th>%</th></tr></thead>
       <tbody>{materias.map(m => { const r = resumenAsistencia(rs.filter(a => a.materia === m)); return <tr key={m}><td className="izq">{m}</td><td>{r.asist}</td><td>{r.falt}</td><td>{r.just}</td><td>{r.pct}%</td></tr>; })}
         {!materias.length && <tr><td className="izq" colSpan="5">Sin registros todavía</td></tr>}</tbody></table></div></Card>
     <Card title="Faltas (fecha, horario y materia)"><ListaFaltas rs={rs} /></Card>
     {SD.session().rol === 'tutor' && <Card title="Avisos de asistencia"><ul className="l">{av.map(a => <li key={a.id}><span>{a.texto}</span><span>{fmtF(a.fecha)}</span></li>)}{!av.length && <li className="vacio">Sin avisos</li>}</ul></Card>}
   </>);
+}
+
+function AccesosEscuela({ curp }) {
+  const [registros] = useCached(`accesos_${curp}`, `/api/accesos?curp=${encodeURIComponent(curp)}`);
+  const hoy = fechaHoraMexico().fecha;
+  const deHoy = (registros || []).filter(x => x.fecha === hoy);
+  const recientes = (registros || []).filter(x => x.fecha !== hoy);
+  const lista = eventos => eventos.map(x => <li key={x.uid}><span>{x.fecha} · {x.hora}</span><span>{x.tipo === 'entrada' ? 'Entrada' : 'Salida'}</span></li>);
+  return <Card title="Entrada y salida de la escuela">
+    {registros === null ? <p className="vacio">Cargando registros…</p> : <>
+      <p className="sub">Hoy</p><ul className="l">{lista(deHoy)}{!deHoy.length && <li className="vacio">Sin entradas o salidas registradas hoy.</li>}</ul>
+      <p className="sub">Días recientes</p><ul className="l">{lista(recientes)}{!recientes.length && <li className="vacio">Sin registros anteriores recientes.</li>}</ul>
+    </>}
+  </Card>;
 }
 
 function HorarioTabla({ bloques, rol, encabezado }) {
@@ -241,9 +229,10 @@ export function Horario() {
 }
 
 export function CalifVer() {
-  const al = useAlumno(), [notas] = useCached('calif', '/api/calificaciones');
+  const al = useAlumno(), [notas] = useCached('calif', '/api/calificaciones'), [periodo] = useCached('periodo', '/api/periodos');
   if (!al) return <Sin />;
-  const m = {}; (notas || []).filter(n => n.curp === al.curp).forEach(n => { (m[n.materia] = m[n.materia] || {})[n.parcial] = n.nota; });
+  const publicados = new Set((periodo?.estado?.parciales || []).filter(p => p.estado === 'cerrado').map(p => Number(p.n)));
+  const m = {}; (notas || []).filter(n => n.curp === al.curp && publicados.has(Number(n.parcial))).forEach(n => { (m[n.materia] = m[n.materia] || {})[n.parcial] = n.nota; });
   const prom = v => { const x = Object.values(v); return x.length ? x.reduce((a, b) => a + b, 0) / x.length : null; };
   const f1 = x => x === null || x === undefined ? '–' : Number.isInteger(x) ? String(x) : x.toFixed(1);
   const rep = x => typeof x === 'number' && x < 6 ? ' rep' : '';
@@ -251,7 +240,7 @@ export function CalifVer() {
   const ps = materias.map(k => prom(m[k])).filter(x => x !== null), gen = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null;
   const imprimir = () => { document.body.classList.add('imprime-horario'); const fin = () => { document.body.classList.remove('imprime-horario'); removeEventListener('afterprint', fin); }; addEventListener('afterprint', fin); print(); };
   return (<>
-    <Hero titulo="Calificaciones" sub={`${al.nombre} · solo consulta`} />
+    <Hero titulo="Calificaciones" sub={`${al.nombre} · los parciales se publican al cerrar`} />
     <Card className="horario-tabla-card" title="Boleta">
       <p className="sub horario-encabezado">{al.nombre} · {al.semestre} · {al.area} · Grupo {al.grupo}</p>
       <div className="tabla"><table className="tb boleta">
@@ -265,11 +254,11 @@ export function CalifVer() {
             {[1, 2, 3].map(p => <td key={p} className={'nota' + rep(m[k][p])}>{f1(m[k][p])}</td>)}
             <td className={'nota fin' + rep(prom(m[k]))}>{f1(prom(m[k]) === null ? null : Math.round(prom(m[k]) * 10) / 10)}</td>
           </tr>)}
-          {!materias.length && <tr><td className="izq" colSpan="5">Aún no hay calificaciones</td></tr>}
+          {!materias.length && <tr><td className="izq" colSpan="5">Aún no hay calificaciones publicadas. Las notas aparecen al cerrar cada parcial.</td></tr>}
         </tbody>
         {gen !== null && <tfoot><tr><td className="izq" colSpan="4"><b>Promedio general</b></td><td className={'nota fin' + rep(gen)}>{f1(Math.round(gen * 10) / 10)}</td></tr></tfoot>}
       </table></div>
-      <p className="sub" style={{ margin: '8px 0 0' }}>Las calificaciones menores a 6 aparecen en rojo.</p>
+      <p className="sub" style={{ margin: '8px 0 0' }}>Las calificaciones menores a 6 aparecen en rojo. Las notas de un parcial se muestran hasta que el parcial queda cerrado.</p>
       <button className="btn sec horario-imprimir" type="button" onClick={imprimir} disabled={!materias.length}>Descargar PDF / Imprimir</button>
     </Card>
   </>);
@@ -300,19 +289,26 @@ const DESTINOS = [['tutor', 'Tutores'], ['docente', 'Docentes'], ['alumno', 'Alu
 const NOM = { tutor: 'Tutores', docente: 'Docentes', alumno: 'Alumnos' };
 export function Avisos() {
   const adm = SD.session().rol === 'admin', [lista, cargar] = useCached('anuncios', '/api/anuncios'), [avisosPersonales] = useCached('avisos-personales', '/api/avisos'), [b, ban] = useBanner();
-  const [f, setF] = useState({ destino: 'todos', titulo: '', mensaje: '' });
-  const enviar = async e => { e.preventDefault(); try { await post('/api/anuncios', f); setF({ ...f, titulo: '', mensaje: '' }); ban('ok', 'Aviso enviado', 'Ya lo pueden ver en Notificaciones.'); cargar(); } catch (er) { ban('err', 'No se pudo enviar', msgErr(er)); } };
+  const [f, setF] = useState({ destino: 'todos', titulo: '', mensaje: '' }), [formAbierto, setFormAbierto] = useState(false), [errorFormulario, setErrorFormulario] = useState('');
+  const enviar = async e => { e.preventDefault(); setErrorFormulario(''); try { await post('/api/anuncios', f); setF({ ...f, titulo: '', mensaje: '' }); setFormAbierto(false); ban('ok', 'Aviso enviado', 'Ya lo pueden ver en Notificaciones.'); cargar(); } catch (er) { setErrorFormulario(msgErr(er)); } };
   const borrar = async id => { if (!confirm('¿Borrar este aviso?')) return; try { await post(`/api/anuncios/${id}/borrar`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
   const marcarLeido = async id => { try { await post(`/api/anuncios/${encodeURIComponent(id)}/leido`); await cargar(); dispatchEvent(new Event('sd-avisos')); } catch (er) { ban('err', 'No se pudo actualizar el aviso', msgErr(er)); } };
   return (<>
     <Hero titulo="Notificaciones" sub={adm ? 'Los avisos que envíes aparecerán en la sección Notificaciones de cada persona.' : 'Mensajes y avisos de Servicios Escolares.'} /><Banner b={b} />
     <Card title="Notificaciones en este dispositivo"><p className="sub">Permite las notificaciones para recibir avisos aunque la app esté cerrada.</p><BotonAvisos /></Card>
     {!adm && (avisosPersonales || []).map(a => <Card key={a.id} title={a.tipo === 'password' ? 'Restablecimiento de contraseña' : a.tipo === 'calif' ? 'Calificación subida' : 'Aviso escolar'}><p>{a.texto}</p><p className="sub">{a.fecha}</p></Card>)}
-    {adm && <Card title="Enviar un aviso"><form onSubmit={enviar}>
-      <label>¿A quién se lo mandas?</label><select value={f.destino} onChange={e => setF({ ...f, destino: e.target.value })}>{DESTINOS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
-      <label>Título</label><input value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} maxLength="80" required />
-      <label>Mensaje</label><textarea rows="4" value={f.mensaje} onChange={e => setF({ ...f, mensaje: e.target.value })} maxLength="1000" required />
-      <button className="btn" type="submit">ENVIAR AVISO</button></form></Card>}
+    {adm && <>
+      <button className="btn" type="button" aria-haspopup="dialog" onClick={() => { setErrorFormulario(''); setFormAbierto(true); }}>ENVIAR AVISO</button>
+      <PanelEmergente abierto={formAbierto} titulo="Enviar un aviso" onCerrar={() => setFormAbierto(false)}>
+        <form onSubmit={enviar}>
+          <label>¿A quién se lo mandas?</label><select value={f.destino} onChange={e => setF({ ...f, destino: e.target.value })}>{DESTINOS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
+          <label>Título</label><input value={f.titulo} onChange={e => setF({ ...f, titulo: e.target.value })} maxLength="80" required />
+          <label>Mensaje</label><textarea rows="4" value={f.mensaje} onChange={e => setF({ ...f, mensaje: e.target.value })} maxLength="1000" required />
+          {errorFormulario && <p className="msg" role="alert">{errorFormulario}</p>}
+          <button className="btn" type="submit">ENVIAR AVISO</button>
+        </form>
+      </PanelEmergente>
+    </>}
     {(lista || []).map(a => (
       <Card key={a.id} className={'anuncio' + (!adm && !a.leido ? ' aviso-nuevo' : '')}><b>{a.titulo}</b>{!adm && <span className={'tag ' + (a.leido ? 'ok' : '')}>{a.leido ? 'Revisado' : 'Nuevo'}</span>}<p style={{ margin: '6px 0', whiteSpace: 'pre-wrap' }}>{a.mensaje}</p>
         <p className="sub" style={{ margin: 0 }}>{new Date(a.creado).toLocaleDateString('es-MX')}{adm ? ' · Para: ' + a.para.map(r => NOM[r]).join(', ') : ''}</p>
@@ -353,14 +349,14 @@ export function Cuenta() {
   </>);
 }
 
-function OpcionAcordeon({ id, titulo, resumen, abierta, onToggle, children }) {
+function OpcionPanel({ id, titulo, resumen, abierta, onToggle, children }) {
   const expandida = abierta === id;
   return <Card className="opciones-item">
-    <button className="opciones-campo" type="button" aria-expanded={expandida} aria-controls={'opciones-detalle-' + id} onClick={() => onToggle(id)}>
+    <button className="opciones-campo" type="button" aria-haspopup="dialog" aria-expanded={expandida} onClick={() => onToggle(id)}>
       <span className="opciones-campo-texto"><b>{titulo}</b><small>{resumen}</small></span>
       <svg className={expandida ? 'opciones-chevron abierto' : 'opciones-chevron'} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
     </button>
-    <div className={'desplegable-contenido' + (expandida ? ' abierto' : '')} id={'opciones-detalle-' + id} aria-hidden={!expandida} inert={!expandida}><div className="opciones-detalle">{children}</div></div>
+    <PanelEmergente abierto={expandida} titulo={titulo} onCerrar={() => onToggle(id)}>{children}</PanelEmergente>
   </Card>;
 }
 
@@ -381,21 +377,21 @@ export function Opciones({ tema, setTema, tamanoFuente, setTamanoFuente, rol, on
   return <>
     <Hero titulo="Opciones" sub="Personaliza la apariencia de TIBURONES en este dispositivo." />
     <button className="btn sec tutorial-repetir" type="button" onClick={onTutorial}>Ver tutorial interactivo</button>
-    <OpcionAcordeon id="tema" titulo="Tema" resumen={'Actual: ' + nombreTema} abierta={abierta} onToggle={alternar}>
+    <OpcionPanel id="tema" titulo="Tema" resumen={'Actual: ' + nombreTema} abierta={abierta} onToggle={alternar}>
       <p className="sub">Elige el aspecto de la aplicación. Predeterminado sigue el tema de tu dispositivo.</p>
       <div className="opciones-elecciones" role="group" aria-label="Tema de la aplicación">
         {temas.map(([valor, texto]) => <button key={valor} type="button" className="opciones-eleccion" aria-pressed={tema === valor} onClick={() => setTema(valor)}>{texto}</button>)}
       </div>
-    </OpcionAcordeon>
-    <OpcionAcordeon id="fuente" titulo="Tamaño de fuente" resumen={'Actual: ' + nombreFuente} abierta={abierta} onToggle={alternar}>
+    </OpcionPanel>
+    <OpcionPanel id="fuente" titulo="Tamaño de fuente" resumen={'Actual: ' + nombreFuente} abierta={abierta} onToggle={alternar}>
       <p className="sub">Ajusta el tamaño de las letras en todas las secciones.</p>
       <div className="opciones-elecciones" role="group" aria-label="Tamaño de fuente">
         {tamanos.map(([valor, texto]) => <button key={valor} type="button" className="opciones-eleccion" aria-pressed={tamanoFuente === valor} onClick={() => setTamanoFuente(valor)}>{texto}</button>)}
       </div>
-    </OpcionAcordeon>
-    <OpcionAcordeon id="perfiles" titulo="Perfiles" resumen={perfil.resumen} abierta={abierta} onToggle={alternar}>
+    </OpcionPanel>
+    <OpcionPanel id="perfiles" titulo="Perfiles" resumen={perfil.resumen} abierta={abierta} onToggle={alternar}>
       <p className="sub">{perfil.descripcion}</p>
       <a className="btn sec opciones-accion" href={perfil.ruta}>{perfil.accion}</a>
-    </OpcionAcordeon>
+    </OpcionPanel>
   </>;
 }
