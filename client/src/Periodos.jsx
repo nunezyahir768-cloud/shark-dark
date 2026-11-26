@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import SD from './sd.js';
-import { Card, Hero, Banner, useBanner, post, msgErr } from './ui.jsx';
+import { Card, Hero, Banner, useBanner, post, msgErr, PanelEmergente } from './ui.jsx';
 
 const cicloPorFecha = () => {
   const partes = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit' }).formatToParts(new Date()).map(x => [x.type, x.value]));
@@ -34,6 +34,7 @@ export default function Periodos() {
   const [form, setForm] = useState(vacio), [modificado, setModificado] = useState(false);
   const [guardando, setGuardando] = useState(false), [accionando, setAccionando] = useState(''), [b, ban] = useBanner();
   const [idsAccion, setIdsAccion] = useState({});
+  const [panelAbierto, setPanelAbierto] = useState(true);
 
   async function cargar() {
     const resultado = await SD.cached('periodo', '/api/periodos');
@@ -56,10 +57,6 @@ export default function Periodos() {
   const cambiarParcial = (n, campo, valor) => cambiar({
     parciales: form.parciales.map(p => p.n === n ? { ...p, [campo]: valor } : p)
   });
-  const cambiarDia = (i, campo, valor) => cambiar({
-    diasSinClase: form.diasSinClase.map((d, indice) => indice === i ? { ...d, [campo]: valor } : d)
-  });
-
   async function guardar(e) {
     e.preventDefault();
     setGuardando(true);
@@ -111,7 +108,7 @@ export default function Periodos() {
     <Banner b={b} />
     {periodo?.configurado && <Card title={`Estado actual · ${periodo.ciclo}`}>
       {!periodo.estado.enCiclo && <p className="sub" role="status">{periodo.estado.mensaje}</p>}
-      {parcialesActuales.map(parcial => <div className="clase-horario" key={parcial.n}>
+      {parcialesActuales.filter(parcial => parcial.habilitado).map(parcial => <div className="clase-horario" key={parcial.n}>
         <div>
           <div className="materia">Parcial {parcial.n} · {parcial.habilitado ? etiquetaEstado(parcial.estado) : 'Bloqueado hasta terminar el parcial anterior'}</div>
           <div className="detalle">Periodo: {parcial.inicio} a {parcial.fin}</div>
@@ -132,6 +129,8 @@ export default function Periodos() {
     {!periodo?.configurado && periodo && <Card title="Calendario sin configurar">
       <p className="sub">{periodo.estado?.mensaje || 'El calendario no está disponible en este dispositivo.'} La asistencia permanecerá bloqueada hasta que Control Escolar registre las fechas oficiales.</p>
     </Card>}
+    <button className="btn" type="button" aria-haspopup="dialog" onClick={() => setPanelAbierto(true)}>CONFIGURAR PERIODOS</button>
+    <PanelEmergente abierto={panelAbierto} titulo="Periodos escolares" onCerrar={() => setPanelAbierto(false)}>
     <form onSubmit={guardar}>
       <Card title="Ciclo escolar">
         <label>Nombre del ciclo escolar<input value={form.ciclo} maxLength="40" onChange={e => cambiar({ ciclo: e.target.value })} placeholder="Ej. 2025-2026" required /></label>
@@ -151,19 +150,11 @@ export default function Periodos() {
         </div>
         <p className="sub">Fuera de la ventana se mostrará una advertencia, pero no se bloqueará la captura docente.</p>
       </Card>)}
-      <Card title="Días sin clases">
-        <p className="sub">La asistencia estará bloqueada en estas fechas. Agrega únicamente suspensiones confirmadas.</p>
-        {form.diasSinClase.map((dia, i) => <div className="periodo-dia" key={`dia-${i}`}>
-          <label>Fecha<input type="date" value={dia.fecha} onChange={e => cambiarDia(i, 'fecha', e.target.value)} required /></label>
-          <label>Motivo<input value={dia.motivo} maxLength="120" onChange={e => cambiarDia(i, 'motivo', e.target.value)} placeholder="Motivo oficial" required /></label>
-          <button className="btn sec" type="button" onClick={() => cambiar({ diasSinClase: form.diasSinClase.filter((_, indice) => indice !== i) })}>Quitar día</button>
-        </div>)}
-        <button className="btn sec" type="button" disabled={form.diasSinClase.length >= 150} onClick={() => cambiar({ diasSinClase: [...form.diasSinClase, { fecha: '', motivo: '' }] })}>AGREGAR DÍA SIN CLASES</button>
-      </Card>
       <Card>
         <button className="btn" type="submit" disabled={guardando}>{guardando ? 'GUARDANDO…' : 'GUARDAR CALENDARIO'}</button>
         {modificado && <p className="sub" role="status">Hay cambios sin guardar.</p>}
       </Card>
     </form>
+    </PanelEmergente>
   </>;
 }

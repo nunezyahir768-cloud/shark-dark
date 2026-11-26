@@ -338,6 +338,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .grupo-cuentas{display:grid;max-height:min(60vh,480px);overflow-y:auto;overscroll-behavior:contain}
 .grupo-cuenta{display:flex;justify-content:space-between;gap:12px;padding:9px 2px;border-bottom:1px solid var(--linea)}
 .grupo-cuenta span{color:var(--muted);font-size:.9rem}
+.cuentas-secciones{display:grid;gap:12px;margin-top:16px}
+.cuenta-seccion{display:block;width:100%;padding:16px 18px;text-align:left;color:var(--texto);background:var(--surface);border:1px solid var(--linea);border-radius:18px;cursor:pointer;transition:border-color .18s,background .18s}
+.cuenta-seccion:hover,.cuenta-seccion:focus-visible{border-color:var(--rojo-secundario);background:var(--surface-2,var(--surface))}
+.cuenta-seccion-cab,.cuenta-seccion-pie{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.cuenta-seccion-cab b{font-size:1.08rem}
+.cuenta-seccion-cab .tag{margin:0}
+.cuenta-seccion-pie{margin-top:10px;color:var(--muted);font-size:.9rem}
+.cuenta-seccion-pie span{font-size:1.35rem;line-height:1;color:var(--texto)}
+.cuentas-secciones+.sub{margin-bottom:0}
 @media(max-width:520px){.grupo-cuenta{flex-direction:column;gap:2px}}
 @media(hover:hover){.app .contenido .card:hover{transform:translateY(-1px);border-color:var(--caramelo);box-shadow:var(--shadow)}}
 .side nav a{transition:background .2s ease,color .2s ease,border-color .2s ease,transform .2s ease}

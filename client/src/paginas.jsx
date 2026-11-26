@@ -290,8 +290,11 @@ const NOM = { tutor: 'Tutores', docente: 'Docentes', alumno: 'Alumnos' };
 export function Avisos() {
   const adm = SD.session().rol === 'admin', [lista, cargar] = useCached('anuncios', '/api/anuncios'), [avisosPersonales] = useCached('avisos-personales', '/api/avisos'), [b, ban] = useBanner();
   const [f, setF] = useState({ destino: 'todos', titulo: '', mensaje: '' }), [formAbierto, setFormAbierto] = useState(false), [errorFormulario, setErrorFormulario] = useState('');
+  const esSara = adm && localStorage.getItem('sd_admin_area') === 'sara';
+  const [suspensionAbierta, setSuspensionAbierta] = useState(false), [suspension, setSuspension] = useState({ desde: hoyISO(), hasta: hoyISO(), motivo: '' }), [errorSuspension, setErrorSuspension] = useState(''), [guardandoSuspension, setGuardandoSuspension] = useState(false);
   const enviar = async e => { e.preventDefault(); setErrorFormulario(''); try { await post('/api/anuncios', f); setF({ ...f, titulo: '', mensaje: '' }); setFormAbierto(false); ban('ok', 'Aviso enviado', 'Ya lo pueden ver en Notificaciones.'); cargar(); } catch (er) { setErrorFormulario(msgErr(er)); } };
   const borrar = async id => { if (!confirm('¿Borrar este aviso?')) return; try { await post(`/api/anuncios/${id}/borrar`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); } };
+  const programarSuspension = async e => { e.preventDefault(); setErrorSuspension(''); setGuardandoSuspension(true); try { const r = await post('/api/admin/suspensiones', suspension); setSuspensionAbierta(false); setSuspension({ desde: suspension.desde, hasta: suspension.hasta, motivo: '' }); ban('ok', 'Periodo sin clases programado', `Se bloquearon ${r.fechas} días y se avisó a la comunidad escolar.`); await cargar(); SD.cached('periodo', '/api/periodos'); } catch (er) { setErrorSuspension(msgErr(er)); } finally { setGuardandoSuspension(false); } };
   const marcarLeido = async id => { try { await post(`/api/anuncios/${encodeURIComponent(id)}/leido`); await cargar(); dispatchEvent(new Event('sd-avisos')); } catch (er) { ban('err', 'No se pudo actualizar el aviso', msgErr(er)); } };
   return (<>
     <Hero titulo="Notificaciones" sub={adm ? 'Los avisos que envíes aparecerán en la sección Notificaciones de cada persona.' : 'Mensajes y avisos de Servicios Escolares.'} /><Banner b={b} />
@@ -299,6 +302,7 @@ export function Avisos() {
     {!adm && (avisosPersonales || []).map(a => <Card key={a.id} title={a.tipo === 'password' ? 'Restablecimiento de contraseña' : a.tipo === 'calif' ? 'Calificación subida' : 'Aviso escolar'}><p>{a.texto}</p><p className="sub">{a.fecha}</p></Card>)}
     {adm && <>
       <button className="btn" type="button" aria-haspopup="dialog" onClick={() => { setErrorFormulario(''); setFormAbierto(true); }}>ENVIAR AVISO</button>
+      {esSara && <button className="btn sec" type="button" aria-haspopup="dialog" onClick={() => { setErrorSuspension(''); setSuspensionAbierta(true); }}>PROGRAMAR DÍA O PERIODO SIN CLASES</button>}
       <PanelEmergente abierto={formAbierto} titulo="Enviar un aviso" onCerrar={() => setFormAbierto(false)}>
         <form onSubmit={enviar}>
           <label>¿A quién se lo mandas?</label><select value={f.destino} onChange={e => setF({ ...f, destino: e.target.value })}>{DESTINOS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select>
@@ -308,6 +312,15 @@ export function Avisos() {
           <button className="btn" type="submit">ENVIAR AVISO</button>
         </form>
       </PanelEmergente>
+      {esSara && <PanelEmergente abierto={suspensionAbierta} titulo="Programar días sin clases" onCerrar={() => setSuspensionAbierta(false)}>
+        <form onSubmit={programarSuspension}>
+          <p className="sub">Puedes programar un día o un periodo corto. La asistencia quedará bloqueada en esas fechas y se enviará una notificación a la comunidad escolar.</p>
+          <div className="fila2"><label>Desde<input type="date" value={suspension.desde} onChange={e => setSuspension({ ...suspension, desde: e.target.value })} required /></label><label>Hasta<input type="date" value={suspension.hasta} min={suspension.desde} onChange={e => setSuspension({ ...suspension, hasta: e.target.value })} required /></label></div>
+          <label>Motivo<input value={suspension.motivo} maxLength="120" onChange={e => setSuspension({ ...suspension, motivo: e.target.value })} placeholder="Suspensión oficial" required /></label>
+          {errorSuspension && <p className="msg" role="alert">{errorSuspension}</p>}
+          <button className="btn" type="submit" disabled={guardandoSuspension}>{guardandoSuspension ? 'PROGRAMANDO…' : 'PROGRAMAR Y NOTIFICAR'}</button>
+        </form>
+      </PanelEmergente>}
     </>}
     {(lista || []).map(a => (
       <Card key={a.id} className={'anuncio' + (!adm && !a.leido ? ' aviso-nuevo' : '')}><b>{a.titulo}</b>{!adm && <span className={'tag ' + (a.leido ? 'ok' : '')}>{a.leido ? 'Revisado' : 'Nuevo'}</span>}<p style={{ margin: '6px 0', whiteSpace: 'pre-wrap' }}>{a.mensaje}</p>

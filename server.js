@@ -1229,6 +1229,31 @@ app.post('/api/admin/vincular', auth, soloAdmin, h(async (req, res) => {
 
 /* ---------- Avisos de la administración (anuncios) ---------- */
 const DESTINOS = { tutor: ['tutor'], docente: ['docente'], alumno: ['alumno'], 'alumno,docente': ['alumno', 'docente'], 'tutor,alumno': ['tutor', 'alumno'], 'tutor,docente': ['tutor', 'docente'], todos: ['tutor', 'docente', 'alumno', 'admin'] };
+app.post('/api/admin/suspensiones', auth, adminDe('sara'), h(async (req, res) => {
+    const desde = s(req.body?.desde), hasta = s(req.body?.hasta), motivo = s(req.body?.motivo).slice(0, 120);
+    if (!fechaValida(desde) || !fechaValida(hasta) || hasta < desde || !motivo) return bad(res, 'Revisa las fechas y escribe el motivo.');
+    const fechas = [];
+    for (let d = new Date(`${desde}T12:00:00.000Z`); d.toISOString().slice(0, 10) <= hasta; d.setUTCDate(d.getUTCDate() + 1)) fechas.push(d.toISOString().slice(0, 10));
+    if (fechas.length > 31) return bad(res, 'El periodo sin clases puede durar hasta 31 días.');
+    const periodo = await periodoActivo();
+    if (!periodo) return bad(res, 'Control Escolar debe configurar primero el ciclo escolar.', 409);
+    if (desde < periodo.inicioClases || hasta > periodo.finClases) return bad(res, 'Las fechas deben quedar dentro del ciclo escolar activo.');
+    const existentes = new Set((periodo.diasSinClase || []).map(x => x.fecha));
+    if (fechas.some(f => existentes.has(f))) return bad(res, 'Alguna fecha ya forma parte de otro periodo sin clases.');
+    if (existentes.size + fechas.length > 150) return bad(res, 'El calendario ya contiene el máximo de fechas sin clases.');
+    await periodos.updateOne({ _id: periodo._id }, { $push: { diasSinClase: { $each: fechas.map(fecha => ({ fecha, motivo })) } } });
+    const titulo = desde === hasta ? 'Día sin clases' : 'Periodo sin clases';
+    const rango = desde === hasta ? desde : `${desde} al ${hasta}`;
+    const mensaje = `${titulo} programado del ${rango}: ${motivo}.`;
+    const id = crypto.randomBytes(5).toString('hex'), para = DESTINOS.todos;
+    await anuncios.insertOne({ _id: id, titulo, mensaje, para, creado: new Date(), por: req.u.id });
+    await Promise.all(para.map(async rol => {
+        const personas = await usuarios.find({ rol }).project({ id: 1 }).toArray();
+        await Promise.all(personas.map(u => enviarPush(rol, u.id, titulo, mensaje, '/')));
+    }));
+    await registrarCambio(req, 'Periodo sin clases programado', `${rango} · ${motivo}`);
+    res.status(201).json({ ok: true, id, fechas: fechas.length });
+}));
 app.post('/api/anuncios', auth, adminDe('sara', 'control'), h(async (req, res) => {
     const titulo = s(req.body.titulo).slice(0, 80), mensaje = s(req.body.mensaje).slice(0, 1000), para = DESTINOS[s(req.body.destino)];
     if (!titulo || !mensaje || !para) return bad(res, 'Escribe el título, el mensaje y elige a quién va');
@@ -1329,13 +1354,14 @@ app.post('/api/admin/periodos', auth, adminDe('control'), h(async (req, res) => 
             califAbre: s(p.califAbre),
             califCierra: s(p.califCierra)
         }) : null) : body.parciales,
-        diasSinClase: Array.isArray(body.diasSinClase) ? body.diasSinClase.map(d => d && typeof d === 'object' ? ({ fecha: s(d.fecha), motivo: s(d.motivo) }) : null) : body.diasSinClase
+        diasSinClase: []
     };
+    const cicloId = `ciclo:${crypto.createHash('sha256').update(ciclo).digest('hex').slice(0, 24)}`;
+    const anterior = await periodos.findOne({ _id: cicloId });
+    config.diasSinClase = anterior?.diasSinClase || [];
     const error = validarPeriodo(config);
     if (error) return bad(res, error);
 
-    const cicloId = `ciclo:${crypto.createHash('sha256').update(ciclo).digest('hex').slice(0, 24)}`;
-    const anterior = await periodos.findOne({ _id: cicloId });
     const parciales = config.parciales.map(parcial => {
         const previo = anterior?.parciales?.find(x => Number(x.n) === parcial.n);
         return {

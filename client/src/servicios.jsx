@@ -25,8 +25,8 @@ const sumar50 = h => { const [a, b] = (h || '').split(':').map(Number); if (Numb
 export function Cuentas() {
   const { u, g, cargar, error } = useServicios(), [b, ban] = useBanner(), [solicitudes, setSolicitudes] = useState([]), [errorSolicitudes, setErrorSolicitudes] = useState('');
   const [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false), [errorImportacion, setErrorImportacion] = useState('');
-  const [crearAbierto, setCrearAbierto] = useState(false), [importarAbierto, setImportarAbierto] = useState(false), [recuperacionesAbiertas, setRecuperacionesAbiertas] = useState(false);
-  const filtrosIniciales = { q: '', rol: 'todos', grupo: 'todos', estado: 'todos' };
+  const [crearAbierto, setCrearAbierto] = useState(false), [importarAbierto, setImportarAbierto] = useState(false), [recuperacionesAbiertas, setRecuperacionesAbiertas] = useState(false), [rolAbierto, setRolAbierto] = useState('');
+  const filtrosIniciales = { q: '', grupo: 'todos', estado: 'todos' };
   const [filtros, setFiltros] = useState(filtrosIniciales);
   const [errorCrear, setErrorCrear] = useState('');
   const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A', tutorNombre: '', tutorCurp: '', sinTutor: false });
@@ -87,7 +87,8 @@ export function Cuentas() {
   const l = u.filter(x => {
     const grupo = `${x.semestre}|${x.area}|${x.grupo}`;
     return (!filtros.q || (x.nombre + ' ' + (x.curp || x.id)).toLowerCase().includes(filtros.q.toLowerCase()))
-      && (filtros.rol === 'todos' || x.rol === filtros.rol)
+      && x.rol === rolAbierto
+      && (rolAbierto !== 'alumno' || ((!filtros.area || filtros.area === 'todas' || x.area === filtros.area) && (!filtros.semestre || filtros.semestre === 'todos' || x.semestre === filtros.semestre)))
       && (filtros.grupo === 'todos' || grupo === filtros.grupo)
       && (filtros.estado === 'todos' || (filtros.estado === 'primer-acceso' ? x.debeCambiarPassword : !x.debeCambiarPassword));
   }).sort((a, b) => a.nombre.localeCompare(b.nombre)).slice(0, 100);
@@ -98,7 +99,6 @@ export function Cuentas() {
       <button className="btn" type="button" onClick={() => { setErrorCrear(''); setCrearAbierto(true); }}>CREAR CUENTA</button>
       <button className="btn sec" type="button" onClick={() => setImportarAbierto(true)}>IMPORTAR EXCEL</button>
       <button className="btn sec" type="button" onClick={() => { setRecuperacionesAbiertas(true); cargarSolicitudes(); }}>RECUPERACIONES · {solicitudes.length}</button>
-      <a className="btn sec" href="#/grupos">GRUPOS</a>
     </div>
     <PanelEmergente abierto={importarAbierto} titulo="Importar cuentas" onCerrar={() => setImportarAbierto(false)}>
       <p className="sub">Sube un archivo .xlsx o .xls con encabezados <b>rol, nombre y CURP</b>; también se infiere el rol si el encabezado de nombres dice <b>Alumnos, Docentes o Tutores</b>. Para alumnos agrega <b>semestre, área y grupo</b>. Se revisan todas las filas antes de crear.</p>
@@ -148,23 +148,27 @@ export function Cuentas() {
       {!solicitudes.length && !errorSolicitudes && <p className="vacio">No hay solicitudes pendientes.</p>}
     </Card>
     </PanelEmergente>
-    <Card title="Directorio de cuentas">
-      <label htmlFor="cuentas-buscar">Buscar por nombre o CURP</label><input id="cuentas-buscar" value={filtros.q} onChange={e => setFiltros({ ...filtros, q: e.target.value })} placeholder="Escribe un nombre o CURP" />
-      <div className="fila2">
-        <div><label htmlFor="cuentas-rol">Perfil</label><select id="cuentas-rol" value={filtros.rol} onChange={e => setFiltros({ ...filtros, rol: e.target.value })}><option value="todos">Todos</option><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select></div>
-        <div><label htmlFor="cuentas-estado">Estado de acceso</label><select id="cuentas-estado" value={filtros.estado} onChange={e => setFiltros({ ...filtros, estado: e.target.value })}><option value="todos">Todos</option><option value="primer-acceso">Primer acceso pendiente</option><option value="activa">Activa</option></select></div>
-      </div>
-      <label htmlFor="cuentas-grupo">Grupo</label><select id="cuentas-grupo" value={filtros.grupo} onChange={e => setFiltros({ ...filtros, grupo: e.target.value })}><option value="todos">Todos los grupos</option>{g.map(k => <option key={k.id} value={`${k.semestre}|${k.area}|${k.grupo}`}>{nombreGrupo(k)}</option>)}</select>
-      <p className="sub" style={{ marginBottom: 0 }}>Se muestran hasta 100 resultados.</p>
+    <Card title="Gestión de cuentas">
+      <p className="sub">Administra las cuentas por tipo de usuario.</p>
+      <div className="cuentas-secciones">{[['alumno','Alumnos','Lista de alumnos registrada'],['tutor','Tutores','Lista de tutores registrada'],['docente','Docentes','Lista de docentes registrada']].map(([rol,titulo,desc]) => <button className="cuenta-seccion" key={rol} type="button" aria-haspopup="dialog" onClick={() => { setRolAbierto(rol); setFiltros(filtrosIniciales); }}><span className="cuenta-seccion-cab"><b>{titulo}</b><span className="tag">{u.filter(x => x.rol === rol).length} cuentas</span></span><span className="cuenta-seccion-pie">{desc}<span aria-hidden="true">⌄</span></span></button>)}</div>
     </Card>
-    {l.map(x => (
+    <PanelEmergente abierto={Boolean(rolAbierto)} titulo={`${{alumno:'Alumnos',tutor:'Tutores',docente:'Docentes'}[rolAbierto] || 'Cuentas'} · ${u.filter(x => x.rol === rolAbierto).length}`} onCerrar={() => setRolAbierto('')}>
+      <label htmlFor="cuentas-buscar">Buscar por nombre o CURP</label><input id="cuentas-buscar" value={filtros.q} onChange={e => setFiltros({ ...filtros, q: e.target.value })} placeholder="Escribe un nombre o CURP" />
+      {rolAbierto === 'alumno' && <>
+        <div className="fila2"><div><label htmlFor="cuentas-area">Área</label><select id="cuentas-area" value={filtros.area || 'todas'} onChange={e => setFiltros({ ...filtros, area: e.target.value })}><option value="todas">Todas las áreas</option>{AREAS.map(a => <option key={a}>{a}</option>)}</select></div><div><label htmlFor="cuentas-semestre">Semestre</label><select id="cuentas-semestre" value={filtros.semestre || 'todos'} onChange={e => setFiltros({ ...filtros, semestre: e.target.value })}><option value="todos">Todos</option>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select></div></div>
+        <label htmlFor="cuentas-grupo">Grupo</label><select id="cuentas-grupo" value={filtros.grupo} onChange={e => setFiltros({ ...filtros, grupo: e.target.value })}><option value="todos">Todos los grupos</option>{g.filter(k => (filtros.area === 'todas' || !filtros.area || k.area === filtros.area) && (filtros.semestre === 'todos' || !filtros.semestre || k.semestre === filtros.semestre)).map(k => <option key={k.id} value={`${k.semestre}|${k.area}|${k.grupo}`}>{nombreGrupo(k)}</option>)}</select>
+      </>}
+      <label htmlFor="cuentas-estado">Estado de acceso</label><select id="cuentas-estado" value={filtros.estado} onChange={e => setFiltros({ ...filtros, estado: e.target.value })}><option value="todos">Todos</option><option value="primer-acceso">Primer acceso pendiente</option><option value="activa">Activa</option></select>
+      <p className="sub">Se muestran hasta 100 resultados.</p>
+      {l.map(x => (
       <Card key={x.rol + x.id}><b>{x.nombre}</b><span className="tag">{x.rol}</span><span className={'tag ' + (x.debeCambiarPassword ? '' : 'ok')}>{x.debeCambiarPassword ? 'Primer acceso pendiente' : 'Activa'}</span>
         <p className="sub" style={{ margin: '4px 0 8px' }}>{x.curp || x.id}{x.rol === 'alumno' ? ` · ${x.semestre} ${x.area} ${x.grupo}` : ''}{x.hijos && x.hijos.length ? ` · alumnos: ${x.hijos.join(', ')}` : ''}{x.tutores && x.tutores.length ? ` · tutores: ${x.tutores.join(', ')}` : ''}</p>
         {x.debeCambiarPassword && <button className="mini" style={{ marginLeft: 0 }} onClick={async () => { try { const r = await SD.api(`/api/admin/usuarios/${x.rol}/${x.id}/codigo-activacion`, { method: 'POST' }); alert(`Código de activación para ${r.curp}: ${r.codigo}`); } catch (er) { ban('err', 'No se pudo emitir el código', msgErr(er)); } }}>Emitir código de activación</button>}
         {x.rol === 'alumno' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('grupo', x)}>Cambiar grupo</button>}
         {x.rol === 'tutor' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('vincular', x)}>Vincular alumno</button>}
         <button className={'mini rojo'} style={x.rol === 'docente' ? { marginLeft: 0 } : {}} onClick={() => acc('borrar', x)}>Borrar</button></Card>))}
-    {!l.length && <Card><p className="vacio">Sin resultados.</p></Card>}
+      {!l.length && <p className="vacio">Sin resultados.</p>}
+    </PanelEmergente>
   </>);
 }
 
@@ -274,33 +278,29 @@ export function Horarios() {
 }
 
 export function CalificacionesAdmin() {
-  const { u, g, c, cargar } = useServicios(), [grupoId, setGrupoId] = useState(''), [claseId, setClaseId] = useState(''), [parcial, setParcial] = useState('1'), [notas, setNotas] = useState({}), [b, ban] = useBanner(), [guardando, setGuardando] = useState(false);
-  const grupo = g.find(x => x.id === grupoId) || g[0] || null;
-  const clases = grupo ? c.filter(x => x.semestre === grupo.semestre && x.area === grupo.area && x.grupo === grupo.grupo) : [];
-  const clase = clases.find(x => x.id === claseId) || clases[0] || null;
-  const alumnos = grupo ? u.filter(x => x.rol === 'alumno' && x.semestre === grupo.semestre && x.area === grupo.area && x.grupo === grupo.grupo).sort((a, b) => a.nombre.localeCompare(b.nombre)) : [];
-  const guardar = async () => {
-    if (!grupo || !clase) return ban('err', 'Elige una materia');
-    setGuardando(true);
-    try {
-      const r = await post('/api/calificaciones', { materia: clase.materia, parcial: Number(parcial), area: grupo.area, semestre: grupo.semestre, grupo: grupo.grupo, notas: alumnos.filter(a => notas[a.curp] !== undefined && notas[a.curp] !== '').map(a => ({ curp: a.curp, nota: Number(notas[a.curp]) })) });
-      ban('ok', 'Calificaciones guardadas', `Se guardaron ${r.guardadas} calificaciones. ${r.publicada ? 'Se avisó a cada alumno.' : 'Las notas se publicarán al cerrar la ventana de captura.'}`);
-      SD.cached('admin_calificaciones', '/api/calificaciones');
-    } catch (e) { ban('err', 'No se pudieron guardar', msgErr(e)); }
-    finally { setGuardando(false); }
-  };
+  const { u, g, c } = useServicios(), [area, setArea] = useState(''), [semestre, setSemestre] = useState(''), [grupo, setGrupo] = useState(''), [parcial, setParcial] = useState('1');
+  const [calificaciones, setCalificaciones] = useState([]), [error, setError] = useState('');
+  useEffect(() => { SD.cached('admin_calificaciones', '/api/calificaciones').then(setCalificaciones).catch(e => setError(e.message || 'No se pudieron cargar las calificaciones.')); }, []);
+  const grupos = g.filter(x => (!area || x.area === area) && (!semestre || x.semestre === semestre));
+  const grupoActivo = grupos.find(x => x.id === grupo) || grupos[0] || null;
+  const materias = grupoActivo ? c.filter(x => x.semestre === grupoActivo.semestre && x.area === grupoActivo.area && x.grupo === grupoActivo.grupo) : [];
+  const alumnos = grupoActivo ? u.filter(x => x.rol === 'alumno' && x.semestre === grupoActivo.semestre && x.area === grupoActivo.area && x.grupo === grupoActivo.grupo).sort((a, b) => a.nombre.localeCompare(b.nombre)) : [];
+  const notas = new Map(calificaciones.filter(n => n.parcial === Number(parcial)).map(n => [`${n.curp}|${(n.materia || '').toLowerCase()}`, n.nota]));
   return <>
-    <Hero titulo="Subir calificaciones" sub="Elige semestre, área, grupo, materia y parcial. Los alumnos reciben aviso cuando el parcial ya está publicado." /><Banner b={b} />
-    <Card title="Grupo y periodo">
-      {!g.length && <p className="vacio">Todavía no hay grupos. Crea una cuenta de alumno o un horario para crear el primero.</p>}
-      <label>Semestre, área y grupo</label><select disabled={!g.length} value={grupo ? grupo.id : ''} onChange={e => { setGrupoId(e.target.value); setClaseId(''); setNotas({}); }}>{g.map(x => <option key={x.id} value={x.id}>{nombreGrupo(x)}</option>)}</select>
-      <label>Materia</label><select disabled={!clases.length} value={clase ? clase.id : ''} onChange={e => setClaseId(e.target.value)}>{clases.map(x => <option key={x.id} value={x.id}>{x.materia}</option>)}</select>
-      <label>Parcial</label><select value={parcial} onChange={e => setParcial(e.target.value)}><option value="1">Primer parcial</option><option value="2">Segundo parcial</option><option value="3">Tercer parcial</option></select>
+    <Hero titulo="Calificaciones" sub="Consulta las calificaciones registradas por los docentes. Filtra por área, semestre y grupo." />
+    {error && <p className="msg" role="alert">{error}</p>}
+    <Card title="Filtros">
+      <div className="fila2"><div><label htmlFor="cal-admin-area">Área</label><select id="cal-admin-area" value={area} onChange={e => { setArea(e.target.value); setGrupo(''); }}><option value="">Todas las áreas</option>{AREAS.map(a => <option key={a}>{a}</option>)}</select></div><div><label htmlFor="cal-admin-semestre">Semestre</label><select id="cal-admin-semestre" value={semestre} onChange={e => { setSemestre(e.target.value); setGrupo(''); }}><option value="">Todos los semestres</option>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select></div></div>
+      <label htmlFor="cal-admin-grupo">Grupo</label><select id="cal-admin-grupo" value={grupoActivo?.id || ''} onChange={e => setGrupo(e.target.value)}><option value="">Selecciona un grupo</option>{grupos.map(x => <option key={x.id} value={x.id}>{nombreGrupo(x)}</option>)}</select>
+      <label htmlFor="cal-admin-parcial">Parcial</label><select id="cal-admin-parcial" value={parcial} onChange={e => setParcial(e.target.value)}><option value="1">Primer parcial</option><option value="2">Segundo parcial</option><option value="3">Tercer parcial</option></select>
     </Card>
-    <Card title="Alumnos y calificaciones"><div className="tabla"><table className="tb"><thead><tr><th>No.</th><th className="izq">Alumno</th><th>Calificación (0–10)</th></tr></thead><tbody>
-      {alumnos.map((a, i) => <tr key={a.id}><td>{i + 1}</td><td className="izq">{a.nombre}</td><td><input aria-label={`Calificación de ${a.nombre}`} type="number" min="0" max="10" step="0.1" value={notas[a.id] ?? ''} onChange={e => setNotas(v => ({ ...v, [a.id]: e.target.value }))} /></td></tr>)}
-      {!alumnos.length && <tr><td colSpan={3}>No hay alumnos registrados en este grupo.</td></tr>}
-    </tbody></table></div><button className="btn" disabled={guardando || !clase || !alumnos.length} onClick={guardar}>{guardando ? 'GUARDANDO…' : 'GUARDAR CALIFICACIONES'}</button></Card>
+    {grupoActivo && <Card title={`${nombreGrupo(grupoActivo)} · Parcial ${parcial}`}>
+      {materias.length ? <div className="tabla"><table className="tb"><thead><tr><th>No.</th><th className="izq">Alumno</th>{materias.map(m => <th key={m.id}>{m.materia}</th>)}</tr></thead><tbody>
+        {alumnos.map((a, i) => <tr key={a.curp}><td>{i + 1}</td><td className="izq">{a.nombre}</td>{materias.map(m => <td key={m.id}>{notas.has(`${a.curp}|${m.materia.toLowerCase()}`) ? notas.get(`${a.curp}|${m.materia.toLowerCase()}`) : '—'}</td>)}</tr>)}
+        {!alumnos.length && <tr><td colSpan={materias.length + 2}>No hay alumnos registrados en este grupo.</td></tr>}
+      </tbody></table></div> : <p className="vacio">Este grupo todavía no tiene materias.</p>}
+    </Card>}
+    {!grupoActivo && <Card><p className="vacio">No hay grupos para los filtros seleccionados.</p></Card>}
   </>;
 }
 

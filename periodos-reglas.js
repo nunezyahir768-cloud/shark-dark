@@ -49,7 +49,7 @@ function estadoPeriodo(periodo, fecha) {
     enCiclo: false,
     mensaje: error || 'No se pudo determinar la fecha escolar.'
   };
-  const diaSinClase = periodo.diasSinClase.find(d => d.fecha === fecha);
+  const diaSinClase = periodo.diasSinClase.find(d => d.fecha === fecha || (d.desde && d.hasta && fecha >= d.desde && fecha <= d.hasta));
   const enCiclo = fecha >= periodo.inicioClases && fecha <= periodo.finClases && !diaSinClase;
   const mensaje = fecha < periodo.inicioClases
     ? 'Aún no inician las clases.'
