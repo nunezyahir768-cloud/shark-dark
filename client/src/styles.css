@@ -700,6 +700,45 @@ a.btn.pasar-lista{display:block;text-align:center;text-decoration:none;margin:0 
 #cuentas-excel:focus-visible+.cuentas-archivo{outline:3px solid var(--rojo);outline-offset:3px}
 @media(max-width:680px){.cuentas-acciones{grid-template-columns:repeat(2,minmax(0,1fr))}.cuentas-acciones .btn{min-height:48px}}
 
+/* Secciones compactas para asistencia y horario */
+.secciones-vista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.seccion-vista{position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:104px;padding:15px 16px;border:1px solid var(--linea);border-left:5px solid var(--rojo);border-radius:20px;background:var(--card);color:var(--text);box-shadow:var(--shadow);text-align:left;font:inherit;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.seccion-vista.dorado{border-left-color:var(--caramelo)}
+.seccion-vista:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(0,0,0,.13)}
+.seccion-vista:active{transform:translateY(0) scale(.99)}
+.seccion-vista:focus-visible{outline:3px solid var(--rojo);outline-offset:3px}
+.seccion-vista__icono{display:grid;place-items:center;width:58px;height:58px;flex:0 0 58px;border-radius:50%;background:var(--rojo-suave);color:var(--rojo-secundario)}
+.seccion-vista.dorado .seccion-vista__icono{background:rgba(212,175,55,.17);color:#8B6400}
+.seccion-vista__svg{display:block;width:30px;height:30px}
+.seccion-vista__texto{display:flex;flex:1;flex-direction:column;gap:5px;min-width:0}
+.seccion-vista__texto b{font-size:.98rem;line-height:1.3}
+.seccion-vista__texto>span{color:var(--muted);font-size:.83rem;line-height:1.4}
+.seccion-vista__flecha{width:22px;height:22px;flex:none;color:var(--rojo-secundario)}
+.horario-secciones{margin-top:4px}
+.horario-dias{margin:0 0 14px;padding-bottom:8px}
+.clase-horario{display:grid;grid-template-columns:46px minmax(0,1fr) auto;align-items:center;gap:12px;padding:14px;margin:10px 0;border-left-width:4px}
+.clase-horario__icono{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--rojo-suave);color:var(--rojo-secundario)}
+.clase-horario.descanso .clase-horario__icono{background:rgba(120,125,135,.14);color:var(--muted)}
+.clase-horario__icono svg{width:24px;height:24px}
+.clase-horario__contenido{min-width:0}
+.clase-horario .hora{padding:7px 10px;border-radius:999px;background:var(--rojo-suave);color:var(--rojo-secundario);font-size:.84rem}
+html[data-tema="oscuro"] .seccion-vista__icono,html[data-tema="oscuro"] .seccion-vista__flecha,html[data-tema="oscuro"] .clase-horario__icono{color:#ffb9c0}
+html[data-tema="oscuro"] .seccion-vista.dorado .seccion-vista__icono{background:rgba(212,175,55,.16);color:var(--caramelo)}
+html[data-tema="oscuro"] .clase-horario__icono{background:rgba(214,0,15,.16)}
+html[data-tema="oscuro"] .clase-horario .hora{background:rgba(214,0,15,.18);color:#ffb9c0}
+.panel-emergente:has(.horario-tabla-card){width:min(100%,1000px)}
+@media(max-width:620px){
+  .secciones-vista{grid-template-columns:minmax(0,1fr);gap:10px}
+  .seccion-vista{min-height:88px;padding:12px 13px;border-radius:17px}
+  .seccion-vista__icono{width:52px;height:52px;flex-basis:52px}
+  .seccion-vista__svg{width:27px;height:27px}
+  .clase-horario{grid-template-columns:40px minmax(0,1fr);gap:10px;padding:12px}
+  .clase-horario__icono{width:38px;height:38px}
+  .clase-horario__icono svg{width:21px;height:21px}
+  .clase-horario .hora{grid-column:2;justify-self:start;margin-top:2px}
+}
+@media(prefers-reduced-motion:reduce){.seccion-vista{transition:none}}
+
 /* Sistema visual compartido para los paneles de acceso */
 :root{
   --acceso-cristal-fondo:radial-gradient(ellipse at 4% 0%,rgba(248,36,56,.14),transparent 43%),linear-gradient(145deg,rgba(255,255,255,.15),rgba(27,29,35,.72) 48%,rgba(10,11,15,.82));
@@ -785,3 +824,11 @@ html[data-tema="claro"] .login-estado{color:#303642;background:rgba(255,255,255,
   .panel-holografico,.centro-login .card,.bienvenida-glass{backdrop-filter:blur(16px) saturate(125%);-webkit-backdrop-filter:blur(16px) saturate(125%)}
 }
 @media(prefers-reduced-motion:reduce){body:has(.centro-login)::before{animation:none}}
+
+@media print{
+  body.imprime-horario:has(.panel-emergente-fondo) #root{display:none!important}
+  body.imprime-horario .panel-emergente-fondo{position:static!important;display:block!important;overflow:visible!important;padding:0!important;background:transparent!important;backdrop-filter:none!important}
+  body.imprime-horario .panel-emergente{width:100%!important;max-height:none!important;overflow:visible!important;border:0!important;border-radius:0!important;box-shadow:none!important;animation:none!important}
+  body.imprime-horario .panel-emergente-encabezado{display:none!important}
+  body.imprime-horario .panel-emergente-contenido{overflow:visible!important;padding:0!important}
+}

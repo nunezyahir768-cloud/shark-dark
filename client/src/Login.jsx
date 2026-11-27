@@ -11,6 +11,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
   const [enLinea, setEnLinea] = useState(navigator.onLine);
   const [u, setU] = useState(''), [password, setPassword] = useState(''), [msg, setMsg] = useState('');
   const [etapa, setEtapa] = useState('curp'), [modo, setModo] = useState('login');
+  const [requiereCodigoActivacion, setRequiereCodigoActivacion] = useState(false);
   const [enviado, setEnviado] = useState(false), [cargando, setCargando] = useState(false), [confirmar, setConfirmar] = useState(''), [codigoActivacion, setCodigoActivacion] = useState(''), [estadoAccion, setEstadoAccion] = useState('');
   const esperarMinimo = inicio => new Promise(resolve => setTimeout(resolve, Math.max(0, 3000 - (Date.now() - inicio))));
   async function abrirBienvenida() {
@@ -36,6 +37,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
       const cuenta = await SD.identificarCuenta(u);
       await esperarMinimo(inicio); setEstadoAccion('listo'); await new Promise(resolve => setTimeout(resolve, 420));
       setRol(cuenta.rol);
+      setRequiereCodigoActivacion(!!cuenta.requiereCodigoActivacion);
       setPassword(''); setConfirmar(''); setCodigoActivacion('');
       setModo(cuenta.tienePassword ? 'login' : 'activar');
       setEtapa('password');
@@ -59,7 +61,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
     catch (err) { setMsg(err.message); }
     finally { setCargando(false); setEstadoAccion(''); }
   }
-  const volverCurp = () => { setEtapa('curp'); setModo('login'); setPassword(''); setConfirmar(''); setMsg(''); setEnviado(false); };
+  const volverCurp = () => { setEtapa('curp'); setModo('login'); setPassword(''); setConfirmar(''); setCodigoActivacion(''); setRequiereCodigoActivacion(false); setMsg(''); setEnviado(false); };
   if (bienvenida) return (
     <main className="centro centro-login acceso-bienvenida">
       <section className="bienvenida-glass" aria-label="Bienvenida a Tiburones">
@@ -103,9 +105,9 @@ export default function Login({ onOk, onInstall, installMessage }) {
           </> : <><p className="sub">Si la CURP corresponde a una cuenta, la solicitud fue enviada a Servicios Escolares.</p><button className="btn" type="button" onClick={volverCurp}>VOLVER</button></>}
           {!enviado && <button type="button" className="mini" onClick={volverCurp}>Cancelar</button>}
         </form> : modo === 'activar' ? <form onSubmit={activar}>
-          <h2>Crea tu contraseña</h2><p className="sub">Cuenta identificada como {rol}. Escribe el código que te entregó Servicios Escolares.</p>
+          <h2>Crea tu contraseña</h2><p className="sub">Cuenta identificada como {rol}. {requiereCodigoActivacion ? 'Escribe el código que te entregó Servicios Escolares para restablecer el acceso.' : 'No necesitas un código de verificación para el primer acceso.'}</p>
           <div className="paso-acceso" key="crear-password">
-            <label htmlFor="codigo-activacion">Código de activación</label><input id="codigo-activacion" value={codigoActivacion} onChange={e => setCodigoActivacion(e.target.value.toUpperCase())} autoComplete="one-time-code" required />
+            {requiereCodigoActivacion && <><label htmlFor="codigo-activacion">Código de activación</label><input id="codigo-activacion" value={codigoActivacion} onChange={e => setCodigoActivacion(e.target.value.toUpperCase())} autoComplete="one-time-code" required /></>}
             <label htmlFor="nueva">Nueva contraseña</label><input id="nueva" type="password" value={password} onChange={e => setPassword(e.target.value)} minLength="4" autoComplete="new-password" required />
             <label htmlFor="confirmar">Confirma tu contraseña</label><input id="confirmar" type="password" value={confirmar} onChange={e => setConfirmar(e.target.value)} minLength="4" autoComplete="new-password" required />
           <button className={'btn acceso-animado' + (estadoAccion === 'listo' ? ' exito' : '')} type="submit" disabled={cargando}><span className="acceso-btn-texto">{estadoAccion === 'listo' ? '¡Listo!' : cargando ? 'GUARDANDO…' : 'CREAR MI CONTRASEÑA'}</span><span className="acceso-btn-icono" aria-hidden="true">{estadoAccion === 'listo' ? '✓' : cargando ? '' : '→'}</span></button><p className="msg" role="alert">{msg}</p>
@@ -130,7 +132,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
       </Card>
       {controlEscolar
         ? <p className="sub" style={{ textAlign: 'center' }}><a href="/">Volver a TIBURONES</a></p>
-        : <div className="login-pie"><p className="sub">La cuenta debe estar dada de alta por Servicios Escolares. Para activarla necesitas su código de activación.</p><a className="login-control" href="/control-escolar">Acceso de Control Escolar</a>
+        : <div className="login-pie"><p className="sub">La cuenta debe estar dada de alta por Servicios Escolares. En el primer acceso, crea una contraseña con tu CURP.</p><a className="login-control" href="/control-escolar">Acceso de Control Escolar</a>
           {modo === 'login' && etapa === 'curp' && <><button className="btn login-instalar" type="button" onClick={onInstall}>Descargar acceso directo</button>{installMessage && <p className="sub login-instalar-ayuda" role="status">{installMessage}</p>}</>}
         </div>}
       <span className={'login-estado' + (enLinea ? ' conectado' : '')} role="status"><i aria-hidden="true" />{enLinea ? 'En línea' : 'Sin conexión'}</span>

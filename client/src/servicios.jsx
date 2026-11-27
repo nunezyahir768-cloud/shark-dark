@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import SD from './sd.js';
 import * as XL from './excel.js';
 import { descargarPlantillaCuentas, leerCuentasExcel } from './importar-cuentas.js';
-import { Card, Hero, Banner, useBanner, QR, DIAS, SEMESTRES, AREAS, hh, hoyISO, post, msgErr, nombreGrupo, conDescanso, descargar, PanelEmergente } from './ui.jsx';
+import { Card, Hero, Banner, useBanner, QR, DIAS, SEMESTRES, SEMESTRES_IMPARES, SEMESTRES_PARES, AREAS, hh, hoyISO, post, msgErr, nombreGrupo, etiquetaSemestre, conDescanso, descargar, PanelEmergente } from './ui.jsx';
 import { Camara } from './docente.jsx';
 import { InicioBienvenida } from './paginas.jsx';
 
@@ -25,30 +25,39 @@ const sumar50 = h => { const [a, b] = (h || '').split(':').map(Number); if (Numb
 export function Cuentas() {
   const { u, g, cargar, error } = useServicios(), [b, ban] = useBanner(), [solicitudes, setSolicitudes] = useState([]), [errorSolicitudes, setErrorSolicitudes] = useState('');
   const [importadas, setImportadas] = useState([]), [leyendoExcel, setLeyendoExcel] = useState(false), [creandoImportadas, setCreandoImportadas] = useState(false), [errorImportacion, setErrorImportacion] = useState('');
-  const [crearAbierto, setCrearAbierto] = useState(false), [importarAbierto, setImportarAbierto] = useState(false), [recuperacionesAbiertas, setRecuperacionesAbiertas] = useState(false), [rolAbierto, setRolAbierto] = useState('');
+  const [mantenimientoAbierto, setMantenimientoAbierto] = useState(false), [mantenimientoVista, setMantenimientoVista] = useState(''), [rolAbierto, setRolAbierto] = useState('');
   const filtrosIniciales = { q: '', grupo: 'todos', estado: 'todos' };
   const [filtros, setFiltros] = useState(filtrosIniciales);
   const [errorCrear, setErrorCrear] = useState('');
-  const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A', tutorNombre: '', tutorCurp: '', sinTutor: false });
+  const [semConfig, setSemConfig] = useState({ periodo: 'impares', activos: SEMESTRES_IMPARES, siguientes: SEMESTRES_PARES });
+  const [f, setF] = useState({ rol: 'alumno', nombre: '', id: '', semestre: SEMESTRES[0], area: AREAS[0], grupo: 'A', tutorNombre: '', tutorCurp: '', curpAlumno: '', sinTutor: false });
   const cargarSolicitudes = async () => { try { setSolicitudes(await SD.cached('admin_recuperaciones', '/api/admin/recuperaciones')); setErrorSolicitudes(''); } catch (e) { setErrorSolicitudes(e.message || 'No se pudieron cargar las solicitudes.'); } };
   const borrarSolicitudes = async () => {
     if (!solicitudes.length || !confirm('¿Quieres borrar todas las solicitudes de restablecimiento pendientes? Esta acción no se puede deshacer.')) return;
-    try { const r = await SD.api('/api/admin/recuperaciones', { method: 'DELETE' }); setSolicitudes([]); setRecuperacionesAbiertas(false); ban('ok', 'Solicitudes borradas', `Se borraron ${r.eliminadas} solicitudes pendientes.`); }
+    try { const r = await SD.api('/api/admin/recuperaciones', { method: 'DELETE' }); setSolicitudes([]); setMantenimientoVista(''); ban('ok', 'Solicitudes borradas', `Se borraron ${r.eliminadas} solicitudes pendientes.`); }
     catch (er) { ban('err', 'No se pudieron borrar las solicitudes', msgErr(er)); }
   };
-  useEffect(() => { cargarSolicitudes(); }, []);
+  useEffect(() => { cargarSolicitudes(); SD.api('/api/semestres').then(config => { setSemConfig(config); setF(actual => ({ ...actual, semestre: config.activos.includes(actual.semestre) ? actual.semestre : config.activos[0] })); }).catch(() => {}); }, []);
+  const cambiarPeriodoSemestres = async periodo => {
+    try {
+      const nuevo = await post('/api/admin/semestres', { periodo }); setSemConfig(nuevo);
+      setF(actual => ({ ...actual, semestre: nuevo.activos.includes(actual.semestre) ? actual.semestre : nuevo.activos[0] }));
+      ban('ok', 'Periodo actualizado', `Ahora están activos ${nuevo.activos.join(', ')}.`);
+    } catch (er) { ban('err', 'No se pudo cambiar el periodo', msgErr(er)); }
+  };
   const tutorEncontrado = f.rol === 'alumno' && f.tutorCurp.length === 18 ? u.find(x => x.rol === 'tutor' && x.id === f.tutorCurp) : null;
   const docenteTutor = f.rol === 'alumno' && f.tutorCurp.length === 18 && !tutorEncontrado ? u.find(x => x.rol === 'docente' && x.id === f.tutorCurp) : null;
+  const alumnoTutorEncontrado = f.rol === 'tutor' && f.curpAlumno.length === 18 ? u.find(x => x.rol === 'alumno' && x.id === f.curpAlumno) : null;
   const crear = async e => {
     e.preventDefault();
     setErrorCrear('');
     try {
       const { sinTutor, ...datos } = f;
       if (datos.rol !== 'alumno' || sinTutor) { delete datos.tutorCurp; delete datos.tutorNombre; }
+      if (datos.rol !== 'tutor') delete datos.curpAlumno;
       const r = await post('/api/admin/usuarios', datos);
-      if (r.codigosActivacion?.length) alert('Entrega este código de activación a la persona; solo se muestra ahora:\n' + r.codigosActivacion.map(x => `${x.curp}: ${x.codigo}`).join('\n'));
-      ban('ok', 'Cuenta creada', 'Entrega el código de activación que se mostró en pantalla junto con la CURP.');
-      setF({ ...f, nombre: '', id: '', tutorNombre: '', tutorCurp: '' }); setCrearAbierto(false); cargar();
+      ban(r.alumnoVinculo === 'pendiente' ? 'warn' : 'ok', 'Cuenta creada', r.alumnoVinculo === 'pendiente' ? 'El alumno no tiene cuenta, espere a que le añadan su cuenta. El vínculo se conectará al crearla.' : 'La persona podrá crear su contraseña al iniciar sesión por primera vez.');
+      setF({ ...f, nombre: '', id: '', tutorNombre: '', tutorCurp: '', curpAlumno: '' }); setMantenimientoVista(''); setMantenimientoAbierto(false); cargar();
     }
     catch (er) { setErrorCrear(msgErr(er)); }
   };
@@ -57,9 +66,9 @@ export function Cuentas() {
     if (!file) return;
     setLeyendoExcel(true); setImportadas([]); setErrorImportacion('');
     try {
-      const existentes = new Set(u.map(x => x.id || x.curp));
-      const filas = await leerCuentasExcel(file);
-      setImportadas(filas.map(c => existentes.has(c.id) ? { ...c, errores: [...c.errores, 'Ya existe una cuenta con esta CURP'] } : c));
+      const existentes = new Set(u.map(x => `${x.rol}:${x.id || x.curp}`));
+      const filas = await leerCuentasExcel(file, semConfig.activos);
+      setImportadas(filas.map(c => existentes.has(`${c.rol}:${c.id}`) ? { ...c, errores: [...c.errores, 'Ya existe una cuenta con esta CURP'] } : c));
       ban('ok', 'Excel leído', `Se encontraron ${filas.length} cuentas para revisar.`);
     } catch (er) { setErrorImportacion(er.message || 'No se pudo leer el Excel.'); }
     finally { setLeyendoExcel(false); }
@@ -70,10 +79,9 @@ export function Cuentas() {
     if (!importadas.length || !confirm(`¿Crear las ${importadas.length} cuentas del Excel?`)) return;
     setCreandoImportadas(true);
     try {
-      const cuentas = importadas.map(({ rol, nombre, id, semestre, area, grupo }) => ({ rol, nombre, id, semestre, area, grupo }));
+      const cuentas = importadas.map(({ rol, nombre, id, semestre, area, grupo, curpAlumno }) => ({ rol, nombre, id, semestre, area, grupo, curpAlumno }));
       const r = await post('/api/admin/usuarios/importar', { cuentas });
-      if (r.codigosActivacion?.length) alert('Entrega estos códigos de activación a cada persona; solo se muestran ahora:\n' + r.codigosActivacion.map(x => `${x.curp}: ${x.codigo}`).join('\n'));
-      ban('ok', 'Cuentas creadas', `Se crearon ${r.creadas} cuentas correctamente.`); setImportadas([]); setImportarAbierto(false); cargar();
+      ban('ok', 'Cuentas creadas', `Se crearon ${r.creadas} cuentas. Los vínculos indicados en el Excel se conectarán al dar de alta cada alumno.`); setImportadas([]); setMantenimientoVista(''); setMantenimientoAbierto(false); cargar();
     } catch (er) { setErrorImportacion(msgErr(er)); }
     finally { setCreandoImportadas(false); }
   };
@@ -90,18 +98,24 @@ export function Cuentas() {
       && x.rol === rolAbierto
       && (rolAbierto !== 'alumno' || ((!filtros.area || filtros.area === 'todas' || x.area === filtros.area) && (!filtros.semestre || filtros.semestre === 'todos' || x.semestre === filtros.semestre)))
       && (filtros.grupo === 'todos' || grupo === filtros.grupo)
-      && (filtros.estado === 'todos' || (filtros.estado === 'primer-acceso' ? x.debeCambiarPassword : !x.debeCambiarPassword));
+      && (filtros.estado === 'todos' || (filtros.estado === 'egresado' ? !!x.egresado : !x.egresado && (filtros.estado === 'primer-acceso' ? x.debeCambiarPassword : !x.debeCambiarPassword)));
   }).sort((a, b) => a.nombre.localeCompare(b.nombre)).slice(0, 100);
   return (<>
-    <Hero titulo="Cuentas" sub="Administra altas, accesos, grupos y solicitudes de recuperación." /><Banner b={b} />
+    <Hero titulo="Mantenimiento de cuentas" sub="Altas, importaciones Excel, vínculos y solicitudes de recuperación." /><Banner b={b} />
     {error && <p className="msg" role="alert">{error}</p>}
-    <div className="cuentas-acciones">
-      <button className="btn" type="button" onClick={() => { setErrorCrear(''); setCrearAbierto(true); }}>CREAR CUENTA</button>
-      <button className="btn sec" type="button" onClick={() => setImportarAbierto(true)}>IMPORTAR EXCEL</button>
-      <button className="btn sec" type="button" onClick={() => { setRecuperacionesAbiertas(true); cargarSolicitudes(); }}>RECUPERACIONES · {solicitudes.length}</button>
-    </div>
-    <PanelEmergente abierto={importarAbierto} titulo="Importar cuentas" onCerrar={() => setImportarAbierto(false)}>
-      <p className="sub">Sube un archivo .xlsx o .xls con encabezados <b>rol, nombre y CURP</b>; también se infiere el rol si el encabezado de nombres dice <b>Alumnos, Docentes o Tutores</b>. Para alumnos agrega <b>semestre, área y grupo</b>. Se revisan todas las filas antes de crear.</p>
+    <Card title="Semestres del periodo"><p className="sub">Alumnos activos: {semConfig.activos.map(etiquetaSemestre).join(', ')}. El siguiente periodo será: {semConfig.siguientes.map(etiquetaSemestre).join(', ')}. Cambia el periodo cuando Control Escolar confirme el avance.</p><label htmlFor="periodo-semestres">Periodo activo</label><select id="periodo-semestres" value={semConfig.periodo} onChange={e => cambiarPeriodoSemestres(e.target.value)}><option value="impares">Impares (1.º, 3.º y 5.º)</option><option value="pares">Pares (2.º, 4.º y 6.º)</option></select></Card>
+    <div className="cuentas-acciones"><button className="btn" type="button" onClick={() => { setMantenimientoVista(''); setMantenimientoAbierto(true); }}>MANTENIMIENTO DE CUENTAS</button></div>
+    <PanelEmergente abierto={mantenimientoAbierto && !mantenimientoVista} titulo="Mantenimiento de cuentas" onCerrar={() => setMantenimientoAbierto(false)}>
+      <p className="sub">Administra altas, importaciones y solicitudes de recuperación desde aquí.</p>
+      <div className="cuentas-secciones">
+        <button className="cuenta-seccion" type="button" onClick={() => { setErrorCrear(''); setMantenimientoVista('crear'); }}><span className="cuenta-seccion-cab"><b>Crear cuenta</b></span><span className="cuenta-seccion-pie">Alta individual de alumno, tutor o docente</span></button>
+        <button className="cuenta-seccion" type="button" onClick={() => setMantenimientoVista('importar')}><span className="cuenta-seccion-cab"><b>Importar Excel</b></span><span className="cuenta-seccion-pie">Carga varias cuentas y vínculos tutor-alumno</span></button>
+        <button className="cuenta-seccion" type="button" onClick={() => { setMantenimientoVista('recuperaciones'); cargarSolicitudes(); }}><span className="cuenta-seccion-cab"><b>Recuperaciones</b><span className="tag">{solicitudes.length}</span></span><span className="cuenta-seccion-pie">Revisa solicitudes de acceso</span></button>
+      </div>
+    </PanelEmergente>
+    <PanelEmergente abierto={mantenimientoAbierto && mantenimientoVista === 'importar'} titulo="Importar cuentas" onCerrar={() => setMantenimientoVista('')}>
+      <button className="mini" type="button" onClick={() => setMantenimientoVista('')}>← Volver a Mantenimiento de cuentas</button>
+      <p className="sub">Incluye la columna CURP alumno para las cuentas de tutor; si el alumno aún no existe, el vínculo se completará al crear su cuenta.</p>
       <button className="mini" type="button" onClick={descargarPlantillaCuentas}>Descargar plantilla Excel</button>
       <input id="cuentas-excel" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={leerExcel} disabled={leyendoExcel || creandoImportadas} /><label className="cuentas-archivo" htmlFor="cuentas-excel">Seleccionar archivo XLSX o XLS</label>
       {errorImportacion && <p className="msg" role="alert">{errorImportacion}</p>}
@@ -110,18 +124,19 @@ export function Cuentas() {
         <p className="sub">{importadas.length} cuentas detectadas · {importadas.filter(x => !x.errores.length).length} listas · {importadas.filter(x => x.errores.length).length} con errores</p>
         <div className="import-cuentas-list">{importadas.map((x, i) => <div className="import-cuenta" key={`${x.fila}-${i}`}>
           <div><b>Fila {x.fila} · {x.nombre || 'Sin nombre'}</b><span className="tag">{x.rol}</span><p className="sub">{x.id || 'Sin CURP'}{x.rol === 'alumno' ? ` · ${x.semestre} · ${x.area} · Grupo ${x.grupo}` : ''}</p></div>
-          {x.errores.length > 0 && <p className="msg" role="alert">{x.errores.join(' · ')}</p>}
+          {x.rol === 'tutor' && <p className="sub">CURP alumno: {x.curpAlumno} · {u.some(a => a.rol === 'alumno' && a.id === x.curpAlumno) || importadas.some(a => a.rol === 'alumno' && a.id === x.curpAlumno) ? 'cuenta encontrada, se vinculará' : 'pendiente de crear la cuenta'}</p>}{x.errores.length > 0 && <p className="msg" role="alert">{x.errores.join(' · ')}</p>}
         </div>)}</div>
         <button className="btn" type="button" onClick={crearDesdeExcel} disabled={creandoImportadas || importadas.some(x => x.errores.length)}>{creandoImportadas ? 'CREANDO CUENTAS…' : `CREAR CUENTAS (${importadas.length})`}</button>
       </>}
     </PanelEmergente>
-    <PanelEmergente abierto={crearAbierto} titulo="Nueva cuenta" onCerrar={() => setCrearAbierto(false)}>
+    <PanelEmergente abierto={mantenimientoAbierto && mantenimientoVista === 'crear'} titulo="Nueva cuenta" onCerrar={() => setMantenimientoVista('')}>
+      <button className="mini" type="button" onClick={() => setMantenimientoVista('')}>← Volver a Mantenimiento de cuentas</button>
       <form onSubmit={crear}>
       <select value={f.rol} onChange={e => setF({ ...f, rol: e.target.value })}><option value="alumno">Alumno</option><option value="docente">Docente</option><option value="tutor">Tutor</option></select>
       <input value={f.nombre} onChange={e => setF({ ...f, nombre: e.target.value })} placeholder="Nombre completo" required />
       <input value={f.id} onChange={e => setF({ ...f, id: e.target.value.toUpperCase() })} placeholder="CURP (18 caracteres)" maxLength="18" required />
       {f.rol === 'alumno' && <>
-        <label>Semestre</label><select value={f.semestre} onChange={e => setF({ ...f, semestre: e.target.value })}>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select>
+        <label>Semestre</label><select value={f.semestre} onChange={e => setF({ ...f, semestre: e.target.value })}>{semConfig.activos.map(s => <option key={s} value={s}>{etiquetaSemestre(s)}</option>)}</select>
         <label>Área</label><select value={f.area} onChange={e => setF({ ...f, area: e.target.value })}>{AREAS.map(s => <option key={s}>{s}</option>)}</select>
         <label>Grupo</label><select value={f.grupo} onChange={e => setF({ ...f, grupo: e.target.value })}>{['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}</select>
         <label>Tutor del alumno</label>
@@ -134,11 +149,19 @@ export function Cuentas() {
               : <input value={f.tutorNombre} onChange={e => setF({ ...f, tutorNombre: e.target.value })} placeholder="Nombre completo del tutor" required />}
         </>}
         <label className="check"><input type="checkbox" checked={f.sinTutor} onChange={e => setF({ ...f, sinTutor: e.target.checked })} /> Todavía no tengo los datos del tutor</label></>}
+      {f.rol === 'tutor' && <>
+        <label htmlFor="cuenta-curp-alumno">CURP del alumno</label>
+        <input id="cuenta-curp-alumno" value={f.curpAlumno} onChange={e => setF({ ...f, curpAlumno: e.target.value.toUpperCase() })} placeholder="CURP del alumno (18 caracteres)" maxLength="18" required />
+        {f.curpAlumno.length === 18 && (alumnoTutorEncontrado
+          ? <p className="sub" role="status">Alumno encontrado: <b>{alumnoTutorEncontrado.nombre}</b>. Quedarán vinculados al crear la cuenta.</p>
+          : <p className="sub" role="status">El alumno no tiene cuenta, espere a que le añadan su cuenta. El vínculo quedará pendiente y se conectará cuando creen la cuenta del alumno.</p>)}
+      </>}
       {errorCrear && <p className="msg" role="alert">{errorCrear}</p>}
       <button className="btn" type="submit">CREAR CUENTA</button>
       </form>
     </PanelEmergente>
-    <PanelEmergente abierto={recuperacionesAbiertas} titulo={`Recuperaciones · ${solicitudes.length}`} onCerrar={() => setRecuperacionesAbiertas(false)}>
+    <PanelEmergente abierto={mantenimientoAbierto && mantenimientoVista === 'recuperaciones'} titulo={`Recuperaciones · ${solicitudes.length}`} onCerrar={() => setMantenimientoVista('')}>
+    <button className="mini" type="button" onClick={() => setMantenimientoVista('')}>← Volver a Mantenimiento de cuentas</button>
     <Card title="Solicitudes pendientes">
       <button className="mini rojo solicitudes-borrar" type="button" onClick={borrarSolicitudes} disabled={!solicitudes.length}>Borrar solicitudes</button>
       <p className="sub">Revisa la identidad antes de autorizar. Entrega personalmente el código de activación que aparece al confirmar el restablecimiento.</p>
@@ -148,7 +171,7 @@ export function Cuentas() {
       {!solicitudes.length && !errorSolicitudes && <p className="vacio">No hay solicitudes pendientes.</p>}
     </Card>
     </PanelEmergente>
-    <Card title="Gestión de cuentas">
+    <Card title="Cuentas registradas">
       <p className="sub">Administra las cuentas por tipo de usuario.</p>
       <div className="cuentas-secciones">{[['alumno','Alumnos','Lista de alumnos registrada'],['tutor','Tutores','Lista de tutores registrada'],['docente','Docentes','Lista de docentes registrada']].map(([rol,titulo,desc]) => <button className="cuenta-seccion" key={rol} type="button" aria-haspopup="dialog" onClick={() => { setRolAbierto(rol); setFiltros(filtrosIniciales); }}><span className="cuenta-seccion-cab"><b>{titulo}</b><span className="tag">{u.filter(x => x.rol === rol).length} cuentas</span></span><span className="cuenta-seccion-pie">{desc}<span aria-hidden="true">⌄</span></span></button>)}</div>
     </Card>
@@ -158,12 +181,12 @@ export function Cuentas() {
         <div className="fila2"><div><label htmlFor="cuentas-area">Área</label><select id="cuentas-area" value={filtros.area || 'todas'} onChange={e => setFiltros({ ...filtros, area: e.target.value })}><option value="todas">Todas las áreas</option>{AREAS.map(a => <option key={a}>{a}</option>)}</select></div><div><label htmlFor="cuentas-semestre">Semestre</label><select id="cuentas-semestre" value={filtros.semestre || 'todos'} onChange={e => setFiltros({ ...filtros, semestre: e.target.value })}><option value="todos">Todos</option>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select></div></div>
         <label htmlFor="cuentas-grupo">Grupo</label><select id="cuentas-grupo" value={filtros.grupo} onChange={e => setFiltros({ ...filtros, grupo: e.target.value })}><option value="todos">Todos los grupos</option>{g.filter(k => (filtros.area === 'todas' || !filtros.area || k.area === filtros.area) && (filtros.semestre === 'todos' || !filtros.semestre || k.semestre === filtros.semestre)).map(k => <option key={k.id} value={`${k.semestre}|${k.area}|${k.grupo}`}>{nombreGrupo(k)}</option>)}</select>
       </>}
-      <label htmlFor="cuentas-estado">Estado de acceso</label><select id="cuentas-estado" value={filtros.estado} onChange={e => setFiltros({ ...filtros, estado: e.target.value })}><option value="todos">Todos</option><option value="primer-acceso">Primer acceso pendiente</option><option value="activa">Activa</option></select>
+      <label htmlFor="cuentas-estado">Estado de cuenta</label><select id="cuentas-estado" value={filtros.estado} onChange={e => setFiltros({ ...filtros, estado: e.target.value })}><option value="todos">Todos</option><option value="primer-acceso">Primer acceso pendiente</option><option value="activa">Activa</option>{rolAbierto === 'alumno' && <option value="egresado">Egresado</option>}</select>
       <p className="sub">Se muestran hasta 100 resultados.</p>
       {l.map(x => (
-      <Card key={x.rol + x.id}><b>{x.nombre}</b><span className="tag">{x.rol}</span><span className={'tag ' + (x.debeCambiarPassword ? '' : 'ok')}>{x.debeCambiarPassword ? 'Primer acceso pendiente' : 'Activa'}</span>
+      <Card key={x.rol + x.id}><b>{x.nombre}</b><span className="tag">{x.rol}</span><span className={'tag ' + (x.egresado ? 'ok' : x.debeCambiarPassword ? '' : 'ok')}>{x.egresado ? 'Egresado' : x.debeCambiarPassword ? 'Primer acceso pendiente' : 'Activa'}</span>
         <p className="sub" style={{ margin: '4px 0 8px' }}>{x.curp || x.id}{x.rol === 'alumno' ? ` · ${x.semestre} ${x.area} ${x.grupo}` : ''}{x.hijos && x.hijos.length ? ` · alumnos: ${x.hijos.join(', ')}` : ''}{x.tutores && x.tutores.length ? ` · tutores: ${x.tutores.join(', ')}` : ''}</p>
-        {x.debeCambiarPassword && <button className="mini" style={{ marginLeft: 0 }} onClick={async () => { try { const r = await SD.api(`/api/admin/usuarios/${x.rol}/${x.id}/codigo-activacion`, { method: 'POST' }); alert(`Código de activación para ${r.curp}: ${r.codigo}`); } catch (er) { ban('err', 'No se pudo emitir el código', msgErr(er)); } }}>Emitir código de activación</button>}
+        {x.debeCambiarPassword && x.requiereCodigoActivacion && <button className="mini" style={{ marginLeft: 0 }} onClick={async () => { try { const r = await SD.api(`/api/admin/usuarios/${x.rol}/${x.id}/codigo-activacion`, { method: 'POST' }); alert(`Código de activación para ${r.curp}: ${r.codigo}`); } catch (er) { ban('err', 'No se pudo emitir el código', msgErr(er)); } }}>Emitir código de activación</button>}
         {x.rol === 'alumno' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('grupo', x)}>Cambiar grupo</button>}
         {x.rol === 'tutor' && <button className="mini" style={{ marginLeft: 0 }} onClick={() => acc('vincular', x)}>Vincular alumno</button>}
         <button className={'mini rojo'} style={x.rol === 'docente' ? { marginLeft: 0 } : {}} onClick={() => acc('borrar', x)}>Borrar</button></Card>))}
@@ -174,23 +197,41 @@ export function Cuentas() {
 
 export function Grupos() {
   const { g, u, c, cargar, error } = useServicios(), [b, ban] = useBanner();
-  const [ver, setVer] = useState('');
-  const cuenta = k => u.filter(x => x.rol === 'alumno' && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length;
+  const [ver, setVer] = useState(''), [semConfig, setSemConfig] = useState({ periodo: 'impares', activos: SEMESTRES_IMPARES }), [nuevoGrupo, setNuevoGrupo] = useState({ semestre: SEMESTRES_PARES[0], area: AREAS[0], grupo: 'A' });
+  useEffect(() => { SD.api('/api/semestres').then(setSemConfig).catch(() => {}); }, []);
+  const cuenta = k => u.filter(x => x.rol === 'alumno' && !x.egresado && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length;
   const grupoAbierto = g.find(k => k.id === ver);
   const alumnosAbiertos = grupoAbierto ? u.filter(x => x.rol === 'alumno' && x.area === grupoAbierto.area && x.semestre === grupoAbierto.semestre && x.grupo === grupoAbierto.grupo).sort((a, b) => a.nombre.localeCompare(b.nombre)) : [];
   const borrar = async k => {
     if (!confirm(`¿Eliminar las ${cuenta(k)} cuentas de alumnos de ${nombreGrupo(k)}? El grupo, sus materias y horarios se conservarán.`)) return;
     try { const r = await post('/api/admin/grupos/eliminar-cuentas', { id: k.id }); ban('ok', 'Cuentas eliminadas', `${r.alumnos} cuentas de alumnos borradas. El grupo se conservó.`); cargar(); } catch (er) { ban('err', 'No se pudo', msgErr(er)); }
   };
+  const crearGrupo = async e => {
+    e.preventDefault();
+    try { await post('/api/admin/grupos', nuevoGrupo); ban('ok', 'Grupo preparado', `${nuevoGrupo.semestre} · ${nuevoGrupo.area} · Grupo ${nuevoGrupo.grupo}. Ya puedes asignarle materias y horarios.`); cargar(); }
+    catch (er) { ban('err', 'No se pudo crear el grupo', msgErr(er)); }
+  };
+  const avanzar = async k => {
+    const destino = Number(k.semestre.match(/^([1-6])/ )?.[1] || 0) + 1;
+    const graduar = destino === 7;
+    const destinoNombre = `${destino} semestre ${k.area} ${k.grupo}`;
+    const aviso = graduar
+      ? `¿Confirmas el egreso de los ${cuenta(k)} alumnos de ${nombreGrupo(k)}? Sus registros e historial se conservarán.`
+      : `¿Confirmas que cerró el tercer parcial y que la lista de ${nombreGrupo(k)} está revisada? Los ${cuenta(k)} alumnos pasarán a ${destinoNombre}. El grupo destino, sus materias y horarios deben estar preparados.`;
+    if (!cuenta(k) || !confirm(aviso)) return;
+    try { const r = await post('/api/admin/grupos/avanzar', { semestre: k.semestre, area: k.area, grupo: k.grupo }); ban('ok', graduar ? 'Alumnos egresados' : 'Avance confirmado', graduar ? `${r.egresados} registros quedaron como egresados.` : `${r.avanzados} alumnos pasaron a ${r.semestre}.`); cargar(); }
+    catch (er) { ban('err', 'No se pudo confirmar el avance', msgErr(er)); }
+  };
   return (<>
-    <Hero titulo="Grupos" sub="Consulta las cuentas y administra alumnos sin eliminar la estructura del grupo." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
-    {g.map(k => { const alumnos = u.filter(x => x.rol === 'alumno' && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo); return <Card key={k.id}><b>{nombreGrupo(k)}</b><p className="sub" style={{ margin: '4px 0 8px' }}>{alumnos.length} alumnos · {c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length} materias</p>
-      <button className="mini" type="button" aria-haspopup="dialog" aria-expanded={ver === k.id} onClick={() => setVer(k.id)}>Ver cuentas</button><button className="mini rojo" onClick={() => borrar(k)}>Eliminar cuentas</button>
+    <Hero titulo="Grupos" sub="Prepara grupos, materias y horarios antes de cargar cuentas; confirma el avance al cerrar el tercer parcial." /><Banner b={b} />{error && <p className="msg" role="alert">{error}</p>}
+    <Card title="Preparar grupo"><form onSubmit={crearGrupo}><label>Semestre</label><select value={nuevoGrupo.semestre} onChange={e => setNuevoGrupo({ ...nuevoGrupo, semestre: e.target.value })}>{SEMESTRES.map(s => <option key={s} value={s}>{etiquetaSemestre(s)}</option>)}</select><label>Área</label><select value={nuevoGrupo.area} onChange={e => setNuevoGrupo({ ...nuevoGrupo, area: e.target.value })}>{AREAS.map(a => <option key={a}>{a}</option>)}</select><label>Grupo</label><select value={nuevoGrupo.grupo} onChange={e => setNuevoGrupo({ ...nuevoGrupo, grupo: e.target.value })}>{['A', 'B', 'C'].map(x => <option key={x}>{x}</option>)}</select><p className="sub">Puedes preparar los semestres del siguiente periodo aunque todavía no haya alumnos.</p><button className="btn" type="submit">PREPARAR GRUPO</button></form></Card>
+    {g.map(k => { const alumnos = u.filter(x => x.rol === 'alumno' && !x.egresado && x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo); const numero = Number(k.semestre.match(/^([1-6])/)?.[1] || 0), destino = `${numero + 1} semestre|${k.area}|${k.grupo}`, listoDestino = g.some(x => x.id === destino) && c.some(x => x.area === k.area && x.semestre === `${numero + 1} semestre` && x.grupo === k.grupo) && h.some(x => x.tipo === 'clase' && x.area === k.area && x.semestre === `${numero + 1} semestre` && x.grupo === k.grupo); return <Card key={k.id}><b>{nombreGrupo(k)}</b><p className="sub" style={{ margin: '4px 0 8px' }}>{alumnos.length} alumnos activos · {c.filter(x => x.area === k.area && x.semestre === k.semestre && x.grupo === k.grupo).length} materias</p>
+      <button className="mini" type="button" aria-haspopup="dialog" aria-expanded={ver === k.id} onClick={() => setVer(k.id)}>Ver cuentas</button>{semConfig.activos.includes(k.semestre) && alumnos.length > 0 && <><button className="mini" disabled={!listoDestino && numero < 6} title={!listoDestino && numero < 6 ? `Prepara materias y horarios de ${numero + 1} semestre primero` : ''} onClick={() => avanzar(k)}>{numero === 6 ? 'Egresar grupo' : 'Confirmar avance'}</button>{numero < 6 && !listoDestino && <small className="sub" style={{ display: 'block' }}>Prepara las materias y el horario del grupo destino para habilitar el avance.</small>}</>}<button className="mini rojo" onClick={() => borrar(k)}>Eliminar cuentas</button>
     </Card>; })}
     <PanelEmergente abierto={Boolean(grupoAbierto)} titulo={grupoAbierto ? `Cuentas · ${nombreGrupo(grupoAbierto)}` : 'Cuentas'} onCerrar={() => setVer('')}>
       <div className="grupo-cuentas" aria-live="polite">{alumnosAbiertos.length ? alumnosAbiertos.map(x => <div className="grupo-cuenta" key={x.id}><b>{x.nombre}</b><span>{x.curp || x.id}</span></div>) : <p className="vacio">Este grupo todavía no tiene cuentas.</p>}</div>
     </PanelEmergente>
-    {!g.length && <Card><p className="vacio">Todavía no hay grupos. Crea la cuenta de un alumno y su grupo aparecerá aquí.</p></Card>}
+    {!g.length && <Card><p className="vacio">Todavía no hay grupos. Prepáralos aquí, aunque aún no tengan alumnos.</p></Card>}
   </>);
 }
 
@@ -249,9 +290,10 @@ export function Horarios() {
       <form onSubmit={añadir}>
       <label>Docente</label><select value={f.docente} onChange={e => setF({ ...f, docente: e.target.value })} required><option value="">Selecciona un docente</option>{docs.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
       {!docs.length && <p className="sub">Primero crea la cuenta del docente en Cuentas.</p>}
-      <label>Semestre</label><select value={f.semestre} onChange={e => setF({ ...f, semestre: e.target.value })}>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select>
+      <label>Semestre</label><select value={f.semestre} onChange={e => setF({ ...f, semestre: e.target.value })}>{SEMESTRES.map(s => <option key={s} value={s}>{etiquetaSemestre(s)}</option>)}</select>
       <label>Área</label><select value={f.area} onChange={e => setF({ ...f, area: e.target.value })}>{AREAS.map(s => <option key={s}>{s}</option>)}</select>
       <label>Grupo</label><select value={f.grupo} onChange={e => setF({ ...f, grupo: e.target.value })}>{['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}</select>
+      <p className="sub">Si este grupo todavía no existe, se creará al guardar el horario. Puedes añadir las cuentas de alumnos después; al registrarlas con este semestre, área y grupo quedarán dentro del grupo y su horario ya estará listo.</p>
       <label>Materia</label><input list="materias-docente" value={f.materia} onChange={e => setF({ ...f, materia: e.target.value })} placeholder="Nombre de la materia" maxLength="60" required />
       <datalist id="materias-docente">{misMaterias.map(m => <option key={m} value={m} />)}</datalist>
       <label>Día</label><select value={f.dia} onChange={e => setF({ ...f, dia: e.target.value })}>{[1, 2, 3, 4, 5, 6].map(d => <option key={d} value={d}>{DIAS[d]}</option>)}</select>
@@ -261,7 +303,7 @@ export function Horarios() {
       </form>
     </PanelEmergente>
     <Card title="Ver horarios">
-      <label htmlFor="horario-consulta-semestre">Semestre</label><select id="horario-consulta-semestre" value={filtro.semestre} onChange={e => setFiltro({ ...filtro, semestre: e.target.value })}><option value="">Elige semestre</option>{SEMESTRES.map(s => <option key={s}>{s}</option>)}</select>
+      <label htmlFor="horario-consulta-semestre">Semestre</label><select id="horario-consulta-semestre" value={filtro.semestre} onChange={e => setFiltro({ ...filtro, semestre: e.target.value })}><option value="">Elige semestre</option>{SEMESTRES.map(s => <option key={s} value={s}>{etiquetaSemestre(s)}</option>)}</select>
       <label htmlFor="horario-consulta-area">Área</label><select id="horario-consulta-area" value={filtro.area} onChange={e => setFiltro({ ...filtro, area: e.target.value })}><option value="">Elige área</option>{AREAS.map(s => <option key={s}>{s}</option>)}</select>
       <label htmlFor="horario-consulta-grupo">Grupo</label><select id="horario-consulta-grupo" value={filtro.grupo} onChange={e => setFiltro({ ...filtro, grupo: e.target.value })}><option value="">Elige grupo</option>{['A', 'B', 'C'].map(s => <option key={s}>{s}</option>)}</select>
     </Card>
@@ -406,10 +448,12 @@ export function Historial() {
 export function Escaner() {
   const [curp, setCurp] = useState(''), [r, setR] = useState(null), [b, ban] = useBanner(), [registrando, setRegistrando] = useState('');
   const [online, setOnline] = useState(navigator.onLine);
-  const reintentos = useRef(new Map()), sesion = SD.session() || {}, tieneAccesoEscolar = sesion.rol === 'admin' && ['portero', 'control'].includes(sesion.adminArea);
+  const [colaPendiente, setColaPendiente] = useState(0);
+  const reintentos = useRef(new Map()), colaQR = useRef([]), procesandoCola = useRef(false), recientes = useRef(new Map());
+  const sesion = SD.session() || {}, tieneAccesoEscolar = sesion.rol === 'admin' && ['portero', 'control'].includes(sesion.adminArea);
   const enLinea = online && !sesion.offline;
   useEffect(() => {
-    const revisar = () => setOnline(navigator.onLine);
+    const revisar = () => { setOnline(navigator.onLine); if (navigator.onLine) procesarColaQR(); };
     addEventListener('online', revisar); addEventListener('offline', revisar);
     return () => { removeEventListener('online', revisar); removeEventListener('offline', revisar); };
   }, []);
@@ -443,15 +487,67 @@ export function Escaner() {
     }
     finally { setRegistrando(''); }
   };
+  const registrarQRAutomatico = async ({ curp: alumnoCurp, uid }) => {
+    setCurp(alumnoCurp); setRegistrando(alumnoCurp);
+    try {
+      const evento = await SD.api('/api/portero/escanear', { method: 'POST', body: { curp: alumnoCurp, tipo: 'auto', uid } });
+      reintentos.current.delete(`${alumnoCurp}:auto`);
+      recientes.current.set(alumnoCurp, Date.now() + (evento.tipo === 'entrada' ? 30 : 10) * 60e3);
+      setR({ automatico: true, alumno: { curp: alumnoCurp, nombre: evento.alumno, area: evento.area, semestre: evento.semestre, grupo: evento.grupo }, accesos: [evento] });
+      const grupo = [evento.semestre, evento.area, evento.grupo].filter(Boolean).join(' ');
+      ban(evento.duplicada ? 'warn' : 'ok', evento.duplicada ? 'Acceso ya registrado' : `${evento.tipo === 'entrada' ? 'ENTRADA' : 'SALIDA'} · ${evento.hora}`, `${evento.alumno} · ${grupo}${evento.duplicada ? ' · lectura repetida' : ' · acceso guardado'}`);
+      return true;
+    } catch (e) {
+      if (e.status === 409) {
+        const esperaCorta = /en proceso|espera un momento/i.test(e.message || '');
+        const minutos = Number(e.message?.match(/en (\d+) min/i)?.[1] || 0);
+        const espera = minutos ? minutos * 60e3 + 1000 : esperaCorta ? 2000 : 30 * 60e3;
+        recientes.current.set(alumnoCurp, Date.now() + espera);
+        ban('warn', 'Acceso no duplicado', msgErr(e));
+      } else {
+        recientes.current.delete(alumnoCurp);
+        ban('err', 'No se pudo registrar el acceso', msgErr(e));
+        if (!e.status) return 'red';
+      }
+      return false;
+    } finally { setRegistrando(''); }
+  };
+  const procesarColaQR = async () => {
+    if (procesandoCola.current || !navigator.onLine || SD.session()?.offline) return;
+    procesandoCola.current = true;
+    while (colaQR.current.length) {
+      if (!navigator.onLine || SD.session()?.offline) break;
+      const item = colaQR.current.shift();
+      setColaPendiente(colaQR.current.length + 1);
+      const resultado = await registrarQRAutomatico(item);
+      if (resultado === 'red') { colaQR.current.unshift(item); break; }
+    }
+    procesandoCola.current = false;
+    setColaPendiente(colaQR.current.length);
+    if (colaQR.current.length && navigator.onLine && !SD.session()?.offline) setTimeout(procesarColaQR, 3000);
+  };
+  const encolarQR = valor => {
+    const alumnoCurp = String(valor || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{18}$/.test(alumnoCurp)) return ban('err', 'QR no válido', 'El código no contiene una CURP de alumno.');
+    if (!enLinea) return ban('err', 'Sin conexión', 'No se registró el acceso. Conéctate y vuelve a escanear el QR.');
+    if ((recientes.current.get(alumnoCurp) || 0) > Date.now()) return;
+    recientes.current.set(alumnoCurp, Date.now() + 30 * 60e3);
+    const clave = `${alumnoCurp}:auto`, uid = reintentos.current.get(clave) || crypto.randomUUID();
+    reintentos.current.set(clave, uid);
+    colaQR.current.push({ curp: alumnoCurp, uid });
+    setColaPendiente(colaQR.current.length + (procesandoCola.current ? 1 : 0));
+    procesarColaQR();
+  };
   return (<>
-    <Hero titulo={tieneAccesoEscolar ? 'Entrada y salida escolar' : 'Escáner'} sub={tieneAccesoEscolar ? 'Escanea el QR del alumno y elige explícitamente qué evento registrar.' : 'Escanea el QR de un alumno, o escribe su CURP, para ver su ficha.'} /><Banner b={b} />
+    <Hero titulo={tieneAccesoEscolar ? 'Entrada y salida escolar' : 'Escáner'} sub={tieneAccesoEscolar ? 'Escanea el QR: el sistema registra automáticamente entrada o salida.' : 'Escanea el QR de un alumno, o escribe su CURP, para ver su ficha.'} /><Banner b={b} />
     {tieneAccesoEscolar && !enLinea && <p className="msg" role="alert">Sin conexión: los accesos no se guardan sin validación del servidor.</p>}
-    <Card><Camara disabled={tieneAccesoEscolar && (!enLinea || !!registrando)} onTexto={ver} onError={m => ban('err', 'Cámara', m)} />
-      <p className="sub" style={{ margin: '8px 0 0' }}>Después de cada lectura, apunta al siguiente código.</p>
+    <Card><Camara disabled={tieneAccesoEscolar && !enLinea} onTexto={tieneAccesoEscolar ? encolarQR : ver} onError={m => ban('err', 'Cámara', m)} />
+      <p className="sub" style={{ margin: '8px 0 0' }}>{tieneAccesoEscolar ? 'Mantén el lector abierto y muestra los QR uno tras otro; las lecturas se procesan en fila.' : 'Después de cada lectura, apunta al siguiente código.'}</p>
+      {tieneAccesoEscolar && colaPendiente > 0 && <p className="sub" role="status">Guardando accesos… {colaPendiente} {colaPendiente === 1 ? 'lectura' : 'lecturas'} en proceso o en fila.</p>}
       <div className="fila2" style={{ marginTop: 12 }}><input value={curp} maxLength="18" placeholder="CURP" disabled={tieneAccesoEscolar && !!registrando} onChange={e => setCurp(e.target.value.toUpperCase())} style={{ marginTop: 0 }} /><button className="btn" style={{ flex: 'none', width: 80, margin: 0 }} disabled={tieneAccesoEscolar && (!enLinea || !!registrando)} onClick={() => ver(curp)}>OK</button></div></Card>
     {r && <><Card title="Ficha"><dl><dt>Nombre</dt><dd>{r.alumno.nombre}</dd><dt>CURP</dt><dd>{r.alumno.curp}</dd><dt>Grupo</dt><dd>{r.alumno.semestre} {r.alumno.area} {r.alumno.grupo}</dd></dl></Card>
       {tieneAccesoEscolar
-        ? <><Card title="Registrar acceso"><p className="sub">El servidor asigna la hora oficial y notifica a los tutores vinculados al confirmar el evento.</p><div className="fila2"><button className="btn" type="button" disabled={!enLinea || !!registrando} onClick={() => registrarAcceso('entrada')}>{registrando === 'entrada' ? 'REGISTRANDO…' : 'REGISTRAR ENTRADA'}</button><button className="btn sec" type="button" disabled={!enLinea || !!registrando} onClick={() => registrarAcceso('salida')}>{registrando === 'salida' ? 'REGISTRANDO…' : 'REGISTRAR SALIDA'}</button></div></Card>
+        ? <>{r.automatico ? <Card title="Acceso registrado"><p className="sub">El servidor asignó la hora oficial y notificó a los tutores vinculados.</p></Card> : <Card title="Registrar acceso"><p className="sub">Al consultar una CURP manualmente, elige el evento. El servidor asigna la hora y notifica a los tutores.</p><div className="fila2"><button className="btn" type="button" disabled={!enLinea || !!registrando} onClick={() => registrarAcceso('entrada')}>{registrando === 'entrada' ? 'REGISTRANDO…' : 'REGISTRAR ENTRADA'}</button><button className="btn sec" type="button" disabled={!enLinea || !!registrando} onClick={() => registrarAcceso('salida')}>{registrando === 'salida' ? 'REGISTRANDO…' : 'REGISTRAR SALIDA'}</button></div></Card>}
           <Card title="Entradas y salidas recientes"><ul className="l">{(r.accesos || []).map(a => <li key={a.uid}><span>{a.fecha} · {a.hora}</span><span>{a.tipo === 'entrada' ? 'Entrada' : 'Salida'}</span></li>)}{!r.accesos?.length && <li className="vacio">Sin registros de acceso.</li>}</ul></Card></>
         : <Card title="Historial"><ul className="l">{r.asistencias.slice(0, 20).map(a => <li key={a.uid}><span>{a.fecha} · {a.hora}</span><span>{a.estado === 'falta' ? 'falta · ' : ''}{a.materia}</span></li>)}{!r.asistencias.length && <li className="vacio">Sin registros</li>}</ul></Card>}
       </>}

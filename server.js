@@ -29,6 +29,8 @@ app.use(express.static(path.join(__dirname, 'public'), {
 
 /* ---------- Utilidades ---------- */
 const s = v => String(v ?? '').trim();
+const SEMESTRES_VALIDOS = ['1 semestre', '2 semestre', '3 semestre', '4 semestre', '5 semestre', '6 semestre'];
+const semestresDelPeriodo = periodo => periodo === 'pares' ? ['2 semestre', '4 semestre', '6 semestre'] : ['1 semestre', '3 semestre', '5 semestre'];
 const RX = { curp: /^[A-Z0-9]{18}$/, rfc: /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/ };
 const h = fn => (req, res) => fn(req, res).catch(e => { console.error(e); res.status(500).json({ error: 'Error del servidor' }); });
 const limpiaMat = v => s(v).replace(/\s+/g, ' ').slice(0, 60);
@@ -133,7 +135,7 @@ async function notificarAlumno(curp, id, titulo, texto, url, incluirTutores = tr
     }
 }
 async function revisarRecordatoriosClase() {
-    if (!recordatoriosPush || !PUSH_PUBLIC || !PUSH_PRIVATE) return;
+    if (!recordatoriosPush) return;
     const partes = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/Mexico_City', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
     }).formatToParts(new Date()).map(p => [p.type, p.value]));
@@ -143,16 +145,31 @@ async function revisarRecordatoriosClase() {
     const fecha = `${partes.year}-${partes.month}-${partes.day}`;
     const bloques = await horarios.find({ dia, tipo: 'clase' }).toArray();
     for (const b of bloques) {
-        const [h, m] = b.fin.split(':').map(Number), faltan = h * 60 + m - ahora;
-        if (faltan !== 5) continue;
-        const evento = `${fecha}:${b._id}`;
-        try { await recordatoriosPush.insertOne({ _id: evento, creado: new Date() }); }
-        catch (e) { if (e.code === 11000) continue; throw e; }
-        const alumnos = await usuarios.find({ rol: 'alumno', area: b.area, semestre: b.semestre, grupo: b.grupo }).toArray();
-        const siguiente = await horarios.find({ dia, area: b.area, semestre: b.semestre, grupo: b.grupo, inicio: { $gte: b.fin }, tipo: 'clase' }).sort({ inicio: 1 }).limit(1).next();
-        const texto = `Tu clase de ${b.materia} termina en 5 minutos.` + (siguiente ? ` Sigue ${siguiente.materia} a las ${siguiente.inicio}.` : ' Es la última clase del día.');
-        await Promise.all(alumnos.map(a => enviarPush('alumno', a.id, 'TIBURONES · Próxima clase', texto, '/')));
+        const [hi, mi] = b.inicio.split(':').map(Number), paraInicio = hi * 60 + mi - ahora;
+        if (paraInicio === 5) {
+            const evento = `escanear:${fecha}:${b._id}`;
+            try {
+                await recordatoriosPush.insertOne({ _id: evento, creado: new Date() });
+                const clase = await clases.findOne({ _id: b.claseId });
+                if (clase?.docente) {
+                    const texto = `Ya puedes iniciar el escaneo de ${b.materia} · ${b.semestre} ${b.area} ${b.grupo}. La clase empieza a las ${b.inicio}.`;
+                    await avisos.updateOne({ _id: evento }, { $setOnInsert: { para: clase.docente, tipo: 'asistencia', texto, fecha, hora: partes.hour + ':' + partes.minute, creado: new Date() } }, { upsert: true });
+                    await enviarPush('docente', clase.docente, 'TIBURONES · Escaneo disponible', texto, '/#/asistencia');
+                }
+            } catch (e) { if (e.code !== 11000) throw e; }
+        }
+        const [hf, mf] = b.fin.split(':').map(Number), faltanFin = hf * 60 + mf - ahora;
+        if (faltanFin === 5) {
+            const evento = `${fecha}:${b._id}`;
+            try { await recordatoriosPush.insertOne({ _id: evento, creado: new Date() }); }
+            catch (e) { if (e.code === 11000) continue; throw e; }
+            const alumnos = await usuarios.find({ rol: 'alumno', egresado: { $ne: true }, area: b.area, semestre: b.semestre, grupo: b.grupo }).toArray();
+            const siguiente = await horarios.find({ dia, area: b.area, semestre: b.semestre, grupo: b.grupo, inicio: { $gte: b.fin }, tipo: 'clase' }).sort({ inicio: 1 }).limit(1).next();
+            const texto = `Tu clase de ${b.materia} termina en 5 minutos.` + (siguiente ? ` Sigue ${siguiente.materia} a las ${siguiente.inicio}.` : ' Es la última clase del día.');
+            await Promise.all(alumnos.map(a => enviarPush('alumno', a.id, 'TIBURONES · Próxima clase', texto, '/')));
+        }
     }
+    await registrarFaltasProgramadas(fecha, dia, ahora);
 }
 const intentosRecuperacion = new Map();
 const validaPassword = pw => typeof pw === 'string' && pw.length >= 4 && pw.length <= 128;
@@ -232,6 +249,13 @@ const bloqueDe = async (cl, fecha) => {
 };
 const miClase = async (doc, area, semestre, grupo, materia) => (await clases.find({ docente: doc }).toArray())
     .find(c => c.area === area && c.semestre === semestre && c.grupo === grupo && c.materia.toLowerCase() === String(materia).toLowerCase());
+const fechaClave = v => v instanceof Date ? v.toISOString().slice(0, 10) : String(v || '').slice(0, 10);
+function grupoAlumnoEnFecha(alumno, fecha) {
+    const anterior = (alumno.historialGrupos || []).find(g => fechaClave(g.desde) <= fecha && fechaClave(g.hasta) >= fecha);
+    if (anterior) return anterior;
+    const inicio = fechaClave(alumno.inicioSemestre || alumno.creado);
+    return !alumno.egresado && (!inicio || inicio <= fecha) ? alumno : null;
+}
 
 async function avisar(alumno, tipo, hora, fecha, clave, materia, extra) {
     const cand = [...await usuarios.find({ rol: 'tutor', hijos: alumno.curp }).toArray(), ...await usuarios.find({ rol: 'tutor', curpAlumno: alumno.curp }).toArray()];
@@ -240,6 +264,41 @@ async function avisar(alumno, tipo, hora, fecha, clave, materia, extra) {
         const texto = extra || (tipo === 'falta' ? `${alumno.nombre} faltó a ${materia}` : `${alumno.nombre} asistió a ${materia} (${hora})`);
         try { await avisos.insertOne({ _id: `${tipo}:${clave}:${tu.id}`, para: tu.id, curp: alumno.curp, tipo, materia, texto, fecha, hora, creado: new Date() }); await enviarPush('tutor', tu.id, 'TIBURONES · Aviso escolar', texto, '/'); }
         catch (e) { if (e.code !== 11000) throw e; }
+    }
+}
+
+async function registrarFaltasProgramadas(fecha, dia, ahora) {
+    const calendario = await periodoActivo();
+    if (!calendario || !estadoPeriodo(calendario, fecha).enCiclo) return;
+    const bloques = (await horarios.find({ dia, tipo: 'clase' }).toArray()).filter(b => b.claseId && b.inicio && b.fin);
+    const porClase = new Map();
+    for (const b of bloques) {
+        const id = String(b.claseId);
+        if (!porClase.has(id)) porClase.set(id, []);
+        porClase.get(id).push(b);
+    }
+    for (const [claseId, agenda] of porClase) {
+        const fin = Math.max(...agenda.map(b => { const [h, m] = b.fin.split(':').map(Number); return h * 60 + m; }));
+        if (!Number.isFinite(fin) || ahora < fin) continue;
+        const evento = `cierre-auto:${fecha}:${claseId}`;
+        try { await recordatoriosPush.insertOne({ _id: evento, creado: new Date() }); }
+        catch (e) { if (e.code === 11000) continue; throw e; }
+        const clase = await clases.findOne({ _id: agenda[0].claseId });
+        if (!clase) continue;
+        const alumnos = await usuarios.find({ rol: 'alumno', egresado: { $ne: true }, area: clase.area, semestre: clase.semestre, grupo: clase.grupo }).toArray();
+        const permisosAprobados = await permisos.find({ estado: 'aprobado', desde: { $lte: fecha }, hasta: { $gte: fecha } }).toArray();
+        const registros = await asistencias.find({ fecha, claseId, estado: { $in: ['asistio', 'retardo', 'falta', 'justificada'] } }).toArray();
+        const atendidos = new Set(registros.map(r => r.curp));
+        const bloque = agenda.sort((a, b) => a.inicio.localeCompare(b.inicio))[0];
+        for (const alumno of alumnos.filter(a => !atendidos.has(a.curp))) {
+            const permiso = permisosAprobados.find(p => p.curp === alumno.curp);
+            const key = String(clase.materia || '').toLowerCase();
+            try {
+                await asistencias.insertOne({ _id: `F:${alumno.curp}:${fecha}:${key}:${claseId}`, curp: alumno.curp, alumnoNombre: alumno.nombre, area: clase.area, semestre: clase.semestre, grupo: clase.grupo, fecha, hora: bloque.fin, estado: permiso ? 'justificada' : 'falta', motivo: permiso ? 'Permiso: ' + permiso.motivo : undefined, materia: clase.materia, materiaKey: key, claseId, horaInicio: bloque.inicio, horaFin: bloque.fin, docente: clase.docente, docenteNombre: clase.docenteNombre });
+            } catch (e) { if (e.code !== 11000) throw e; }
+            if (!permiso) await avisar(alumno, 'falta', bloque.fin, fecha, `${alumno.curp}:${fecha}:${key}`, clase.materia, `${alumno.nombre} faltó a ${clase.materia} (${bloque.inicio} a ${bloque.fin}) el ${fecha.split('-').reverse().join('/')}`);
+            else await avisar(alumno, 'justificada', bloque.fin, fecha, `${alumno.curp}:${fecha}:${key}`, clase.materia, `${alumno.nombre} no asistió a ${clase.materia}: justificado por permiso`);
+        }
     }
 }
 
@@ -256,7 +315,7 @@ app.post('/api/cuenta/identificar', h(async (req, res) => {
     const curp = s(req.body.curp).toUpperCase(), llave = 'ip:' + req.ip;
     if (bloqueado(llave, 40)) return bad(res, 'Demasiados intentos. Espera 15 minutos e inténtalo de nuevo.', 429);
     if (!RX.curp.test(curp)) { fallo(llave); return bad(res, 'Escribe una CURP válida de 18 caracteres.', 400); }
-    const cuentas = await Promise.all(['alumno', 'docente', 'tutor'].map(rol => usuarios.findOne({ _id: `${rol}:${curp}`, rol }, { projection: { hash: 1, debeCambiarPassword: 1 } }).then(cuenta => cuenta && ({ rol, cuenta }))));
+    const cuentas = await Promise.all(['alumno', 'docente', 'tutor'].map(rol => usuarios.findOne({ _id: `${rol}:${curp}`, rol }, { projection: { hash: 1, debeCambiarPassword: 1, requiereCodigoActivacion: 1 } }).then(cuenta => cuenta && ({ rol, cuenta }))));
     const encontradas = cuentas.filter(Boolean);
     if (encontradas.length !== 1) {
         fallo(llave);
@@ -264,7 +323,7 @@ app.post('/api/cuenta/identificar', h(async (req, res) => {
     }
     fallos.delete(llave);
     const { rol, cuenta } = encontradas[0];
-    res.json({ rol, tienePassword: !!cuenta.hash && !cuenta.debeCambiarPassword });
+    res.json({ rol, tienePassword: !!cuenta.hash && !cuenta.debeCambiarPassword, requiereCodigoActivacion: !!cuenta.requiereCodigoActivacion });
 }));
 app.post('/api/login', h(async (req, res) => {
     const id = s(req.body.id).toUpperCase(), rol = s(req.body.rol), password = String(req.body.password || '');
@@ -331,11 +390,12 @@ const activarCuenta = h(async (req, res) => {
     const llave = 'activar:' + req.ip;
     if (bloqueado(llave, 8)) return bad(res, 'Demasiados intentos. Espera 15 minutos.', 429);
     const cuenta = await usuarios.findOne({ _id: `${rol}:${curp}`, rol });
-    if (!cuenta || !cuenta.debeCambiarPassword || !codigoCoincide(codigo, cuenta.activationCodeHash)) {
+    const codigoRequerido = cuenta?.requiereCodigoActivacion === true;
+    if (!cuenta || !cuenta.debeCambiarPassword || (codigoRequerido && !codigoCoincide(codigo, cuenta.activationCodeHash))) {
         fallo(llave); return bad(res, 'No se pudo validar la cuenta. Revisa tu CURP o solicita ayuda a Servicios Escolares.', 401);
     }
     const hp = hashPw(password);
-    const activada = await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true, activationCodeHash: cuenta.activationCodeHash }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date(), activadaPorUsuario: true }, $unset: { activationCodeHash: '' } });
+    const activada = await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true, requiereCodigoActivacion: codigoRequerido ? true : { $ne: true } }, { $set: { ...hp, debeCambiarPassword: false, passwordActualizada: new Date(), activadaPorUsuario: true }, $unset: { activationCodeHash: '', requiereCodigoActivacion: '' } });
     if (!activada.modifiedCount) return bad(res, 'El código ya fue utilizado o la cuenta ya se activó.', 409);
     fallos.delete(llave);
     res.json({ ok: true, mensaje: 'Contraseña creada. Ya puedes iniciar sesión desde cualquier dispositivo con tu CURP.' });
@@ -410,16 +470,16 @@ app.get('/api/accesos', auth, h(async (req, res) => {
 }));
 
 app.post('/api/portero/escanear', auth, adminDe('portero', 'control'), h(async (req, res) => {
-    const curp = s(req.body.curp).toUpperCase(), tipo = s(req.body.tipo), uid = s(req.body.uid).toLowerCase();
+    const curp = s(req.body.curp).toUpperCase(), tipo = s(req.body.tipo), automatico = tipo === 'auto', uid = s(req.body.uid).toLowerCase();
     if (!RX.curp.test(curp)) return bad(res, 'Escanea un QR de alumno válido.');
-    if (!tipoAccesoValido(tipo)) return bad(res, 'Elige entrada o salida.');
+    if (!automatico && !tipoAccesoValido(tipo)) return bad(res, 'Elige entrada o salida.');
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(uid))
         return bad(res, 'Identificador de evento inválido.');
     const alumno = await usuarios.findOne({ _id: `alumno:${curp}`, rol: 'alumno' });
     if (!alumno) return bad(res, 'No se encontró una cuenta de alumno para esta CURP.', 404);
     const anterior = await accesosEscuela.findOne({ _id: uid });
     if (anterior) {
-        if (!esMismoAcceso(anterior, { curp, tipo })) return bad(res, 'El identificador ya pertenece a otro registro.', 409);
+        if (anterior.curp !== curp || (!automatico && !esMismoAcceso(anterior, { curp, tipo }))) return bad(res, 'El identificador ya pertenece a otro registro.', 409);
         const { _id, ...respuesta } = anterior;
         return res.json({ ...respuesta, duplicada: true });
     }
@@ -437,7 +497,8 @@ app.post('/api/portero/escanear', auth, adminDe('portero', 'control'), h(async (
         } catch (e) {
             if (e.code !== 11000) throw e;
             const ultimo = await accesosEscuela.find({ curp, fecha }).sort({ creado: -1 }).limit(1).next();
-            const decision = decidirAcceso(ultimo, ahora, tipo);
+            const esperado = ultimo ? (ultimo.tipo === 'entrada' ? 'salida' : 'entrada') : 'entrada';
+            const decision = decidirAcceso(ultimo, ahora, automatico ? esperado : tipo);
             if (decision.estado === 'espera') {
                 const mensaje = `Ya registró su ${decision.ultimo.tipo} a las ${decision.ultimo.hora}. Podrá registrar su ${decision.esperado} en ${decision.minutosRestantes} min.`;
                 return bad(res, mensaje, 409);
@@ -447,7 +508,8 @@ app.post('/api/portero/escanear', auth, adminDe('portero', 'control'), h(async (
         if (!bloqueoAdquirido) return bad(res, 'Hay otra lectura de este alumno en proceso. Espera un momento e inténtalo de nuevo.', 409);
 
         const ultimo = await accesosEscuela.find({ curp, fecha }).sort({ creado: -1 }).limit(1).next();
-        const decision = decidirAcceso(ultimo, ahora, tipo);
+        const esperado = ultimo ? (ultimo.tipo === 'entrada' ? 'salida' : 'entrada') : 'entrada';
+        const decision = decidirAcceso(ultimo, ahora, automatico ? esperado : tipo);
         if (decision.estado === 'espera') {
             const mensaje = `Ya registró su ${decision.ultimo.tipo} a las ${decision.ultimo.hora}. Podrá registrar su ${decision.esperado} en ${decision.minutosRestantes} min.`;
             return bad(res, mensaje, 409);
@@ -457,18 +519,19 @@ app.post('/api/portero/escanear', auth, adminDe('portero', 'control'), h(async (
             return bad(res, `El siguiente evento debe ser ${esperado}.`, 409);
         }
 
-        const registro = crearRegistroAcceso({ uid, curp, alumno, tipo, actor: req.u, creado: ahora });
+        const tipoRegistro = decision.tipo;
+        const registro = crearRegistroAcceso({ uid, curp, alumno, tipo: tipoRegistro, actor: req.u, creado: ahora });
         try { await accesosEscuela.insertOne(registro); }
         catch (e) {
             if (e.code !== 11000) throw e;
             const duplicado = await accesosEscuela.findOne({ _id: uid });
-            if (!esMismoAcceso(duplicado, { curp, tipo }))
+            if (!duplicado || duplicado.curp !== curp || (!automatico && !esMismoAcceso(duplicado, { curp, tipo })))
                 return bad(res, 'El identificador ya pertenece a otro registro.', 409);
             const { _id, ...respuesta } = duplicado;
             return res.json({ ...respuesta, duplicada: true });
         }
-        const texto = `${alumno.nombre} ${tipo === 'entrada' ? 'entró' : 'salió'} de la escuela a las ${registro.hora}.`;
-        await avisar(alumno, tipo, registro.hora, fecha, uid, '', texto);
+        const texto = `${alumno.nombre} ${tipoRegistro === 'entrada' ? 'entró' : 'salió'} de la escuela a las ${registro.hora}.`;
+        await avisar(alumno, tipoRegistro, registro.hora, fecha, uid, '', texto);
         const { _id, ...respuesta } = registro;
         res.json({ ...respuesta, duplicada: false });
     } finally {
@@ -591,8 +654,11 @@ app.post('/api/asistencias', auth, h(async (req, res) => {
     const materia = limpiaMat(a.materia), key = materia.toLowerCase();
     const alumno = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
     if (!alumno) return bad(res, 'Alumno no encontrado', 404);
-    const cl = await miClase(req.u.id, alumno.area, alumno.semestre, alumno.grupo, materia);
+    const grupoCaptura = grupoAlumnoEnFecha(alumno, s(a.fecha));
+    if (!grupoCaptura) return bad(res, 'La cuenta no pertenecía a un grupo activo en la fecha de la asistencia.', 403);
+    const cl = await miClase(req.u.id, grupoCaptura.area, grupoCaptura.semestre, grupoCaptura.grupo, materia);
     if (!cl) return bad(res, 'Esa materia no es tuya o el alumno no es de ese grupo', 403);
+    if (a.claseId && String(a.claseId) !== String(cl._id)) return bad(res, 'La clase enviada no coincide con el grupo del alumno en esa fecha.', 403);
     const uid = s(a.uid), existente = await asistencias.findOne({ _id: uid });
     if (existente) {
         if (existente.curp !== curp || existente.docente !== req.u.id || existente.materiaKey !== key) return bad(res, 'El identificador ya pertenece a otro registro', 409);
@@ -641,9 +707,9 @@ app.post('/api/asistencias', auth, h(async (req, res) => {
             docente: req.u.id,
             docenteNombre: s(req.u.nombre),
             alumnoNombre: s(alumno.nombre),
-            area: alumno.area,
-            semestre: alumno.semestre,
-            grupo: alumno.grupo,
+            area: grupoCaptura.area,
+            semestre: grupoCaptura.semestre,
+            grupo: grupoCaptura.grupo,
             claseId: String(cl._id),
             recibido: new Date()
         };
@@ -655,8 +721,9 @@ app.post('/api/asistencias', auth, h(async (req, res) => {
         }
         return res.status(202).json({ ok: true, revisionPendiente: true, fecha: decision.fecha, horaDeclarada: s(a.hora) });
     }
+    const estadoRegistro = minutosDeHora(decision.hora) > minutosDeHora(decision.bloque.inicio) + 10 ? 'retardo' : 'asistio';
     try {
-        await asistencias.insertOne({ _id: s(a.uid), curp, fecha: decision.fecha, hora: decision.hora, estado: 'asistio', materia, materiaKey: key, claseId: String(cl._id), horaInicio: decision.bloque.inicio, horaFin: decision.bloque.fin, docente: req.u.id, docenteNombre: s(req.u.nombre) });
+        await asistencias.insertOne({ _id: s(a.uid), curp, alumnoNombre: alumno.nombre, area: grupoCaptura.area, semestre: grupoCaptura.semestre, grupo: grupoCaptura.grupo, fecha: decision.fecha, hora: decision.hora, estado: estadoRegistro, materia, materiaKey: key, claseId: String(cl._id), horaInicio: decision.bloque.inicio, horaFin: decision.bloque.fin, docente: req.u.id, docenteNombre: s(req.u.nombre) });
     } catch (e) {
         if (e.code !== 11000) throw e;
         const duplicada = await asistencias.findOne({ _id: uid });
@@ -666,8 +733,8 @@ app.post('/api/asistencias', auth, h(async (req, res) => {
     }
     await asistencias.deleteOne({ _id: `F:${curp}:${decision.fecha}:${key}:${cl._id}` });
     await asistencias.deleteOne({ _id: `F:${curp}:${decision.fecha}:${key}` });
-    await avisar(alumno, 'asistio', decision.hora, decision.fecha, s(a.uid), materia);
-    res.status(201).json({ ok: true, fecha: decision.fecha, hora: decision.hora });
+    if (estadoRegistro === 'retardo') await avisar(alumno, 'retardo', decision.hora, decision.fecha, s(a.uid), materia, `${alumno.nombre} llegó con retardo a ${materia} (${alumno.semestre} ${alumno.area} ${alumno.grupo}) a las ${decision.hora}.`);
+    res.status(201).json({ ok: true, fecha: decision.fecha, hora: decision.hora, estado: estadoRegistro });
 }));
 
 app.get('/api/asistencias/pendientes', auth, h(async (req, res) => {
@@ -716,10 +783,14 @@ app.post('/api/asistencias/pendientes/:uid/resolver', auth, h(async (req, res) =
                 throw Object.assign(new Error('No se puede confirmar la asistencia fuera del ciclo escolar o en un día sin clases.'), { status: 403 });
             const duplicada = await asistencias.findOne({
                 curp: pendiente.curp,
+                alumnoNombre: pendiente.alumnoNombre,
+                area: pendiente.area,
+                semestre: pendiente.semestre,
+                grupo: pendiente.grupo,
                 fecha: pendiente.fecha,
                 materiaKey: pendiente.materiaKey,
                 claseId: pendiente.claseId,
-                estado: 'asistio'
+                estado: { $in: ['asistio', 'retardo'] }
             });
             if (duplicada && duplicada._id !== uid) throw Object.assign(new Error('Ya existe otra asistencia confirmada para este alumno, materia y fecha'), { status: 409 });
             if (!duplicada) await asistencias.insertOne({
@@ -727,7 +798,7 @@ app.post('/api/asistencias/pendientes/:uid/resolver', auth, h(async (req, res) =
                 curp: pendiente.curp,
                 fecha: pendiente.fecha,
                 hora: pendiente.horaDeclarada,
-                estado: 'asistio',
+                estado: Number(minutosDeHora(pendiente.horaDeclarada)) > Number(minutosDeHora(pendiente.horaInicio)) + 10 ? 'retardo' : 'asistio',
                 materia: pendiente.materia,
                 materiaKey: pendiente.materiaKey,
                 claseId: pendiente.claseId,
@@ -740,7 +811,8 @@ app.post('/api/asistencias/pendientes/:uid/resolver', auth, h(async (req, res) =
                 revisadoPor: req.u.id
             });
             const alumno = await usuarios.findOne({ _id: 'alumno:' + pendiente.curp, rol: 'alumno' });
-            if (alumno) await avisar(alumno, 'asistio', pendiente.horaDeclarada, pendiente.fecha, uid, pendiente.materia);
+            if (alumno && Number(minutosDeHora(pendiente.horaDeclarada)) > Number(minutosDeHora(pendiente.horaInicio)) + 10)
+                await avisar(alumno, 'retardo', pendiente.horaDeclarada, pendiente.fecha, uid, pendiente.materia, `${alumno.nombre} llegó con retardo a ${pendiente.materia} (${pendiente.semestre} ${pendiente.area} ${pendiente.grupo}) a las ${pendiente.horaDeclarada}.`);
         }
         const estado = accion === 'confirmar' ? 'confirmada' : 'rechazada';
         const actualizacion = await asistenciasPendientes.updateOne(
@@ -792,14 +864,18 @@ app.post('/api/cierres/pendientes/:uid/resolver', auth, h(async (req, res) => {
             const ultimo = bloques.slice().sort((a, b) => b.fin.localeCompare(a.fin))[0];
             const hora = ultimo.fin;
             const aprobados = await permisos.find({ estado: 'aprobado' }).toArray();
-            const alumnos = await usuarios.find({ rol: 'alumno', area: pendiente.area, semestre: pendiente.semestre, grupo: pendiente.grupo }).toArray();
-            const presentes = new Set((await asistencias.find({ fecha: pendiente.fecha, estado: 'asistio', $or: [{ claseId: String(clase._id) }, { claseId: { $exists: false }, docente: pendiente.docente, materiaKey: pendiente.materiaKey }] }).toArray()).map(a => a.curp));
+            const alumnos = await usuarios.find({ rol: 'alumno', egresado: { $ne: true }, area: pendiente.area, semestre: pendiente.semestre, grupo: pendiente.grupo }).toArray();
+            const presentes = new Set((await asistencias.find({ fecha: pendiente.fecha, estado: { $in: ['asistio', 'retardo'] }, $or: [{ claseId: String(clase._id) }, { claseId: { $exists: false }, docente: pendiente.docente, materiaKey: pendiente.materiaKey }] }).toArray()).map(a => a.curp));
             for (const alumno of alumnos.filter(x => !presentes.has(x.curp))) {
                 const permiso = aprobados.find(x => x.curp === alumno.curp && x.desde <= pendiente.fecha && pendiente.fecha <= x.hasta);
                 try {
                     await asistencias.insertOne({
                         _id: `F:${alumno.curp}:${pendiente.fecha}:${pendiente.materiaKey}:${pendiente.claseId}`,
                         curp: alumno.curp,
+                        alumnoNombre: alumno.nombre,
+                        area: pendiente.area,
+                        semestre: pendiente.semestre,
+                        grupo: pendiente.grupo,
                         fecha: pendiente.fecha,
                         hora,
                         estado: permiso ? 'justificada' : 'falta',
@@ -904,13 +980,13 @@ app.post('/api/cierre', auth, h(async (req, res) => {
     const fecha = momento.fecha, hora = momento.hora;
     const bl = bloquesHoy.sort((x, y) => x.inicio.localeCompare(y.inicio))[0], hr = bl.inicio ? ` (${bl.inicio} a ${bl.fin})` : '';
     const aprobados = await permisos.find({ estado: 'aprobado' }).toArray();
-    const alumnos = await usuarios.find({ rol: 'alumno', area, semestre, grupo }).toArray();
-    const presentes = new Set((await asistencias.find({ fecha, estado: 'asistio', $or: [{ claseId: String(cl._id) }, { claseId: { $exists: false }, docente: req.u.id, materiaKey: key }] }).toArray()).map(a => a.curp));
+    const alumnos = await usuarios.find({ rol: 'alumno', egresado: { $ne: true }, area, semestre, grupo }).toArray();
+    const presentes = new Set((await asistencias.find({ fecha, estado: { $in: ['asistio', 'retardo'] }, $or: [{ claseId: String(cl._id) }, { claseId: { $exists: false }, docente: req.u.id, materiaKey: key }] }).toArray()).map(a => a.curp));
     const faltas = [];
     for (const al of alumnos.filter(x => !presentes.has(x.curp))) {
         const p = aprobados.find(x => x.curp === al.curp && x.desde <= fecha && fecha <= x.hasta);
         try {
-            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}:${cl._id}`, curp: al.curp, fecha, hora, estado: p ? 'justificada' : 'falta', motivo: p ? 'Permiso: ' + p.motivo : undefined, materia, materiaKey: key, claseId: String(cl._id), horaInicio: bl.inicio, horaFin: bl.fin, docente: req.u.id, docenteNombre: s(req.u.nombre) });
+            await asistencias.insertOne({ _id: `F:${al.curp}:${fecha}:${key}:${cl._id}`, curp: al.curp, alumnoNombre: al.nombre, area, semestre, grupo, fecha, hora, estado: p ? 'justificada' : 'falta', motivo: p ? 'Permiso: ' + p.motivo : undefined, materia, materiaKey: key, claseId: String(cl._id), horaInicio: bl.inicio, horaFin: bl.fin, docente: req.u.id, docenteNombre: s(req.u.nombre) });
             if (!p) faltas.push(al.nombre);
         } catch (e) { if (e.code !== 11000) throw e; }
         if (p) await avisar(al, 'justificada', hora, fecha, `${al.curp}:${fecha}:${key}`, materia, `${al.nombre} no asistió a ${materia}: justificado por permiso`);
@@ -920,12 +996,38 @@ app.post('/api/cierre', auth, h(async (req, res) => {
 }));
 
 /* Corregir: justificar una falta (avisa al tutor) o quitar un registro equivocado */
+app.post('/api/asistencias/editar', auth, h(async (req, res) => {
+    if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
+    const b = req.body || {}, curp = s(b.curp).toUpperCase(), fecha = s(b.fecha), materia = limpiaMat(b.materia), estado = s(b.estado);
+    if (!RX.curp.test(curp) || !fechaValida(fecha) || !materia || !['asistio', 'falta'].includes(estado)) return bad(res, 'Datos de asistencia inválidos');
+    if (fecha > fechaHoraMexico().fecha) return bad(res, 'No puedes editar una asistencia de una fecha futura');
+    const alumno = await usuarios.findOne({ _id: 'alumno:' + curp, rol: 'alumno' });
+    if (!alumno) return bad(res, 'Alumno no encontrado', 404);
+    const fechaDe = v => v instanceof Date ? v.toISOString().slice(0, 10) : String(v || '').slice(0, 10);
+    const historial = (alumno.historialGrupos || []).find(g => fechaDe(g.desde) <= fecha && fechaDe(g.hasta) >= fecha);
+    const grupoFecha = historial || (fechaDe(alumno.inicioSemestre || alumno.creado) <= fecha ? alumno : null);
+    const anterior = await asistencias.findOne({ curp, fecha, materiaKey: materia.toLowerCase(), estado: { $ne: 'eliminada' } });
+    const snapshot = anterior?.area && anterior?.semestre && anterior?.grupo ? anterior : grupoFecha;
+    if (!snapshot) return bad(res, 'No hay un grupo registrado para el alumno en esa fecha.', 409);
+    const cl = await miClase(req.u.id, snapshot.area, snapshot.semestre, snapshot.grupo, materia);
+    if (!cl) return bad(res, 'Solo puedes editar asistencias de tus materias y grupos', 403);
+    const key = materia.toLowerCase(), uid = `ED:${curp}:${fecha}:${key}:${cl._id}`;
+    const actual = await asistencias.findOne({ curp, fecha, materiaKey: key, claseId: String(cl._id) });
+    const cambio = { estado, motivo: s(b.motivo).slice(0, 200), docenteEdicion: req.u.id, editadoEn: new Date() };
+    if (actual) await asistencias.updateOne({ _id: actual._id }, { $set: cambio });
+    else await asistencias.insertOne({ _id: uid, curp, alumnoNombre: alumno.nombre, area: snapshot.area, semestre: snapshot.semestre, grupo: snapshot.grupo, fecha, hora: fecha === fechaHoraMexico().fecha ? fechaHoraMexico().hora : '00:00', estado, materia, materiaKey: key, claseId: String(cl._id), horaInicio: '', horaFin: '', docente: req.u.id, docenteNombre: s(req.u.nombre), ...cambio });
+    if (estado === 'falta' && actual?.estado !== 'falta') await avisar(alumno, 'falta', fecha === fechaHoraMexico().fecha ? fechaHoraMexico().hora : '', fecha, `${curp}:${fecha}:${key}`, materia, `${alumno.nombre} fue registrado con falta en ${materia} (${snapshot.semestre} ${snapshot.area} ${snapshot.grupo}) el ${fecha.split('-').reverse().join('/')}.`);
+    await registrarCambio(req, 'Asistencia editada', `${alumno.nombre} · ${materia} · ${fecha} · ${estado}`);
+    res.json({ ok: true, estado, uid: actual?._id || uid });
+}));
+
 app.post('/api/asistencias/:uid/:accion', auth, h(async (req, res) => {
     if (req.u.rol !== 'docente') return bad(res, 'Solo docentes', 403);
     const reg = await asistencias.findOne({ _id: req.params.uid });
     if (!reg) return bad(res, 'Registro no encontrado', 404);
     const al = await usuarios.findOne({ _id: 'alumno:' + reg.curp });
-    const cl = al && await miClase(req.u.id, al.area, al.semestre, al.grupo, reg.materia);
+    const snapshot = reg.area && reg.semestre && reg.grupo ? reg : al && grupoAlumnoEnFecha(al, reg.fecha);
+    const cl = al && snapshot && await miClase(req.u.id, snapshot.area, snapshot.semestre, snapshot.grupo, reg.materia);
     if (!al || !cl) return bad(res, 'Solo puedes modificar asistencias de tus materias y grupos', 403);
     if (req.params.accion === 'quitar') {
         await asistencias.deleteOne({ _id: reg._id });
@@ -972,7 +1074,7 @@ app.post('/api/admin/recuperaciones/:id/resolver', auth, soloAdmin, h(async (req
     const cuenta = await usuarios.findOne({ _id: `${solicitud.rol}:${solicitud.curp}` });
     if (!cuenta) return bad(res, 'La cuenta ya no existe', 404);
     const codigoActivacion = nuevoCodigoActivacion();
-    const cambioPassword = await usuarios.updateOne({ _id: cuenta._id }, { $set: { debeCambiarPassword: true, passwordActualizada: new Date(), sessionId: null, activationCodeHash: hashCodigoActivacion(codigoActivacion) }, $unset: { salt: '', hash: '' } });
+    const cambioPassword = await usuarios.updateOne({ _id: cuenta._id }, { $set: { debeCambiarPassword: true, requiereCodigoActivacion: true, passwordActualizada: new Date(), sessionId: null, activationCodeHash: hashCodigoActivacion(codigoActivacion) }, $unset: { salt: '', hash: '' } });
     if (!cambioPassword.matchedCount) return bad(res, 'No se pudo restablecer la contraseña de esa cuenta', 409);
     await solicitudesRecuperacion.deleteOne({ _id: solicitud._id, estado: 'pendiente' });
     await registrarCambio(req, 'Restablecimiento de contraseña', `${solicitud.rol} · ${solicitud.curp}`);
@@ -1004,15 +1106,25 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
     if (s(d.nombre).length < 3) return bad(res, 'Escribe el nombre completo');
     const previa = await conflictoCurp(rol, id);
     if (previa) return bad(res, textoConflicto(rol, previa), 409);
-    const codigoActivacion = nuevoCodigoActivacion();
-    const doc = { _id: `${rol}:${id}`, rol, id, curp: id, nombre: s(d.nombre), debeCambiarPassword: true, activationCodeHash: hashCodigoActivacion(codigoActivacion), creado: new Date() };
+    const creado = new Date();
+    const inicioSemestre = fechaHoraMexico().fecha;
+    const doc = { _id: `${rol}:${id}`, rol, id, curp: id, nombre: s(d.nombre), debeCambiarPassword: true, creado };
     if (rol === 'alumno') {            // el grupo se crea solo la primera vez que se usa
         const semestre = s(d.semestre).slice(0, 20), area = s(d.area).slice(0, 40), grupo = s(d.grupo).toUpperCase().slice(0, 3);
-        if (!semestre || !area || !['A', 'B', 'C'].includes(grupo)) return bad(res, 'Elige el semestre, el área y el grupo (A, B o C)');
-        Object.assign(doc, { area, semestre, grupo, tutores: [] });
+        const configSemestres = await periodos.findOne({ _id: 'semestres-activos' }), activos = semestresDelPeriodo(configSemestres?.periodo || 'impares');
+        if (!activos.includes(semestre) || !['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'].includes(area) || !['A', 'B', 'C'].includes(grupo)) return bad(res, 'Elige uno de los semestres activos, el área y el grupo (A, B o C)');
+        Object.assign(doc, { area, semestre, grupo, tutores: [], inicioSemestre });
     }
-    if (rol === 'tutor') doc.hijos = [];
-    let tutorId = '', tutorNuevo = null, tutorPrevio = null, codigoTutorActivacion = '';
+    let alumnoVinculo = null;
+    if (rol === 'tutor') {
+        const curpAlumno = s(d.curpAlumno).toUpperCase();
+        if (!RX.curp.test(curpAlumno)) return bad(res, 'Escribe la CURP del alumno (18 letras y números).');
+        if (curpAlumno === id) return bad(res, 'La CURP del alumno no puede ser la misma del tutor.');
+        doc.curpAlumno = curpAlumno;
+        doc.hijos = [curpAlumno];
+        alumnoVinculo = await usuarios.findOne({ _id: `alumno:${curpAlumno}`, rol: 'alumno' });
+    }
+    let tutorId = '', tutorNuevo = null, tutorPrevio = null;
     if (rol === 'alumno' && s(d.tutorCurp)) {   // el tutor se crea (o se enlaza si ya existe) junto con el alumno
         tutorId = s(d.tutorCurp).toUpperCase();
         if (!RX.curp.test(tutorId)) return bad(res, 'La CURP del tutor es inválida (18 letras y números)');
@@ -1025,8 +1137,7 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
             const docente = await usuarios.findOne({ _id: `docente:${tutorId}` }, { projection: { nombre: 1 } });
             const nombreTutor = s(d.tutorNombre) || docente?.nombre || '';
             if (nombreTutor.length < 3) return bad(res, 'Escribe el nombre completo del tutor');
-            codigoTutorActivacion = nuevoCodigoActivacion();
-            tutorNuevo = { _id: `tutor:${tutorId}`, rol: 'tutor', id: tutorId, curp: tutorId, nombre: nombreTutor, hijos: [id], debeCambiarPassword: true, activationCodeHash: hashCodigoActivacion(codigoTutorActivacion), creado: new Date() };
+            tutorNuevo = { _id: `tutor:${tutorId}`, rol: 'tutor', id: tutorId, curp: tutorId, nombre: nombreTutor, hijos: [id], curpAlumno: id, debeCambiarPassword: true, creado: new Date() };
         } else if (hijosDe(tutorPrevio).filter(x => x !== id).length >= MAX_ALUMNOS_TUTOR) {
             return bad(res, `Ese tutor ya tiene ${MAX_ALUMNOS_TUTOR} alumnos vinculados, que es el máximo.`, 409);
         }
@@ -1040,16 +1151,28 @@ app.post('/api/admin/usuarios', auth, soloAdmin, h(async (req, res) => {
         } catch (e) { await usuarios.deleteOne({ _id: doc._id }); if (e.code === 11000) return bad(res, 'La CURP del tutor ya está registrada. Una CURP no se puede repetir.', 409); throw e; }
         await registrarCambio(req, 'Vínculo tutor-alumno', `${tutorNuevo ? 'Tutor creado' : 'Tutor existente'} · ${tutorId} · ${id}`);
     }
+    if (rol === 'tutor' && alumnoVinculo) {
+        await usuarios.updateOne({ _id: alumnoVinculo._id }, { $addToSet: { tutores: id } });
+        await registrarCambio(req, 'Vinculo tutor-alumno', `${id} · ${alumnoVinculo.curp}`);
+    }
+    if (rol === 'alumno') {
+        const tutoresPendientes = await usuarios.find({ rol: 'tutor', curpAlumno: id }).toArray();
+        for (const tutor of tutoresPendientes) {
+            await usuarios.updateOne({ _id: doc._id }, { $addToSet: { tutores: tutor.curp } });
+            await usuarios.updateOne({ _id: tutor._id }, { $addToSet: { hijos: id } });
+            await registrarCambio(req, 'Vinculo tutor-alumno', `${tutor.curp} · ${id}`);
+        }
+    }
     if (rol === 'alumno') await grupos.updateOne({ _id: `${doc.semestre}|${doc.area}|${doc.grupo}` }, { $set: { semestre: doc.semestre, area: doc.area, grupo: doc.grupo, nombre: `${doc.semestre} ${doc.area} ${doc.grupo}` } }, { upsert: true });
     await registrarCambio(req, 'Cuenta creada', `${rol} · ${id}`);
-    res.status(201).json({ ok: true, tutor: tutorId ? (tutorNuevo ? 'creado' : 'vinculado') : '', codigosActivacion: [{ curp: id, codigo: codigoActivacion }, ...(tutorNuevo ? [{ curp: tutorId, codigo: codigoTutorActivacion }] : [])] });
+    res.status(201).json({ ok: true, tutor: tutorId ? (tutorNuevo ? 'creado' : 'vinculado') : '', alumnoVinculo: rol === 'tutor' ? (alumnoVinculo ? 'vinculado' : 'pendiente') : undefined });
 }));
 app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => {
     const filas = req.body?.cuentas;
     if (!Array.isArray(filas) || !filas.length || filas.length > 500) return bad(res, 'Envía entre 1 y 500 cuentas para importar.');
-    const semestresValidos = ['1-2 semestre', '3-4 semestre', '5-6 semestre'];
+    const configSemestres = await periodos.findOne({ _id: 'semestres-activos' }), semestresValidos = semestresDelPeriodo(configSemestres?.periodo || 'impares');
     const areasValidas = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'];
-    const documentos = [], codigosActivacion = [], curps = new Set(), gruposNuevos = new Map(), rolesEnArchivo = new Map();
+    const documentos = [], curps = new Set(), gruposNuevos = new Map(), rolesEnArchivo = new Map();
     for (let i = 0; i < filas.length; i++) {
         const d = filas[i] || {}, rol = s(d.rol), id = s(d.id).toUpperCase(), nombre = s(d.nombre).replace(/\s+/g, ' ');
         if (!['alumno', 'docente', 'tutor'].includes(rol)) return bad(res, `Fila ${i + 1}: rol inválido.`);
@@ -1061,17 +1184,22 @@ app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => 
         if (previosArchivo.has(rol) || (rol === 'alumno' && previosArchivo.size) || previosArchivo.has('alumno')) return bad(res, `Fila ${i + 1}: CURP repetida en el archivo.`);
         previosArchivo.add(rol); rolesEnArchivo.set(id, previosArchivo);
         curps.add(id);
-        const codigo = nuevoCodigoActivacion();
-        const doc = { _id, rol, id, curp: id, nombre, debeCambiarPassword: true, activationCodeHash: hashCodigoActivacion(codigo), creado: new Date() };
-        codigosActivacion.push({ curp: id, rol, codigo });
+        const creado = new Date();
+        const inicioSemestre = fechaHoraMexico().fecha;
+        const doc = { _id, rol, id, curp: id, nombre, debeCambiarPassword: true, creado };
         if (rol === 'alumno') {
             const semestre = s(d.semestre), area = s(d.area), grupo = s(d.grupo).toUpperCase();
             if (!semestresValidos.includes(semestre) || !areasValidas.includes(area) || !['A', 'B', 'C'].includes(grupo)) return bad(res, `Fila ${i + 1}: semestre, área o grupo inválido.`);
-            Object.assign(doc, { semestre, area, grupo, tutores: [] });
+            Object.assign(doc, { semestre, area, grupo, tutores: [], inicioSemestre });
             const key = `${semestre}|${area}|${grupo}`;
             gruposNuevos.set(key, { _id: key, semestre, area, grupo, nombre: `${semestre} ${area} ${grupo}` });
         }
-        if (rol === 'tutor') doc.hijos = [];
+        if (rol === 'tutor') {
+            const curpAlumno = s(d.curpAlumno).toUpperCase();
+            if (!RX.curp.test(curpAlumno)) return bad(res, `Fila ${i + 1}: agrega la CURP válida del alumno.`);
+            if (curpAlumno === id) return bad(res, `Fila ${i + 1}: la CURP del alumno no puede ser la misma del tutor.`);
+            Object.assign(doc, { curpAlumno, hijos: [curpAlumno] });
+        }
         documentos.push(doc);
     }
     const session = usuarios.client.startSession();
@@ -1082,6 +1210,19 @@ app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => 
             conflictos = existentes.filter(x => documentos.some(d => d.curp === x.curp && (d.rol === x.rol || d.rol === 'alumno' || x.rol === 'alumno'))).map(x => `${x.curp} (${x.rol})`);
             if (conflictos.length) return;
             await usuarios.insertMany(documentos, { ordered: true, session });
+            for (const tutor of documentos.filter(x => x.rol === 'tutor')) {
+                const alumno = await usuarios.findOne({ _id: `alumno:${tutor.curpAlumno}` }, { session });
+                if (!alumno) continue;
+                await usuarios.updateOne({ _id: tutor._id }, { $addToSet: { hijos: alumno.curp } }, { session });
+                await usuarios.updateOne({ _id: alumno._id }, { $addToSet: { tutores: tutor.curp } }, { session });
+            }
+            for (const alumno of documentos.filter(x => x.rol === 'alumno')) {
+                const tutoresPendientes = await usuarios.find({ rol: 'tutor', curpAlumno: alumno.curp }, { session }).toArray();
+                for (const tutor of tutoresPendientes) {
+                    await usuarios.updateOne({ _id: alumno._id }, { $addToSet: { tutores: tutor.curp } }, { session });
+                    await usuarios.updateOne({ _id: tutor._id }, { $addToSet: { hijos: alumno.curp } }, { session });
+                }
+            }
             for (const grupo of gruposNuevos.values()) await grupos.updateOne({ _id: grupo._id }, { $setOnInsert: grupo }, { upsert: true, session });
             await auditoria.insertOne({ accion: 'Cuentas importadas desde Excel', detalle: `${documentos.length} cuentas`, actor: req.u.id, actorNombre: req.u.nombre || 'Servicios Escolares', creado: new Date() }, { session });
         });
@@ -1090,7 +1231,7 @@ app.post('/api/admin/usuarios/importar', auth, soloAdmin, h(async (req, res) => 
         throw e;
     } finally { await session.endSession(); }
     if (conflictos.length) return bad(res, `No se creó ninguna cuenta. Estas CURP ya están registradas: ${conflictos.join(', ')}.`, 409);
-    res.status(201).json({ ok: true, creadas: documentos.length, codigosActivacion });
+    res.status(201).json({ ok: true, creadas: documentos.length });
 }));
 app.post('/api/admin/usuarios/:rol/:id/codigo-activacion', auth, soloAdmin, h(async (req, res) => {
     const rol = s(req.params.rol), id = s(req.params.id).toUpperCase();
@@ -1098,15 +1239,24 @@ app.post('/api/admin/usuarios/:rol/:id/codigo-activacion', auth, soloAdmin, h(as
     const cuenta = await usuarios.findOne({ _id: `${rol}:${id}`, debeCambiarPassword: true });
     if (!cuenta) return bad(res, 'La cuenta no existe o ya fue activada', 404);
     const codigo = nuevoCodigoActivacion();
-    await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true }, { $set: { activationCodeHash: hashCodigoActivacion(codigo) } });
+    await usuarios.updateOne({ _id: cuenta._id, debeCambiarPassword: true }, { $set: { requiereCodigoActivacion: true, activationCodeHash: hashCodigoActivacion(codigo) } });
     await registrarCambio(req, 'Código de activación emitido', `${rol} · ${id}`);
     res.json({ ok: true, codigo, curp: id });
 }));
 app.post('/api/admin/editar', auth, soloAdmin, h(async (req, res) => {
     const id = 'alumno:' + s(req.body.id).toUpperCase(), c = {};
     for (const k of ['area', 'semestre', 'grupo']) if (s(req.body[k])) c[k] = s(req.body[k]).slice(0, 40);
-    if (!await usuarios.findOne({ _id: id })) return bad(res, 'Alumno no encontrado', 404);
-    await usuarios.updateOne({ _id: id }, { $set: c });
+    const alumno = await usuarios.findOne({ _id: id });
+    if (!alumno) return bad(res, 'Alumno no encontrado', 404);
+    const nuevo = { semestre: c.semestre || alumno.semestre, area: c.area || alumno.area, grupo: c.grupo || alumno.grupo };
+    if (!SEMESTRES_VALIDOS.includes(nuevo.semestre) || !['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'].includes(nuevo.area) || !['A', 'B', 'C'].includes(nuevo.grupo)) return bad(res, 'Semestre, área o grupo inválido.');
+    if (`${nuevo.semestre}|${nuevo.area}|${nuevo.grupo}` !== `${alumno.semestre}|${alumno.area}|${alumno.grupo}`) {
+        const hoy = fechaHoraMexico().fecha, inicioNuevo = new Date(`${hoy}T12:00:00.000Z`); inicioNuevo.setUTCDate(inicioNuevo.getUTCDate() + 1);
+        c.inicioSemestre = inicioNuevo.toISOString().slice(0, 10);
+        await usuarios.updateOne({ _id: id }, [{ $set: { ...c, historialGrupos: { $concatArrays: [{ $ifNull: ['$historialGrupos', []] }, [{ semestre: '$semestre', area: '$area', grupo: '$grupo', desde: { $ifNull: ['$inicioSemestre', '$creado'] }, hasta: hoy }]] } } }]);
+        const gid = `${nuevo.semestre}|${nuevo.area}|${nuevo.grupo}`;
+        await grupos.updateOne({ _id: gid }, { $setOnInsert: { semestre: nuevo.semestre, area: nuevo.area, grupo: nuevo.grupo, nombre: `${nuevo.semestre} ${nuevo.area} ${nuevo.grupo}` } }, { upsert: true });
+    } else await usuarios.updateOne({ _id: id }, { $set: c });
     await registrarCambio(req, 'Cambio de grupo', `${id.slice(7)} · ${c.semestre || ''} ${c.area || ''} ${c.grupo || ''}`.trim());
     res.json({ ok: true });
 }));
@@ -1121,6 +1271,57 @@ app.post('/api/admin/borrar', auth, soloAdmin, h(async (req, res) => {
 /* ---------- Grupos y clases (materia + grupo + docente) ---------- */
 app.get('/api/grupos', auth, h(async (req, res) => {
     res.json((await grupos.find({}).limit(500).toArray()).map(({ _id, ...r }) => ({ id: _id, ...r })));
+}));
+app.get('/api/semestres', auth, h(async (_req, res) => {
+    const config = await periodos.findOne({ _id: 'semestres-activos' });
+    const periodo = config?.periodo === 'pares' ? 'pares' : 'impares';
+    res.json({ periodo, activos: semestresDelPeriodo(periodo), siguientes: semestresDelPeriodo(periodo === 'pares' ? 'impares' : 'pares') });
+}));
+app.post('/api/admin/semestres', auth, soloAdmin, h(async (req, res) => {
+    const periodo = s(req.body?.periodo);
+    if (!['impares', 'pares'].includes(periodo)) return bad(res, 'Elige el periodo de semestres impares o pares.');
+    await periodos.updateOne({ _id: 'semestres-activos' }, { $set: { periodo, actualizado: new Date(), actualizadoPor: req.u.id } }, { upsert: true });
+    await registrarCambio(req, 'Periodo de semestres actualizado', `Semestres ${periodo} activos: ${semestresDelPeriodo(periodo).join(', ')}`);
+    res.json({ periodo, activos: semestresDelPeriodo(periodo), siguientes: semestresDelPeriodo(periodo === 'pares' ? 'impares' : 'pares') });
+}));
+app.post('/api/admin/grupos', auth, soloAdmin, h(async (req, res) => {
+    const semestre = s(req.body?.semestre), area = s(req.body?.area), grupo = s(req.body?.grupo).toUpperCase();
+    const areasValidas = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'];
+    if (!SEMESTRES_VALIDOS.includes(semestre) || !areasValidas.includes(area) || !['A', 'B', 'C'].includes(grupo)) return bad(res, 'Elige semestre, área y grupo válidos.');
+    const id = `${semestre}|${area}|${grupo}`;
+    await grupos.updateOne({ _id: id }, { $setOnInsert: { semestre, area, grupo, nombre: `${semestre} ${area} ${grupo}`, creado: new Date() } }, { upsert: true });
+    await registrarCambio(req, 'Grupo preparado', `${semestre} ${area} ${grupo}`);
+    res.status(201).json({ ok: true, id });
+}));
+app.post('/api/admin/grupos/avanzar', auth, soloAdmin, h(async (req, res) => {
+    const semestre = s(req.body?.semestre), area = s(req.body?.area), grupo = s(req.body?.grupo).toUpperCase();
+    const numero = Number(semestre.match(/^([1-6]) semestre$/)?.[1] || 0);
+    if (!numero || !['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'].includes(area) || !['A', 'B', 'C'].includes(grupo)) return bad(res, 'Grupo de origen inválido.');
+    const configSemestres = await periodos.findOne({ _id: 'semestres-activos' });
+    if (!semestresDelPeriodo(configSemestres?.periodo || 'impares').includes(semestre)) return bad(res, 'Ese semestre no forma parte del periodo activo.', 409);
+    const calendario = await periodoActivo();
+    const parcialTres = calendario && estadoPeriodo(calendario, fechaHoraMexico().fecha).parciales?.find(x => x.n === 3);
+    if (parcialTres?.estado !== 'cerrado') return bad(res, 'Control Escolar puede confirmar el avance cuando el tercer parcial esté cerrado.', 409);
+    const filtro = { rol: 'alumno', semestre, area, grupo, egresado: { $ne: true } };
+    const alumnos = await usuarios.find(filtro).toArray();
+    if (!alumnos.length) return bad(res, 'No hay alumnos activos en ese grupo.', 404);
+    if (numero === 6) {
+        const ahora = new Date(), hoy = fechaHoraMexico().fecha;
+        await usuarios.updateMany(filtro, [{ $set: { egresado: true, egresadoEn: ahora, historialGrupos: { $concatArrays: [{ $ifNull: ['$historialGrupos', []] }, [{ semestre: '$semestre', area: '$area', grupo: '$grupo', desde: { $ifNull: ['$inicioSemestre', '$creado'] }, hasta: hoy, estado: 'egresado' }]] } } }]);
+        await registrarCambio(req, 'Grupo egresado', `${alumnos.length} alumnos · 6 semestre ${area} ${grupo}`);
+        return res.json({ ok: true, egresados: alumnos.length });
+    }
+    const siguiente = `${numero + 1} semestre`, idDestino = `${siguiente}|${area}|${grupo}`;
+    if (!await grupos.findOne({ _id: idDestino })) return bad(res, `Prepara primero el grupo destino ${siguiente} ${area} ${grupo}, con sus materias y horario.`, 409);
+    const filtroDestino = { semestre: siguiente, area, grupo };
+    if (!await clases.findOne(filtroDestino) || !await horarios.findOne({ ...filtroDestino, tipo: 'clase' })) return bad(res, `Completa primero las materias y el horario de ${siguiente} ${area} ${grupo}.`, 409);
+    const hoy = fechaHoraMexico().fecha, ahora = new Date(`${hoy}T12:00:00.000Z`); ahora.setUTCDate(ahora.getUTCDate() + 1);
+    await usuarios.updateMany(filtro, [
+        { $set: { historialGrupos: { $concatArrays: [{ $ifNull: ['$historialGrupos', []] }, [{ semestre: '$semestre', area: '$area', grupo: '$grupo', desde: { $ifNull: ['$inicioSemestre', '$creado'] }, hasta: hoy }]] }, semestre: siguiente, inicioSemestre: ahora.toISOString().slice(0, 10) } }
+    ]);
+    await grupos.updateOne({ _id: idDestino }, { $set: { semestre: siguiente, area, grupo, nombre: `${siguiente} ${area} ${grupo}` } }, { upsert: true });
+    await registrarCambio(req, 'Alumnos avanzaron de semestre', `${alumnos.length} alumnos · ${semestre} ${area} ${grupo} → ${siguiente} ${area} ${grupo}`);
+    res.json({ ok: true, avanzados: alumnos.length, semestre: siguiente });
 }));
 app.post('/api/admin/grupos/eliminar-cuentas', auth, soloAdmin, h(async (req, res) => {
     const g = await grupos.findOne({ _id: s(req.body.id) });
@@ -1142,7 +1343,7 @@ app.get('/api/clases', auth, h(async (req, res) => {
     if (req.u.rol === 'docente') q = req.query.area ? { area: s(req.query.area), semestre: s(req.query.semestre), grupo: s(req.query.grupo) } : { docente: req.u.id };
     else if (req.u.rol !== 'admin') {
         const gs = new Set();
-        for (const c of await permitidas(req.u)) { const al = await usuarios.findOne({ _id: 'alumno:' + c }); if (al) gs.add(`${al.area}|${al.semestre}|${al.grupo}`); }
+        for (const c of await permitidas(req.u)) { const al = await usuarios.findOne({ _id: 'alumno:' + c }); if (al && !al.egresado) gs.add(`${al.area}|${al.semestre}|${al.grupo}`); }
         return res.json((await clases.find({}).limit(2000).toArray()).filter(x => gs.has(`${x.area}|${x.semestre}|${x.grupo}`)).map(({ _id, ...r }) => ({ id: _id, ...r })));
     }
     res.json((await clases.find(q).limit(1000).toArray()).map(({ _id, ...r }) => ({ id: _id, ...r })));
@@ -1174,14 +1375,14 @@ app.get('/api/horarios', auth, h(async (req, res) => {
     }
     else if (req.u.rol !== 'admin') {
         const gs = new Set();
-        for (const c of await permitidas(req.u)) { const al = await usuarios.findOne({ _id: 'alumno:' + c }); if (al) gs.add(`${al.area}|${al.semestre}|${al.grupo}`); }
+        for (const c of await permitidas(req.u)) { const al = await usuarios.findOne({ _id: 'alumno:' + c }); if (al && !al.egresado) gs.add(`${al.area}|${al.semestre}|${al.grupo}`); }
         l = l.filter(b => gs.has(`${b.area}|${b.semestre}|${b.grupo}`));
     }
     res.json(l.map(({ _id, ...r }) => ({ id: _id, ...r })));
 }));
 app.post('/api/admin/horarios', auth, adminDe('gabriela', 'control'), h(async (req, res) => {
     const b = req.body || {}, area = s(b.area), semestre = s(b.semestre), grupo = s(b.grupo).toUpperCase(), dia = Number(b.dia), tipo = b.tipo === 'descanso' ? 'descanso' : 'clase', HM = /^\d{2}:\d{2}$/;
-    const SEM_OK = ['1-2 semestre', '3-4 semestre', '5-6 semestre'], AREAS_OK = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'];
+    const SEM_OK = SEMESTRES_VALIDOS, AREAS_OK = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'];
     if (!SEM_OK.includes(semestre) || !AREAS_OK.includes(area) || !['A', 'B', 'C'].includes(grupo)) return bad(res, 'Grupo inválido');
     if (tipo === 'clase' && s(b.inicio) < '10:00' && s(b.fin) > '09:30') return bad(res, 'Ese horario choca con el descanso fijo (9:30 a 10:00)');
     if (!(dia >= 1 && dia <= 6) || !HM.test(s(b.inicio)) || !HM.test(s(b.fin)) || s(b.fin) <= s(b.inicio)) return bad(res, 'Revisa el día y las horas');
@@ -1203,6 +1404,11 @@ app.post('/api/admin/horarios', auth, adminDe('gabriela', 'control'), h(async (r
         }
         if (!cl || `${cl.area}|${cl.semestre}|${cl.grupo}` !== `${area}|${semestre}|${grupo}`) return bad(res, 'Elige una clase de ese grupo');
         Object.assign(doc, { materia: cl.materia, claseId: cl._id, docente: cl.docente, docenteNombre: cl.docenteNombre });
+        const traslape = await horarios.findOne({
+            tipo: 'clase', dia, docente: cl.docente,
+            inicio: { $lt: doc.fin }, fin: { $gt: doc.inicio }
+        });
+        if (traslape) return bad(res, `El docente ${cl.docenteNombre || cl.docente} ya tiene ${traslape.materia} de ${traslape.inicio} a ${traslape.fin} ese día. Elige otro horario.`, 409);
     }
     await grupos.updateOne({ _id: `${semestre}|${area}|${grupo}` }, { $setOnInsert: { semestre, area, grupo, nombre: `${semestre} ${area} ${grupo}` } }, { upsert: true });
     await horarios.insertOne(doc);
@@ -1218,6 +1424,7 @@ app.post('/api/admin/horarios/borrar', auth, adminDe('gabriela', 'control'), h(a
 }));
 app.post('/api/admin/vincular', auth, soloAdmin, h(async (req, res) => {
     const t = s(req.body.tutor).toUpperCase(), a = s(req.body.alumno).toUpperCase();
+    if (!RX.curp.test(t) || !RX.curp.test(a) || t === a) return bad(res, 'Revisa las CURP del tutor y del alumno.');
     const tu = await usuarios.findOne({ _id: 'tutor:' + t }), al = await usuarios.findOne({ _id: 'alumno:' + a });
     if (!tu || !al) return bad(res, 'No se encontró el tutor o el alumno', 404);
     if (!hijosDe(tu).includes(a) && hijosDe(tu).length >= MAX_ALUMNOS_TUTOR) return bad(res, `Un tutor puede tener máximo ${MAX_ALUMNOS_TUTOR} alumnos vinculados.`, 409);

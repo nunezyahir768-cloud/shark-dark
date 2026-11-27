@@ -395,6 +395,10 @@ const { fechaHoraMexico } = asistenciaReglas;
     await put('asistencias', a);
     await put('cola', { tipo: 'asistencia', uid: a.uid, datos: { ...a, autorizacion } });
     refrescarBadge();
+    if (!capturaOffline) {
+      await sync();
+      return { duplicada: false, asistencia: await get('asistencias', a.uid) || a };
+    }
     sync();
     return { duplicada: false, asistencia: a };
   }
@@ -478,7 +482,13 @@ const { fechaHoraMexico } = asistenciaReglas;
           if (a) { a.pendiente = false; await put('alumnos', a); }
         } else if (q.tipo === 'asistencia') {
           const a = await get('asistencias', q.uid);
-          if (a) { a.pendiente = false; a.revisionPendiente = !!resultado?.revisionPendiente; await put('asistencias', a); }
+          if (a) {
+            a.pendiente = false;
+            a.revisionPendiente = !!resultado?.revisionPendiente;
+            if (resultado?.estado) a.estado = resultado.estado;
+            else if (a.horaInicio && a.hora && Number(a.hora.slice(0, 2)) * 60 + Number(a.hora.slice(3, 5)) > Number(a.horaInicio.slice(0, 2)) * 60 + Number(a.horaInicio.slice(3, 5)) + 10) a.estado = 'retardo';
+            await put('asistencias', a);
+          }
         }
       }
       const s = ses();
@@ -507,7 +517,7 @@ const { fechaHoraMexico } = asistenciaReglas;
         const pendientesIds = new Set(pendientesAsistencia.filter(x => x.tipo === 'asistencia').map(x => x.uid));
         for (const a of lista) await put('asistencias', { ...a, pendiente: false });
         for (const a of pendientesAsistencia.filter(x => x.tipo === 'asistencia'))
-          await put('asistencias', { ...a, hora: a.horaDeclarada, estado: 'asistio', pendiente: false, revisionPendiente: true });
+          await put('asistencias', { ...a, hora: a.horaDeclarada, estado: a.horaInicio && Number(a.horaDeclarada.slice(0, 2)) * 60 + Number(a.horaDeclarada.slice(3, 5)) > Number(a.horaInicio.slice(0, 2)) * 60 + Number(a.horaInicio.slice(3, 5)) + 10 ? 'retardo' : 'asistio', pendiente: false, revisionPendiente: true });
         for (const l of await all('asistencias')) if (!l.pendiente && !ids.has(l.uid) && !pendientesIds.has(l.uid)) await del('asistencias', l.uid);   // quitadas o revisadas en el servidor
         for (const [k, path] of [
           ['clases', '/api/clases'], ['horario', '/api/horarios'], ['calif', '/api/calificaciones'],

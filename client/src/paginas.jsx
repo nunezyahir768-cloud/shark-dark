@@ -123,27 +123,64 @@ export function PerfilDocente() {
 }
 
 export function AsistenciaVer() {
+  const [modal, setModal] = useState('');
   const al = useAlumno(), d = useDatos();
   if (!al) return <Sin />;
   const rs = d.asistencias.filter(a => a.curp === al.curp), g = resumenAsistencia(rs);
   const materias = [...new Set(rs.map(a => a.materia).filter(Boolean))].sort();
   const diasEscuela = [...new Set(rs.map(a => a.fecha))].sort((a, b) => b.localeCompare(a)).map(fecha => ({
     fecha,
-    asistio: rs.some(a => a.fecha === fecha && a.estado === 'asistio')
+    asistio: rs.some(a => a.fecha === fecha && ['asistio', 'retardo'].includes(a.estado))
   }));
   const av = d.avisos.filter(a => a.curp === al.curp).sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora)).slice(0, 8);
+  const tituloAlumno = al.nombre || 'Asistencia';
   return (<>
-    <Hero titulo="Asistencia" sub={al.nombre} />
-    <Card title="Asistencia a la escuela"><div className="tabla"><table className="tb"><thead><tr><th>Día</th><th>Mes</th><th>Año</th><th>¿Asistió?</th></tr></thead>
-      <tbody>{diasEscuela.map(({ fecha, asistio }) => { const [anio, mes, dia] = fecha.split('-'); return <tr key={fecha}><td>{Number(dia)}</td><td>{Number(mes)}</td><td>{anio}</td><td aria-label={asistio ? 'Sí asistió' : 'No asistió'}>{asistio ? '☑' : '✕'}</td></tr>; })}
-        {!diasEscuela.length && <tr><td colSpan="4">Sin registros todavía</td></tr>}</tbody></table></div></Card>
-    <AccesosEscuela curp={al.curp} />
-    <Card title="Por clase"><div className="tabla"><table className="tb"><thead><tr><th className="izq">Materia</th><th>Asistió</th><th>Faltas</th><th>Justif.</th><th>%</th></tr></thead>
-      <tbody>{materias.map(m => { const r = resumenAsistencia(rs.filter(a => a.materia === m)); return <tr key={m}><td className="izq">{m}</td><td>{r.asist}</td><td>{r.falt}</td><td>{r.just}</td><td>{r.pct}%</td></tr>; })}
-        {!materias.length && <tr><td className="izq" colSpan="5">Sin registros todavía</td></tr>}</tbody></table></div></Card>
-    <Card title="Faltas (fecha, horario y materia)"><ListaFaltas rs={rs} /></Card>
-    {SD.session().rol === 'tutor' && <Card title="Avisos de asistencia"><ul className="l">{av.map(a => <li key={a.id}><span>{a.texto}</span><span>{fmtF(a.fecha)}</span></li>)}{!av.length && <li className="vacio">Sin avisos</li>}</ul></Card>}
+    <Hero titulo="Asistencia" sub={tituloAlumno} />
+    <div className="secciones-vista" aria-label="Secciones de asistencia">
+      <TarjetaSeccionAsistencia icono="puerta" titulo="Entrada y salida de la escuela" resumen="Consulta asistencias por fecha y movimientos de entrada y salida." acento="rojo" onClick={() => setModal('escuela')} />
+      <TarjetaSeccionAsistencia icono="grupo" titulo="Por clase" resumen={materias.length ? `${materias.length} materias con registros` : 'Sin registros todavía'} acento="dorado" onClick={() => setModal('clase')} />
+      <TarjetaSeccionAsistencia icono="alerta" titulo="Faltas" resumen={g.falt ? `${g.falt} falta${g.falt === 1 ? '' : 's'} registrada${g.falt === 1 ? '' : 's'}` : 'Sin faltas'} acento="rojo" onClick={() => setModal('faltas')} />
+      {SD.session().rol === 'tutor' && <TarjetaSeccionAsistencia icono="aviso" titulo="Avisos de asistencia" resumen={av.length ? `${av.length} avisos recientes` : 'Sin avisos recientes'} acento="dorado" onClick={() => setModal('avisos')} />}
+    </div>
+    <PanelEmergente abierto={modal === 'escuela'} titulo="Entrada y salida de la escuela" onCerrar={() => setModal('')}>
+      <Card title="Asistencia por fecha"><div className="tabla"><table className="tb"><thead><tr><th>Día</th><th>Mes</th><th>Año</th><th>¿Asistió?</th></tr></thead>
+        <tbody>{diasEscuela.map(({ fecha, asistio }) => { const [anio, mes, dia] = fecha.split('-'); return <tr key={fecha}><td>{Number(dia)}</td><td>{Number(mes)}</td><td>{anio}</td><td aria-label={asistio ? 'Sí asistió' : 'No asistió'}>{asistio ? '☑' : '✕'}</td></tr>; })}
+          {!diasEscuela.length && <tr><td colSpan="4">Sin registros todavía</td></tr>}</tbody></table></div></Card>
+      <AccesosEscuela curp={al.curp} />
+    </PanelEmergente>
+    <PanelEmergente abierto={modal === 'clase'} titulo="Asistencia por clase" onCerrar={() => setModal('')}>
+      <Card title="Resumen por materia"><div className="tabla"><table className="tb"><thead><tr><th className="izq">Materia</th><th>Asistió</th><th>Retardos</th><th>Faltas</th><th>Justif.</th><th>%</th></tr></thead>
+        <tbody>{materias.map(m => { const r = resumenAsistencia(rs.filter(a => a.materia === m)); return <tr key={m}><td className="izq">{m}</td><td>{r.asist}</td><td>{r.retardo}</td><td>{r.falt}</td><td>{r.just}</td><td>{r.pct}%</td></tr>; })}
+          {!materias.length && <tr><td className="izq" colSpan="6">Sin registros todavía</td></tr>}</tbody></table></div></Card>
+    </PanelEmergente>
+    <PanelEmergente abierto={modal === 'faltas'} titulo="Faltas" onCerrar={() => setModal('')}>
+      <Card title="Fecha, horario y materia"><ListaFaltas rs={rs} /></Card>
+    </PanelEmergente>
+    <PanelEmergente abierto={modal === 'avisos'} titulo="Avisos de asistencia" onCerrar={() => setModal('')}>
+      <Card title="Avisos recientes"><ul className="l">{av.map(a => <li key={a.id}><span>{a.texto}</span><span>{fmtF(a.fecha)}</span></li>)}{!av.length && <li className="vacio">Sin avisos</li>}</ul></Card>
+    </PanelEmergente>
   </>);
+}
+
+const ICONOS_SECCION_ASISTENCIA = {
+  puerta: 'M14 3h5v18h-5M14 12H3m0 0 4-4m-4 4 4 4M9 3H5v5m0 8v5h4',
+  grupo: 'M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-3a3 3 0 0 0 0-6m3 15v-2a4 4 0 0 0-3-3.87',
+  alerta: 'M12 3 2.8 19a1.4 1.4 0 0 0 1.2 2h16a1.4 1.4 0 0 0 1.2-2L12 3Zm0 6v5m0 3h.01',
+  aviso: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4',
+  calendario: 'M4 5h16v16H4zM8 3v4m8-4v4M4 10h16',
+  libro: 'M4 5.5A3.5 3.5 0 0 1 7.5 2H20v17H7.5A3.5 3.5 0 0 0 4 22zM4 5.5v13A3.5 3.5 0 0 1 7.5 15H20',
+  reloj: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm0-16v6l4 2',
+  tabla: 'M3 4h18v16H3zM3 10h18M9 4v16m6-16v16'
+};
+function IconoSeccionAsistencia({ nombre }) {
+  return <svg className="seccion-vista__svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONOS_SECCION_ASISTENCIA[nombre] || ICONOS_SECCION_ASISTENCIA.calendario} /></svg>;
+}
+function TarjetaSeccionAsistencia({ icono, titulo, resumen, acento, onClick }) {
+  return <button type="button" className={`seccion-vista ${acento || ''}`} onClick={onClick} aria-haspopup="dialog">
+    <span className="seccion-vista__icono"><IconoSeccionAsistencia nombre={icono} /></span>
+    <span className="seccion-vista__texto"><b>{titulo}</b><span>{resumen}</span></span>
+    <svg className="seccion-vista__flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+  </button>;
 }
 
 function AccesosEscuela({ curp }) {
@@ -152,7 +189,7 @@ function AccesosEscuela({ curp }) {
   const deHoy = (registros || []).filter(x => x.fecha === hoy);
   const recientes = (registros || []).filter(x => x.fecha !== hoy);
   const lista = eventos => eventos.map(x => <li key={x.uid}><span>{x.fecha} · {x.hora}</span><span>{x.tipo === 'entrada' ? 'Entrada' : 'Salida'}</span></li>);
-  return <Card title="Entrada y salida de la escuela">
+  return <Card title="Registro de entradas y salidas">
     {registros === null ? <p className="vacio">Cargando registros…</p> : <>
       <p className="sub">Hoy</p><ul className="l">{lista(deHoy)}{!deHoy.length && <li className="vacio">Sin entradas o salidas registradas hoy.</li>}</ul>
       <p className="sub">Días recientes</p><ul className="l">{lista(recientes)}{!recientes.length && <li className="vacio">Sin registros anteriores recientes.</li>}</ul>
@@ -201,30 +238,33 @@ export function Horario() {
   const rol = SD.session().rol, al = useAlumno(), [bl] = useCached('horario', '/api/horarios');
   const base = rol === 'docente' ? (bl || []) : delGrupo(bl, al), lista = conDescanso(base);
   const dias = [1, 2, 3, 4, 5, 6].filter(d => d <= 5 || lista.some(b => b.dia === d));
-  const hoy = new Date().getDay(), [dia, setDia] = useState(dias.includes(hoy) ? hoy : 1), [vista, setVista] = useState('dia');
+  const hoy = new Date().getDay(), [dia, setDia] = useState(dias.includes(hoy) ? hoy : 1), [modal, setModal] = useState('');
   if (rol !== 'docente' && !al) return <Sin />;
   const clases = lista.filter(b => b.dia === dia).sort((a, b) => a.inicio.localeCompare(b.inicio));
   const abrevia = {1:'LUN',2:'MAR',3:'MIÉ',4:'JUE',5:'VIE',6:'SÁB'};
+  const encabezado = rol === 'docente' ? 'CBTIS 170 · Horario del docente' : `${al.semestre} · ${al.area} · Grupo ${al.grupo}`;
+  const resumenDia = clases.length ? `${clases.length} actividades para ${DIAS[dia]}` : `Sin actividades registradas para ${DIAS[dia]}`;
+  const totalClases = base.filter(b => b.tipo !== 'descanso').length;
   return (<>
-    <Hero titulo="Mi horario escolar" sub={rol === 'docente' ? 'CBTIS 170 · HORARIO DE CLASES' : `${al.semestre} · ${al.area} · Grupo ${al.grupo}`} />
-    <div className="fila2 horario-vistas">
-      <button className={vista === 'dia' ? 'btn' : 'btn sec'} type="button" aria-pressed={vista === 'dia'} onClick={() => setVista('dia')}>Por día</button>
-      <button className={vista === 'tabla' ? 'btn' : 'btn sec'} type="button" aria-pressed={vista === 'tabla'} onClick={() => setVista('tabla')}>Horario completo</button>
+    <Hero titulo="Mi horario escolar" sub={encabezado} />
+    <div className="secciones-vista horario-secciones" aria-label="Secciones del horario">
+      <TarjetaSeccionAsistencia icono="calendario" titulo="Horario por día" resumen={resumenDia} acento="rojo" onClick={() => setModal('dia')} />
+      <TarjetaSeccionAsistencia icono="tabla" titulo="Horario completo" resumen={totalClases ? `${totalClases} clases registradas en la semana` : 'Sin clases registradas todavía'} acento="dorado" onClick={() => setModal('tabla')} />
     </div>
-    {vista === 'tabla' && <HorarioTabla bloques={base} rol={rol} encabezado={rol === 'docente' ? 'CBTIS 170 · Horario del docente' : `${al.semestre} · ${al.area} · Grupo ${al.grupo}`} />}
-    {vista === 'dia' && <>
-    <Card title="Selecciona el día">
-      <div className="dias-selector">{dias.map(d => <button key={d} className={dia === d ? 'activo' : ''} onClick={() => setDia(d)}>{abrevia[d]}</button>)}</div>
-    </Card>
-    <Card title={`${DIAS[dia]} · Clases del día`}>
+    <PanelEmergente abierto={modal === 'dia'} titulo={`${DIAS[dia]} · Clases del día`} onCerrar={() => setModal('')}>
+      <p className="sub horario-encabezado">{encabezado}</p>
+      <div className="dias-selector horario-dias">{dias.map(d => <button key={d} type="button" className={dia === d ? 'activo' : ''} aria-pressed={dia === d} onClick={() => setDia(d)}>{abrevia[d]}</button>)}</div>
       {!base.length && <p className="vacio">Servicios Escolares aún no captura el horario.</p>}
       {clases.map(b => <div key={b.id} className={'clase-horario' + (b.tipo === 'descanso' ? ' descanso' : '')}>
-        <div><div className="materia">{b.materia}</div><div className="detalle">{b.tipo === 'descanso' ? 'Tiempo de descanso' : rol === 'docente' ? `${b.semestre || ''} ${b.area || ''} ${b.grupo || ''}` : `Docente: ${b.docenteNombre || 'Por configurar'}`}</div>{b.tipo !== 'descanso' && <div className="detalle">Salón: {b.salon || 'Por asignar'}</div>}</div>
+        <span className="clase-horario__icono"><IconoSeccionAsistencia nombre={b.tipo === 'descanso' ? 'reloj' : 'libro'} /></span>
+        <div className="clase-horario__contenido"><div className="materia">{b.materia}</div><div className="detalle">{b.tipo === 'descanso' ? 'Tiempo de descanso' : rol === 'docente' ? `${b.semestre || ''} ${b.area || ''} ${b.grupo || ''}` : `Docente: ${b.docenteNombre || 'Por configurar'}`}</div>{b.tipo !== 'descanso' && <div className="detalle">Salón: {b.salon || 'Por asignar'}</div>}</div>
         <div className="hora">{hh(b.inicio)}–{hh(b.fin)}</div>
       </div>)}
       {base.length && !clases.length && <p className="vacio">No hay clases registradas para este día.</p>}
-    </Card>
-    </>}
+    </PanelEmergente>
+    <PanelEmergente abierto={modal === 'tabla'} titulo="Horario completo" onCerrar={() => setModal('')}>
+      <HorarioTabla bloques={base} rol={rol} encabezado={encabezado} />
+    </PanelEmergente>
   </>);
 }
 

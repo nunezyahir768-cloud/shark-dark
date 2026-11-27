@@ -31,57 +31,73 @@ export function AsistenciaDocente() {
   const d = useDatos(), [clases] = useCached('clases', '/api/clases'), [bl] = useCached('horario', '/api/horarios');
   const [periodo] = useCached('periodo', '/api/periodos');
   const [pendientes, cargarPendientes] = useCached('asistencias_pendientes', '/api/asistencias/pendientes'), [b, ban] = useBanner();
-  const [cid, setCid] = useState(localStorage.getItem('sd_clase_id') || ''), [curp, setCurp] = useState(''), [qr, setQr] = useState(false), [ficha, setFicha] = useState(null);
+  const [cid, setCid] = useState(localStorage.getItem('sd_clase_id') || ''), [curp, setCurp] = useState(''), [qr, setQr] = useState(false), [panel, setPanel] = useState(''), [fechaRevision, setFechaRevision] = useState(hoyISO());
   const [instante, setInstante] = useState(() => fechaHoraMexico());
   const lc = clases || [], periodoPermiteAsistencia = periodo?.estado?.enCiclo === true;
   const horario = estadoAsistenciaHorario(periodoPermiteAsistencia ? bl || [] : [], instante);
   useEffect(() => { const t = setInterval(() => setInstante(fechaHoraMexico()), 15000); return () => clearInterval(t); }, []);
-  useEffect(() => {
-    document.addEventListener('sd-sync', cargarPendientes);
-    return () => document.removeEventListener('sd-sync', cargarPendientes);
-  }, [cargarPendientes]);
+  useEffect(() => { document.addEventListener('sd-sync', cargarPendientes); return () => document.removeEventListener('sd-sync', cargarPendientes); }, [cargarPendientes]);
   const claseDeBloque = x => lc.find(k => k.id === x.claseId) || lc.find(k => k.area === x.area && k.semestre === x.semestre && k.grupo === x.grupo && k.materia.toLowerCase() === String(x.materia || '').toLowerCase()) || null;
-  const claseEscaneo = horario.actual ? claseDeBloque(horario.actual) : null;
-  const claseSiguiente = horario.siguiente ? claseDeBloque(horario.siguiente) : null;
+  const claseEscaneo = horario.actual ? claseDeBloque(horario.actual) : null, claseSiguiente = horario.siguiente ? claseDeBloque(horario.siguiente) : null;
   const c = claseEscaneo || lc.find(x => x.id === cid) || null;
   useEffect(() => { if (claseEscaneo?.id) setCid(claseEscaneo.id); }, [claseEscaneo?.id]);
   useEffect(() => { if (cid) localStorage.setItem('sd_clase_id', cid); }, [cid]);
-  const nombre = x => `${x.materia} · ${x.semestre} ${x.area} ${x.grupo}`;
+  const claseRevision = lc.find(x => x.id === cid) || lc[0] || null;
+  const nombre = x => `${x.materia} · ${x.area} · ${x.semestre} ${x.grupo}`;
+  const mismaClave = (a, k) => a.area === k.area && a.semestre === k.semestre && a.grupo === k.grupo;
+  const fechaCorta = v => v instanceof Date ? v.toISOString().slice(0, 10) : String(v || '').slice(0, 10);
+  const alumnosEnFecha = (k, fecha) => k ? d.alumnos.filter(a => {
+    const actual = !a.egresado && mismaClave(a, k) && fechaCorta(a.inicioSemestre || a.creado) <= fecha;
+    const anterior = (a.historialGrupos || []).some(g => mismaClave(g, k) && fechaCorta(g.desde) <= fecha && fechaCorta(g.hasta) >= fecha);
+    return actual || anterior;
+  }).sort((x, y) => x.nombre.localeCompare(y.nombre)) : [];
+  const alumnosClase = k => alumnosEnFecha(k, hoyISO()).filter(a => !a.egresado);
+  const reg = (al, clase, fecha = fechaRevision) => d.asistencias.find(r => r.curp === al.curp && r.fecha === fecha && (r.claseId === clase?.id || (!r.claseId && (r.materia || '').toLowerCase() === (clase?.materia || '').toLowerCase())));
 
   async function procesar(txt) {
     txt = txt.trim().toUpperCase(); setCurp(txt);
     if (txt.startsWith('CLASE:')) {
       const k = lc.find(x => x.id === txt.slice(6));
-      if (!k) return ban('err', 'Clase no encontrada', 'Ese QR no es de una de tus clases.');
-      return claseEscaneo?.id === k.id
-        ? ban('ok', 'Clase actual', nombre(k))
-        : ban('warn', 'QR de otra clase', 'Solo puedes registrar asistencia en la clase que corresponde al horario actual.');
+      if (!k) return ban('err', 'Clase no encontrada', 'Ese QR no corresponde a una clase asignada.');
+      return claseEscaneo?.id === k.id ? ban('ok', 'Clase lista', nombre(k)) : ban('warn', 'QR de otra clase', 'El horario habilita el escaneo únicamente para la clase actual.');
     }
     if (!/^[A-Z0-9]{18}$/.test(txt)) return ban('err', 'QR no válido', 'No contiene una CURP.');
-    if (!claseEscaneo) return ban('warn', 'No hay clase habilitada', claseSiguiente ? `Siguiente: ${nombre(claseSiguiente)} · ${claseSiguiente.inicio || horario.siguiente.inicio}` : 'El escáner solo se habilita durante una clase programada.');
+    if (!claseEscaneo) return ban('warn', 'Escaneo cerrado', claseSiguiente ? `Siguiente: ${nombre(claseSiguiente)} · ${horario.siguiente.inicio}` : 'Se habilita cinco minutos antes de la siguiente clase programada.');
     let r;
     try { r = await SD.consultar(txt); } catch (e) { return ban('err', 'No se pudo consultar', e.message); }
-    setFicha(r.alumno ? r : null);
-    if (!r.alumno) return ban('err', 'No encontrado', r.offline ? 'Sin conexión y ese alumno no está en este dispositivo.' : 'Esa CURP no está registrada.');
+    if (!r.alumno) return ban('err', 'No encontrado', r.offline ? 'Sin conexión y el alumno no está guardado en este dispositivo.' : 'Esa CURP no está registrada.');
     const a = r.alumno;
-    if (a.area !== claseEscaneo.area || a.semestre !== claseEscaneo.semestre || a.grupo !== claseEscaneo.grupo) return ban('warn', 'No es de este grupo', `${a.nombre} es de ${a.semestre} ${a.area} ${a.grupo}`);
+    if (a.area !== claseEscaneo.area || a.semestre !== claseEscaneo.semestre || a.grupo !== claseEscaneo.grupo) return ban('warn', 'Grupo distinto', `${a.nombre} pertenece a ${a.semestre} ${a.area} ${a.grupo}.`);
     try {
-      const x = await SD.asistencia(txt, claseEscaneo); d.refresh(); setFicha(await SD.consultar(txt));
-      if (x.duplicada) return ban('warn', 'Ya registrado', `${a.nombre} ya tenía asistencia en ${claseEscaneo.materia} (${x.asistencia.hora})`);
-      if (x.asistencia.revisionPendiente) return ban('warn', 'Pendiente de revisión', `${a.nombre} · ${claseEscaneo.materia}. No se avisará al tutor hasta que se confirme.`);
-      if (x.asistencia.pendiente) return ban('warn', x.asistencia.capturaOffline ? 'Guardada sin conexión' : 'Pendiente de sincronización', `${a.nombre} · ${claseEscaneo.materia}. No se considera confirmada hasta que el servidor la valide.`);
-      ban('ok', 'ASISTIÓ', `${a.nombre} · ${claseEscaneo.materia} · ${x.asistencia.hora}`);
+      const x = await SD.asistencia(txt, claseEscaneo); await d.refresh();
+      if (x.duplicada) return ban('warn', 'Ya registrado', `${a.nombre} ya tiene un registro para ${claseEscaneo.materia}.`);
+      if (x.asistencia.revisionPendiente) return ban('warn', 'Pendiente de revisión', 'El servidor debe validar este registro antes de notificar al tutor.');
+      if (x.asistencia.pendiente) return ban('warn', 'Sincronizando', `${a.nombre}: el registro se guardó y está esperando confirmación del servidor.`);
+      ban('ok', x.asistencia.estado === 'retardo' ? 'RETARDO' : 'ASISTENCIA REGISTRADA', `${a.nombre} · ${claseEscaneo.materia} · ${x.asistencia.hora}`);
     } catch (e) { ban('err', 'No se registró', e.message); }
   }
   async function cerrar() {
-    if (!c) return ban('err', 'Elige una clase');
-    if (!periodoPermiteAsistencia) return ban('err', 'No se puede cerrar la lista', periodo?.estado?.mensaje || 'El calendario escolar no está configurado.');
-    if (!confirm(`¿Cerrar lista de ${c.materia}?\n${c.semestre} ${c.area} ${c.grupo}\nQuien no haya asistido quedará con falta.`)) return;
+    if (!claseEscaneo) return ban('err', 'No hay clase activa para cerrar');
     try {
-      const r = await SD.cierre(c); d.refresh();
-      if (r.revisionPendiente) return ban('warn', 'Cierre pendiente de revisión', 'Se sincronizará con autorización. No se generarán faltas ni avisos hasta que lo confirmes.');
-      r.faltas.length ? ban('warn', `Faltaron ${r.faltas.length} a ${c.materia}`, r.faltas.join(', ')) : ban('ok', 'Sin faltas', `Nadie faltó sin permiso en ${c.materia}.`);
+      const r = await SD.cierre(claseEscaneo); d.refresh();
+      if (r.revisionPendiente) return ban('warn', 'Cierre pendiente', 'Quedará en revisión hasta sincronizarse.');
+      ban(r.faltas.length ? 'warn' : 'ok', r.faltas.length ? `Faltaron ${r.faltas.length}` : 'Lista cerrada', r.faltas.join(', ') || 'Se registraron asistencias y permisos.');
     } catch (e) { ban('err', 'No se pudo cerrar la lista', e.message); }
+  }
+  async function editar(al, estado) {
+    const actual = reg(al, claseRevision);
+    if (actual?.pendiente || actual?.revisionPendiente) return ban('warn', 'Registro pendiente', 'Espera a que se sincronice o revisa el registro pendiente antes de editarlo.');
+    const motivo = estado === 'falta' ? (prompt(`Motivo de la falta de ${al.nombre} (opcional):`) || '') : '';
+    try {
+      await post('/api/asistencias/editar', { curp: al.curp, fecha: fechaRevision, materia: claseRevision.materia, estado, motivo });
+      await SD.sync(); await d.refresh();
+      ban('ok', 'Asistencia actualizada', `${al.nombre}: ${estado === 'falta' ? 'falta' : 'asistencia'}.`);
+    } catch (e) { ban('err', 'No se pudo editar', e.message); }
+  }
+  async function corregir(uid) {
+    const motivo = prompt('Motivo de la justificación (opcional):'); if (motivo === null) return;
+    try { await SD.corregir(uid, 'justificar', motivo); d.refresh(); ban('ok', 'Falta justificada', 'Se guardó el cambio y se notificó al tutor.'); }
+    catch (e) { ban('err', 'No se pudo justificar', e.message); }
   }
   async function resolver(p, accion) {
     const texto = p.tipo === 'cierre' ? `el cierre de ${p.materia} · ${p.semestre} ${p.area} ${p.grupo}` : `la asistencia de ${p.alumnoNombre} a ${p.materia}`;
@@ -90,52 +106,38 @@ export function AsistenciaDocente() {
       const ruta = p.tipo === 'cierre' ? '/api/cierres/pendientes/' : '/api/asistencias/pendientes/';
       const resultado = await post(`${ruta}${encodeURIComponent(p.uid)}/resolver`, { accion });
       await SD.sync(); await d.refresh(); await cargarPendientes();
-      ban('ok', accion === 'confirmar' ? 'Registro confirmado' : 'Registro rechazado', p.tipo === 'cierre' && accion === 'confirmar'
-        ? `Se registraron ${resultado.faltas} faltas según los datos vigentes del servidor.`
-        : 'La revisión quedó guardada y auditada.');
+      ban('ok', accion === 'confirmar' ? 'Registro confirmado' : 'Registro rechazado', p.tipo === 'cierre' && accion === 'confirmar' ? `Se registraron ${resultado.faltas} faltas.` : 'La revisión quedó guardada y auditada.');
     } catch (e) { ban('err', 'No se pudo revisar', e.message); }
   }
-  async function corregir(uid, acc) {
-    let motivo = '';
-    if (acc === 'justificar') { motivo = prompt('Motivo de la justificación (opcional):'); if (motivo === null) return; }
-    else if (!confirm('¿Quitar este registro de asistencia?')) return;
-    try { await SD.corregir(uid, acc, motivo || ''); d.refresh(); ban('ok', 'Listo', acc === 'quitar' ? 'Registro quitado.' : 'Falta justificada; se avisó al tutor.'); } catch (e) { ban('err', 'No se pudo', e.message); }
-  }
-  const hoy = instante.fecha, grupo = c ? d.alumnos.filter(a => a.area === c.area && a.semestre === c.semestre && a.grupo === c.grupo).sort((x, y) => x.nombre.localeCompare(y.nombre)) : [];
-  const reg = a => d.asistencias.find(r => r.curp === a.curp && r.fecha === hoy && c && (r.materia || '').toLowerCase() === c.materia.toLowerCase());
-  const llegaron = grupo.filter(a => { const r = reg(a); return r?.estado === 'asistio' && !r.revisionPendiente; }).length;
-  return (<>
-    <Hero titulo="Asistencia" sub="El escáner se habilita solo durante el ciclo escolar y para la clase que corresponde al horario actual." /><Banner b={b} />
-    <Card title="Clase de ahora">
-      {claseEscaneo ? <><b>{nombre(claseEscaneo)}</b><p className="sub">{horario.actual.inicio}–{horario.actual.fin} · tolerancia de 10 minutos antes</p>
-        <button className="mini" type="button" style={{ marginLeft: 0, marginTop: 10 }} aria-haspopup="dialog" aria-expanded={qr} onClick={() => setQr(true)}>Ver QR de esta clase</button></>
-        : <><p className="sub">{!periodo?.configurado ? 'El calendario escolar no está configurado. La asistencia permanece bloqueada.' : !periodoPermiteAsistencia ? periodo.estado?.mensaje : <>No tienes clase en este momento.{claseSiguiente && <> Siguiente: {nombre(claseSiguiente)} · {horario.siguiente.inicio}.</>}</>}</p>
-          {c && <button className="mini" type="button" style={{ marginLeft: 0, marginTop: 10 }} aria-haspopup="dialog" aria-expanded={qr} onClick={() => setQr(true)}>Ver QR de {nombre(c)}</button>}</>}
-      {!claseEscaneo && <label>Clase para consultar o cerrar lista<select value={c ? c.id : ''} onChange={e => { setCid(e.target.value); setQr(false); }}>
-        <option value="">Elige una clase</option>{lc.map(x => <option key={x.id} value={x.id}>{nombre(x)}</option>)}
-      </select></label>}
-    </Card>
-    <PanelEmergente abierto={qr && Boolean(c)} titulo={c ? `QR de ${nombre(c)}` : 'QR de la clase'} onCerrar={() => setQr(false)}>
-      {c && <div className="qr-clase-panel"><QR texto={'CLASE:' + c.id} /><p className="sub" style={{ textAlign: 'center' }}>El registro solo se habilita si corresponde con la clase del horario actual.</p></div>}
+  const grupoEscaneo = alumnosClase(claseEscaneo), grupoRevision = alumnosEnFecha(claseRevision, fechaRevision);
+  const asistieron = grupoRevision.filter(a => ['asistio', 'retardo'].includes(reg(a, claseRevision)?.estado)).length;
+  const pendientesRevisar = (pendientes || []).length;
+  return <>
+    <Hero titulo="Asistencia" sub="Escaneo continuo por horario y revisión de tus grupos por materia." /><Banner b={b} />
+    <div className="secciones-vista asistencia-menu">
+      <button className="seccion-vista" type="button" aria-haspopup="dialog" onClick={() => setPanel('escanear')}><span className="seccion-vista__icono"><svg className="seccion-vista__svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 8V4h4m8 0h4v4m0 8v4h-4m-8 0H4v-4M4 12h16" /></svg></span><span className="seccion-vista__texto"><b>Escanear QR de clase</b><span>{claseEscaneo ? nombre(claseEscaneo) : 'Se activa cinco minutos antes según tu horario'}</span></span><span className="seccion-vista__flecha">›</span></button>
+      <button className="seccion-vista dorado" type="button" aria-haspopup="dialog" onClick={() => setPanel('revisar')}><span className="seccion-vista__icono"><svg className="seccion-vista__svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 5h16M4 12h16M4 19h10M7 3v4m10-4v4m-10 3v4m10-4v4" /></svg></span><span className="seccion-vista__texto"><b>Revisar asistencias</b><span>{lc.length} materias asignadas · {pendientesRevisar} pendientes de revisión</span></span><span className="seccion-vista__flecha">›</span></button>
+    </div>
+    <PanelEmergente abierto={panel === 'escanear'} titulo="Escanear asistencia" onCerrar={() => setPanel('')}>
+      <Banner b={b} />
+      <Card title="Clase del horario">
+        {claseEscaneo ? <><b>{nombre(claseEscaneo)}</b><p className="sub">{horario.actual.inicio}–{horario.actual.fin} · escaneo habilitado cinco minutos antes. Después de diez minutos desde el inicio, la llegada se marca con retardo.</p><button className="mini" type="button" onClick={() => setQr(v => !v)}>{qr ? 'Ocultar QR' : 'Mostrar QR de la clase'}</button>{qr && <div className="qr-clase-panel"><QR texto={'CLASE:' + claseEscaneo.id} /><p className="sub" style={{ textAlign: 'center' }}>El horario determina el grupo y materia para escanear.</p></div>}</>
+          : <p className="sub">{!periodo?.configurado ? 'El calendario escolar no está configurado.' : !periodoPermiteAsistencia ? periodo.estado?.mensaje : <>No hay una clase habilitada ahora.{claseSiguiente && <> Próxima: {nombre(claseSiguiente)} · {horario.siguiente.inicio}.</>}</>}</p>}
+        {!claseEscaneo && <label>Clase para consultar<select value={cid} onChange={e => setCid(e.target.value)}><option value="">Selecciona</option>{lc.map(x => <option key={x.id} value={x.id}>{nombre(x)}</option>)}</select></label>}
+      </Card>
+      <Card title="Lector continuo"><Camara disabled={!claseEscaneo} onTexto={procesar} onError={m => ban('err', 'Cámara', m)} /><p className="sub">Después de leer un código, el lector queda listo para el siguiente sin tocar botones.</p>
+        <div className="fila2" style={{ marginTop: 12 }}><input disabled={!claseEscaneo} value={curp} maxLength="24" placeholder="O escribe la CURP" onChange={e => setCurp(e.target.value.toUpperCase())} onKeyDown={e => e.key === 'Enter' && procesar(curp)} style={{ marginTop: 0 }} /><button className="btn" disabled={!claseEscaneo} style={{ flex: 'none', width: 80, margin: 0 }} onClick={() => procesar(curp)}>OK</button></div>
+        {claseEscaneo && <ul className="l">{grupoEscaneo.map(a => { const r = reg(a, claseEscaneo, instante.fecha); return <li key={a.curp}><span>{a.nombre}</span><span>{r?.revisionPendiente ? 'pendiente' : r?.estado === 'retardo' ? `retardo · ${r.hora}` : r?.estado === 'asistio' ? `asistió · ${r.hora}` : r?.estado === 'justificada' ? 'justificada' : r?.estado === 'falta' ? 'falta' : 'por registrar'}</span></li>; })}</ul>}
+        {claseEscaneo && <button className="btn sec" type="button" disabled={!periodoPermiteAsistencia} onClick={cerrar}>Cerrar lista de la clase</button>}
+      </Card>
+      {pendientesRevisar > 0 && <Card title={`Pendientes de revisión · ${pendientesRevisar}`}><ul className="l">{pendientes.map(p => <li key={`${p.tipo}:${p.uid}`}><span><b>{p.tipo === 'cierre' ? 'Cierre de lista' : p.alumnoNombre}</b><br />{p.materia} · {p.semestre} {p.area} {p.grupo}<br />{fmtF(p.fecha)} · recibido {new Date(p.recibido).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}</span><span><button className="mini" disabled={!navigator.onLine || SD.session()?.offline} onClick={() => resolver(p, 'confirmar')}>Confirmar</button><button className="mini" disabled={!navigator.onLine || SD.session()?.offline} onClick={() => resolver(p, 'rechazar')}>Rechazar</button></span></li>)}</ul></Card>}
     </PanelEmergente>
-    <Card title="Escanear"><Camara disabled={!claseEscaneo} onTexto={procesar} onError={m => ban('err', 'Cámara', m)} />
-      <div className="fila2" style={{ marginTop: 12 }}><input disabled={!claseEscaneo} value={curp} maxLength="24" placeholder="o escribe la CURP" onChange={e => setCurp(e.target.value.toUpperCase())} onKeyDown={e => e.key === 'Enter' && procesar(curp)} style={{ marginTop: 0 }} />
-        <button className="btn" disabled={!claseEscaneo} style={{ flex: 'none', width: 80, margin: 0 }} onClick={() => procesar(curp)}>OK</button></div></Card>
-    {ficha && ficha.alumno && <Card title="Alumno"><dl><dt>Nombre</dt><dd>{ficha.alumno.nombre}</dd><dt>CURP</dt><dd>{ficha.alumno.curp}</dd><dt>Grupo</dt><dd>{ficha.alumno.semestre} {ficha.alumno.area} {ficha.alumno.grupo}</dd></dl></Card>}
-    <Card title={`Lista de la clase${c ? ` · llegaron ${llegaron} de ${grupo.length}` : ''}`}>
-      <ul className="l">{grupo.map(a => { const r = reg(a), est = !r ? 'falta por llegar' : r.estado === 'asistio' ? 'llegó' : r.estado === 'justificada' ? 'justificada' : 'falta';
-        return <li key={a.curp}><span>{a.nombre}</span><span>{r?.revisionPendiente ? 'pendiente de revisión' : est}{r && !r.pendiente && !r.revisionPendiente && r.estado === 'falta' && <button className="mini" onClick={() => corregir(r.uid, 'justificar')}>Justificar</button>}{r && !r.pendiente && !r.revisionPendiente && r.estado === 'asistio' && <button className="mini" onClick={() => corregir(r.uid, 'quitar')}>Quitar</button>}</span></li>; })}
-        {!grupo.length && <li className="vacio">No hay alumnos en este grupo.</li>}</ul>
-      <button className="btn" disabled={!c || !periodoPermiteAsistencia} onClick={cerrar}>CERRAR LISTA DE ESTA CLASE</button></Card>
-    {pendientes?.length > 0 && <Card title={`Pendientes de revisión · ${pendientes.length}`}>
-      <ul className="l">{pendientes.map(p => <li key={`${p.tipo}:${p.uid}`}>
-        <span><b>{p.tipo === 'cierre' ? 'Cierre de lista' : p.alumnoNombre}</b><br />{p.materia} · {p.semestre} {p.area} {p.grupo}<br />
-          {fmtF(p.fecha)} · {p.tipo === 'cierre' ? 'cierre offline' : `hora declarada ${p.horaDeclarada}`} · recibido {new Date(p.recibido).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}</span>
-        <span><button className="mini" disabled={!navigator.onLine || SD.session()?.offline} onClick={() => resolver(p, 'confirmar')}>Confirmar</button>
-          <button className="mini" disabled={!navigator.onLine || SD.session()?.offline} onClick={() => resolver(p, 'rechazar')}>Rechazar</button></span>
-      </li>)}</ul>
-    </Card>}
-  </>);
+    <PanelEmergente abierto={panel === 'revisar'} titulo="Revisar asistencias" onCerrar={() => setPanel('')}>
+      <Banner b={b} />
+      <Card title="Materia y grupo"><label>Asignatura<select value={claseRevision?.id || ''} onChange={e => setCid(e.target.value)}><option value="">Selecciona una materia</option>{[...new Set(lc.map(x => x.materia))].sort().map(m => <optgroup key={m} label={m}>{lc.filter(x => x.materia === m).sort((a, b) => `${a.semestre}${a.area}${a.grupo}`.localeCompare(`${b.semestre}${b.area}${b.grupo}`)).map(x => <option key={x.id} value={x.id}>{x.area} · {x.semestre} · Grupo {x.grupo}</option>)}</optgroup>)}</select></label><label>Fecha<input type="date" value={fechaRevision} onChange={e => setFechaRevision(e.target.value)} /></label>{claseRevision && <p className="sub">{nombre(claseRevision)} · asistencias registradas: {asistieron} de {grupoRevision.length}</p>}</Card>
+      <Card title="Lista del grupo">{grupoRevision.length ? <ul className="l">{grupoRevision.map(a => { const r = reg(a, claseRevision); const estado = r?.estado === 'retardo' ? `Retardo · ${r.hora}` : r?.estado === 'asistio' ? `Asistió · ${r.hora}` : r?.estado === 'justificada' ? 'Justificada' : r?.estado === 'falta' ? 'Falta' : 'Sin registro'; return <li key={a.curp}><span><b>{a.nombre}</b><br /><small>{estado}{r?.revisionPendiente ? ' · pendiente' : ''}</small></span><span><button className="mini" disabled={!claseRevision || r?.pendiente || r?.revisionPendiente || !navigator.onLine} onClick={() => editar(a, 'asistio')}>Asistió</button><button className="mini" disabled={!claseRevision || r?.pendiente || r?.revisionPendiente || !navigator.onLine} onClick={() => editar(a, 'falta')}>Falta</button>{r?.estado === 'falta' && <button className="mini" disabled={!navigator.onLine} onClick={() => corregir(r.uid)}>Justificar</button>}</span></li>; })}</ul> : <p className="vacio">{claseRevision ? 'No hay alumnos en este grupo.' : 'No tienes materias asignadas.'}</p>}</Card>
+    </PanelEmergente>
+  </>;
 }
 
 export function CalifDocente() {

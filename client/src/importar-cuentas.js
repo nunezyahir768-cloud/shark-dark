@@ -6,7 +6,8 @@ const CURP = /^[A-Z0-9]{18}$/;
 const ROLES = { alumno: 'alumno', alumnos: 'alumno', alumna: 'alumno', alumnas: 'alumno', estudiante: 'alumno', estudiantes: 'alumno', docente: 'docente', docentes: 'docente', profesor: 'docente', profesores: 'docente', profesora: 'docente', profesoras: 'docente', maestro: 'docente', maestros: 'docente', maestra: 'docente', maestras: 'docente', tutor: 'tutor', tutores: 'tutor', tutora: 'tutor', tutoras: 'tutor', padre: 'tutor', madre: 'tutor' };
 const CABECERAS = {
   rol: ['rol', 'tipo', 'tipo de cuenta', 'perfil'], nombre: ['nombre', 'nombre completo', 'alumno', 'alumnos', 'docente', 'docentes', 'tutor', 'tutores'],
-  id: ['curp', 'id', 'identificador'], semestre: ['semestre', 'grado', 'periodo'], area: ['area', 'carrera', 'especialidad'], grupo: ['grupo', 'salon', 'seccion']
+  id: ['curp', 'id', 'identificador'], semestre: ['semestre', 'grado', 'periodo'], area: ['area', 'carrera', 'especialidad'], grupo: ['grupo', 'salon', 'seccion'],
+  curpAlumno: ['curp alumno', 'curp del alumno', 'curp hija', 'curp hijo', 'alumno curp']
 };
 
 function buscaColumna(headers, campo) {
@@ -16,13 +17,12 @@ function buscaColumna(headers, campo) {
 
 function semestreValido(valor) {
   const t = normaliza(valor).replace(/\s+/g, '');
-  if (['1ro', '1', 'primero', '1y2', '1 2'].includes(t)) return SEMESTRES[0];
-  if (['3ro', '3', 'tercero', '3y4', '3 4'].includes(t)) return SEMESTRES[1];
-  if (['5to', '5', 'quinto', '5y6', '5 6'].includes(t)) return SEMESTRES[2];
-  return SEMESTRES.find(x => normaliza(x) === normaliza(valor)) || '';
+  const ordinal = { primero: 1, primeroa: 1, segundo: 2, tercero: 3, tercer: 3, cuarto: 4, quinto: 5, sexto: 6 };
+  const numero = Number(t.match(/^([1-6])(?:ro|do|to|er|o)?(?:semestre)?$/)?.[1] || ordinal[t] || 0);
+  return SEMESTRES[numero - 1] || '';
 }
 
-export async function leerCuentasExcel(file) {
+export async function leerCuentasExcel(file, semestresActivos = SEMESTRES) {
   const libro = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
   const hoja = libro.Sheets[libro.SheetNames[0]];
   if (!hoja) throw new Error('El archivo no contiene hojas con datos.');
@@ -40,6 +40,7 @@ export async function leerCuentasExcel(file) {
       semestre: cols.semestre >= 0 ? semestreValido(fila[cols.semestre]) : '',
       area: cols.area >= 0 ? AREAS.find(x => normaliza(x) === normaliza(fila[cols.area])) || String(fila[cols.area] ?? '').trim() : '',
       grupo: cols.grupo >= 0 ? String(fila[cols.grupo] ?? '').trim().toUpperCase().replace(/^GRUPO\s*/, '') : '',
+      curpAlumno: cols.curpAlumno >= 0 ? String(fila[cols.curpAlumno] ?? '').trim().replace(/\s+/g, '').toUpperCase() : '',
       errores: []
     };
     if (!['alumno', 'docente', 'tutor'].includes(cuenta.rol)) cuenta.errores.push('Rol inválido');
@@ -47,9 +48,11 @@ export async function leerCuentasExcel(file) {
     if (!CURP.test(cuenta.id)) cuenta.errores.push('CURP debe tener 18 letras o números');
     if (cuenta.rol === 'alumno') {
       if (!cuenta.semestre) cuenta.errores.push('Semestre inválido');
+      else if (!semestresActivos.includes(cuenta.semestre)) cuenta.errores.push('Ese semestre no está activo en el periodo actual');
       if (!AREAS.some(x => normaliza(x) === normaliza(cuenta.area))) cuenta.errores.push('Área inválida');
       if (!['A', 'B', 'C'].includes(cuenta.grupo)) cuenta.errores.push('Grupo debe ser A, B o C');
     }
+    if (cuenta.rol === 'tutor' && !CURP.test(cuenta.curpAlumno)) cuenta.errores.push('Agrega la CURP válida del alumno para vincularlo');
     return cuenta;
   }).filter(x => x.nombre || x.id || x.rol);
   if (filas.length > 501) throw new Error('El archivo supera el máximo de 500 cuentas por importación.');
@@ -65,8 +68,8 @@ export async function leerCuentasExcel(file) {
 }
 
 export function descargarPlantillaCuentas() {
-  const hoja = XLSX.utils.aoa_to_sheet([['rol', 'nombre', 'CURP', 'semestre', 'area', 'grupo']]);
-  hoja['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 22 }, { wch: 20 }, { wch: 28 }, { wch: 12 }];
+  const hoja = XLSX.utils.aoa_to_sheet([['rol', 'nombre', 'CURP', 'semestre', 'area', 'grupo', 'CURP alumno']]);
+  hoja['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 22 }, { wch: 20 }, { wch: 28 }, { wch: 12 }, { wch: 22 }];
   const libro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(libro, hoja, 'Cuentas');
   XLSX.writeFile(libro, 'plantilla-cuentas-shark-dark.xlsx');

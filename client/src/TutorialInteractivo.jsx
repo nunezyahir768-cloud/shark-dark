@@ -40,7 +40,7 @@ const EXPLICACIONES = {
   horarios: 'Consulta o administra los horarios. Elige semestre, área y grupo para revisar las clases y sus horas. Al crear o cambiar un horario, verifica que los bloques no se encimen y que la materia y el docente sean correctos.',
   periodos: 'Control Escolar configura las fechas oficiales del ciclo y de los parciales. Los parciales se habilitan en orden: el segundo aparece cuando termina el primero y el tercero cuando termina el segundo. Lic. Sara programa los días o periodos sin clases desde Notificaciones.',
   historial: 'Consulta los cambios administrativos recientes, quién los realizó y cuándo. Puedes buscar una acción o un nombre para localizar un registro.',
-  escaner: 'Usa la cámara para leer el código QR de una clase o credencial. Centra el código dentro de la imagen y espera a que la aplicación lo reconozca antes de continuar con la asistencia.'
+  escaner: 'Portero: activa la cámara y presenta los códigos QR uno tras otro. Cada lectura válida registra automáticamente entrada o salida según el último acceso del alumno. Si la conexión tarda, la aplicación pone las lecturas en fila.'
 };
 
 const texto = (key, rol) => {

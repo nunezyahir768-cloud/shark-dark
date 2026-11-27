@@ -8,13 +8,18 @@ export const useAlumno = () => useContext(AlumnoCtx);
 
 export const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 export const ROL = { alumno: 'Alumno', tutor: 'Tutor', docente: 'Docente', admin: 'Administración' };
-export const SEMESTRES = ['1-2 semestre', '3-4 semestre', '5-6 semestre'];
+export const SEMESTRES = ['1 semestre', '2 semestre', '3 semestre', '4 semestre', '5 semestre', '6 semestre'];
+export const SEMESTRES_IMPARES = ['1 semestre', '3 semestre', '5 semestre'];
+export const SEMESTRES_PARES = ['2 semestre', '4 semestre', '6 semestre'];
+export const numeroSemestre = valor => Number(String(valor || '').match(/^([1-6])(?:\s|$)/)?.[1] || 0);
+export const semestresSiguientes = periodo => periodo === 'pares' ? SEMESTRES_IMPARES : SEMESTRES_PARES;
+export const etiquetaSemestre = valor => String(valor || '').replace(/^([1-6]) semestre$/, '$1.º semestre');
 export const AREAS = ['Programación', 'Ofimática', 'Enfermería', 'Electricidad', 'Laboratorios Químicos', 'Administración'];
 export const fmtF = f => (f || '').split('-').reverse().join('/');
 export const hh = t => (t || '').replace(/^0/, '');
 export const toMin = t => { const [h, m] = t.split(':'); return +h * 60 + +m; };
 export const hoyISO = () => new Date().toLocaleDateString('sv-SE');
-export const nombreGrupo = g => `${g.semestre} ${g.area} ${g.grupo}`;
+export const nombreGrupo = g => `${etiquetaSemestre(g.semestre)} ${g.area} · Grupo ${g.grupo}`;
 export const post = (path, body = {}) => SD.api(path, { method: 'POST', body });
 export const msgErr = e => (e.status ? e.message : 'Necesitas internet para esto');
 
@@ -137,17 +142,29 @@ export const delGrupo = (bl, a) => (bl || []).filter(b => a && b.area === a.area
 
 /* Asistencias de una clase en un mes (para tabla y Excel) */
 export function mesDatos(c, d, mes) {
-  const g = d.alumnos.filter(a => a.area === c.area && a.semestre === c.semestre && a.grupo === c.grupo).sort((x, y) => x.nombre.localeCompare(y.nombre));
+  const claveClase = c.id || c.claseId;
+  const rs = d.asistencias.filter(r => (claveClase ? r.claseId === claveClase : r.area === c.area && r.semestre === c.semestre && r.grupo === c.grupo && (r.materia || '').toLowerCase() === c.materia.toLowerCase()) && r.fecha.startsWith(mes));
+  const alumnos = new Map(d.alumnos.map(a => [a.curp, a]));
+  const fechaDe = valor => { const t = valor instanceof Date ? valor.toISOString().slice(0, 10) : String(valor || '').slice(0, 10); return t || '0000-00-00'; };
+  const inicioMes = `${mes}-01`, finMes = `${mes}-31`;
+  const enGrupoDuranteMes = a => {
+    const coincide = g => g.semestre === c.semestre && g.area === c.area && g.grupo === c.grupo;
+    const actualCoincide = coincide(a) && fechaDe(a.inicioSemestre || a.creado) <= finMes;
+    const previoCoincide = (a.historialGrupos || []).some(g => coincide(g) && fechaDe(g.desde) <= finMes && fechaDe(g.hasta) >= inicioMes);
+    return actualCoincide || previoCoincide;
+  };
+  const historicos = new Map(rs.map(r => [r.curp, { curp: r.curp, nombre: r.alumnoNombre || alumnos.get(r.curp)?.nombre || r.curp }]));
+  const g = [...new Map([...d.alumnos.filter(enGrupoDuranteMes), ...historicos.values()].map(a => [a.curp, a])).values()].sort((x, y) => x.nombre.localeCompare(y.nombre));
   const cur = new Set(g.map(a => a.curp)), k = c.materia.toLowerCase();
-  const rs = d.asistencias.filter(r => cur.has(r.curp) && r.fecha.startsWith(mes) && (r.materia || '').toLowerCase() === k);
-  const fechas = [...new Set(rs.map(r => r.fecha))].sort(), M = { asistio: '✓', falta: '✗', justificada: 'J' };
-  const idx = new Map(rs.map(r => [r.curp + '|' + r.fecha, M[r.estado] || '·']));
-  return { g, fechas, rs, filas: g.map(a => [a.nombre, fechas.map(f => idx.get(a.curp + '|' + f) || '·')]) };
+  const registrosMes = rs.filter(r => cur.has(r.curp));
+  const fechas = [...new Set(registrosMes.map(r => r.fecha))].sort(), M = { asistio: '✓', retardo: '✓', falta: '✗', justificada: 'J' };
+  const idx = new Map(registrosMes.map(r => [r.curp + '|' + r.fecha, M[r.estado] || '·']));
+  return { g, fechas, rs: registrosMes, filas: g.map(a => [a.nombre, fechas.map(f => idx.get(a.curp + '|' + f) || '·')]) };
 }
 export function resumenAsistencia(rs) {
-  const asist = rs.filter(a => a.estado === 'asistio').length, falt = rs.filter(a => a.estado === 'falta').length, just = rs.filter(a => a.estado === 'justificada').length;
-  const tot = asist + falt + just;
-  return { asist, falt, just, pct: tot ? Math.round((asist + just) * 100 / tot) : 100 };
+  const asist = rs.filter(a => a.estado === 'asistio').length, retardo = rs.filter(a => a.estado === 'retardo').length, falt = rs.filter(a => a.estado === 'falta').length, just = rs.filter(a => a.estado === 'justificada').length;
+  const tot = asist + retardo + falt + just;
+  return { asist, retardo, falt, just, pct: tot ? Math.round((asist + retardo + just) * 100 / tot) : 100 };
 }
 export const ListaFaltas = ({ rs }) => {
   const l = rs.filter(a => a.estado === 'falta').sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora)).slice(0, 15);
