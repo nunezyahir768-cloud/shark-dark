@@ -91,7 +91,7 @@ export default function Login({ onOk, onInstall, installMessage }) {
       <Logo className="logo" darkIcon alt="TIBURONES CBTIS 170" />
       <h1>{controlEscolar ? 'CONTROL ESCOLAR' : 'TIBURONES'}</h1>
       <p className="sub" style={{ textAlign: 'center' }}>{controlEscolar ? 'CBTIS 170 · Portal administrativo' : 'CBTIS 170 · TIBURONES'}</p>
-      <Card>
+      <Card key={controlEscolar ? 'control-password' : `${modo}-${etapa}`}>
       {controlEscolar ? <form onSubmit={entrar}>
           <label htmlFor="pw">Contraseña de acceso</label><input id="pw" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
           <button className={'btn acceso-animado' + (estadoAccion === 'listo' ? ' exito' : '')} type="submit" disabled={cargando}><span className="acceso-btn-texto">{estadoAccion === 'listo' ? '¡Listo!' : cargando ? 'VERIFICANDO…' : 'ENTRAR'}</span><span className="acceso-btn-icono" aria-hidden="true">{estadoAccion === 'listo' ? '✓' : cargando ? '' : '→'}</span></button><p className="msg" role="alert">{msg}</p>
@@ -113,11 +113,11 @@ export default function Login({ onOk, onInstall, installMessage }) {
           <button type="button" className="mini" onClick={volverCurp}>Usar otra CURP</button>
         </form> : <form onSubmit={etapa === 'curp' ? continuar : entrar}>
           {etapa === 'curp' ? <div className="paso-acceso" key="curp">
-            <label htmlFor="u">CURP</label><input id="u" value={u} onChange={e => setU(e.target.value.toUpperCase())} placeholder="Tu CURP (18 caracteres)" maxLength="18" autoComplete="username" required autoFocus />
+            <label htmlFor="u">CURP</label><input id="u" value={u} onChange={e => setU(e.target.value.toUpperCase())} placeholder="Tu CURP (18 caracteres)" maxLength="18" autoComplete="username" required />
             <button className={'btn acceso-animado' + (estadoAccion === 'listo' ? ' exito' : '')} type="submit" disabled={cargando}><span className="acceso-btn-texto">{estadoAccion === 'listo' ? 'Cuenta encontrada' : cargando ? 'BUSCANDO…' : 'CONTINUAR'}</span><span className="acceso-btn-icono" aria-hidden="true">{estadoAccion === 'listo' ? '✓' : cargando ? '' : '→'}</span></button>
           </div> : <div className="paso-acceso" key="login-password">
             <p className="sub">Cuenta identificada como {rol}. CURP: <b>{u}</b></p>
-            <label htmlFor="pw">Contraseña</label><input id="pw" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required autoFocus />
+            <label htmlFor="pw">Contraseña</label><input id="pw" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
             <button className={'btn acceso-animado' + (estadoAccion === 'listo' ? ' exito' : '')} type="submit" disabled={cargando}><span className="acceso-btn-texto">{estadoAccion === 'listo' ? '¡Acceso correcto!' : cargando ? 'VERIFICANDO…' : 'INICIAR SESIÓN'}</span><span className="acceso-btn-icono" aria-hidden="true">{estadoAccion === 'listo' ? '✓' : cargando ? '' : '→'}</span></button>
             <button type="button" className="mini" onClick={() => { setModo('recuperar'); setMsg(''); }}>¿Olvidaste tu contraseña?</button>
             <button type="button" className="mini" onClick={volverCurp}>Usar otra CURP</button>

@@ -269,6 +269,6 @@ export default function App() {
   if (ses && ses.rol === 'admin' && !controlRoute) return null;
   const sesVisible = controlRoute && ses && ses.rol !== 'admin' ? null : ses;
   return (<>
-    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} />) : <Login onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} onInstall={instalar} installMessage={installMessage} />)}
+    {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} />) : <Login onOk={() => { const ruta = rutaSolicitada.current; if (controlRoute && (!ruta || ruta === 'control-escolar')) location.hash = '#/inicio'; else if (ruta && !location.hash) location.hash = `#/${ruta}`; setSes(SD.session()); }} onInstall={instalar} installMessage={installMessage} />)}
   </>);
 }
