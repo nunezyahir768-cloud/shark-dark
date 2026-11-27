@@ -1,6 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import SD from './sd.js';
-import Intro from './Intro.jsx';
 import Logo from './Logo.jsx';
 import Login, { CambiarPassword } from './Login.jsx';
 import { AlumnoCtx, TutorCtx, ROL, estadoHorario, delGrupo, conDescanso, hh } from './ui.jsx';
@@ -217,7 +216,6 @@ function Shell({ ses, tema, setTema, tamanoFuente, setTamanoFuente, onInstall, i
 export default function App() {
   const [ses, setSes] = useState(null), [ready, setReady] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null), [installMessage, setInstallMessage] = useState('');
-  const finalizarIntro = useCallback(() => setIntro(false), []);
   const rutaSolicitada = useRef(location.hash.replace(/^#\/?/, '') || location.pathname.replace(/^\/+|\/+$/g, ''));
   const [tema, setTema] = useState(() => {
     const guardado = localStorage.getItem('sd_tema');
@@ -227,12 +225,7 @@ export default function App() {
     const guardado = localStorage.getItem('sd_tamano_fuente');
     return ['pequena', 'normal', 'grande'].includes(guardado) ? guardado : 'normal';
   });
-  const introPermitida = (location.pathname.replace(/\/+$/, '') || '/') === '/';
-  const [intro, setIntro] = useState(() => introPermitida
-    && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    && sessionStorage.getItem('sd_intro_visto') !== '1');
   const controlRoute = location.pathname.replace(/\/+$/, '') === '/control-escolar';
-  useEffect(() => { if (intro) sessionStorage.setItem('sd_intro_visto', '1'); }, [intro]);
   useEffect(() => {
     const capturar = e => { e.preventDefault(); setInstallPrompt(e); };
     const instalado = () => { setInstallPrompt(null); setInstallMessage('Acceso directo instalado. Puedes abrir TIBURONES desde tu pantalla de inicio.'); };
@@ -276,7 +269,6 @@ export default function App() {
   if (ses && ses.rol === 'admin' && !controlRoute) return null;
   const sesVisible = controlRoute && ses && ses.rol !== 'admin' ? null : ses;
   return (<>
-    {intro && <Intro onFin={finalizarIntro} />}
     {ready && (sesVisible ? (sesVisible.debeCambiarPassword ? <CambiarPassword onDone={() => setSes(SD.session())} /> : <Shell ses={sesVisible} tema={tema} setTema={setTema} tamanoFuente={tamanoFuente} setTamanoFuente={setTamanoFuente} />) : <Login onOk={() => { if (rutaSolicitada.current && !location.hash) location.hash = `#/${rutaSolicitada.current}`; setSes(SD.session()); }} onInstall={instalar} installMessage={installMessage} />)}
   </>);
 }
