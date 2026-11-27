@@ -625,6 +625,7 @@ body:has(.centro-login)::before{opacity:1;background:linear-gradient(180deg,rgba
 .bienvenida-descripcion{max-width:330px;margin:0 auto 25px;color:rgba(255,255,255,.78);font-size:.98rem;line-height:1.7}
 .bienvenida-pie{margin-top:17px;color:rgba(255,255,255,.55);font-size:.77rem;letter-spacing:.03em}
 .acceso-animado{position:relative;display:flex;justify-content:center;gap:14px;width:100%;min-height:54px;margin:0;padding:12px 19px;border:1px solid rgba(255,255,255,.3);border-radius:16px;background:linear-gradient(135deg,#e71f34,#a90018);color:#fff;box-shadow:0 9px 26px rgba(214,0,15,.3),inset 0 1px rgba(255,255,255,.24);transition:background .3s,transform .3s,border-radius .35s,box-shadow .3s}
+.centro-login .card .acceso-animado{width:min(100%,280px);min-width:0;min-height:48px;margin:16px auto 0;padding:10px 16px}
 .acceso-animado:hover{transform:translateY(-2px);filter:brightness(1.08)}
 .acceso-animado[disabled]{opacity:1;cursor:wait}
 .acceso-animado.exito{border-radius:999px;background:linear-gradient(135deg,#20a879,#08795f);box-shadow:0 9px 28px rgba(19,163,119,.28)}
@@ -698,3 +699,89 @@ a.btn.pasar-lista{display:block;text-align:center;text-decoration:none;margin:0 
 .cuentas-archivo:hover{border-color:var(--rojo);background:rgba(214,0,15,.12)}
 #cuentas-excel:focus-visible+.cuentas-archivo{outline:3px solid var(--rojo);outline-offset:3px}
 @media(max-width:680px){.cuentas-acciones{grid-template-columns:repeat(2,minmax(0,1fr))}.cuentas-acciones .btn{min-height:48px}}
+
+/* Sistema visual compartido para los paneles de acceso */
+:root{
+  --acceso-cristal-fondo:radial-gradient(ellipse at 4% 0%,rgba(248,36,56,.14),transparent 43%),linear-gradient(145deg,rgba(255,255,255,.15),rgba(27,29,35,.72) 48%,rgba(10,11,15,.82));
+  --acceso-cristal-borde:rgba(255,255,255,.24);
+  --acceso-cristal-sombra:inset 1px 1px rgba(255,255,255,.15),0 24px 64px rgba(0,0,0,.42);
+  --acceso-cristal-texto:#f7f5f5;
+  --acceso-cristal-secundario:rgba(255,255,255,.7);
+  --acceso-cristal-campo:rgba(3,5,8,.42);
+  --acceso-cristal-campo-borde:rgba(255,255,255,.2);
+  --acceso-fondo:#08090c;
+}
+html[data-tema="oscuro"]{
+  --acceso-cristal-fondo:radial-gradient(ellipse at 4% 0%,rgba(248,36,56,.14),transparent 43%),linear-gradient(145deg,rgba(255,255,255,.15),rgba(27,29,35,.72) 48%,rgba(10,11,15,.82));
+  --acceso-cristal-borde:rgba(255,255,255,.24);
+  --acceso-cristal-sombra:inset 1px 1px rgba(255,255,255,.15),0 24px 64px rgba(0,0,0,.42);
+  --acceso-cristal-texto:#f7f5f5;
+  --acceso-cristal-secundario:rgba(255,255,255,.7);
+  --acceso-cristal-campo:rgba(3,5,8,.42);
+  --acceso-cristal-campo-borde:rgba(255,255,255,.2);
+  --acceso-fondo:#08090c;
+}
+html[data-tema="claro"]{
+  --acceso-cristal-fondo:radial-gradient(ellipse at 4% 0%,rgba(214,0,15,.09),transparent 43%),linear-gradient(145deg,rgba(255,255,255,.9),rgba(249,250,253,.72) 50%,rgba(237,240,246,.78));
+  --acceso-cristal-borde:rgba(113,124,146,.25);
+  --acceso-cristal-sombra:inset 1px 1px rgba(255,255,255,.95),0 24px 60px rgba(34,43,60,.16);
+  --acceso-cristal-texto:#20232a;
+  --acceso-cristal-secundario:rgba(37,43,54,.72);
+  --acceso-cristal-campo:rgba(255,255,255,.78);
+  --acceso-cristal-campo-borde:rgba(109,120,142,.25);
+  --acceso-fondo:#edf0f5;
+}
+.panel-holografico,.centro-login .card,.bienvenida-glass{
+  border:1px solid var(--acceso-cristal-borde);
+  background:var(--acceso-cristal-fondo);
+  color:var(--acceso-cristal-texto);
+  box-shadow:var(--acceso-cristal-sombra);
+  backdrop-filter:blur(22px) saturate(138%);
+  -webkit-backdrop-filter:blur(22px) saturate(138%);
+}
+.centro-login .card{animation:glass-dissolve .78s cubic-bezier(.2,.8,.2,1) both}
+.acceso-bienvenida .bienvenida-glass{background:var(--acceso-cristal-fondo);border-color:var(--acceso-cristal-borde);box-shadow:var(--acceso-cristal-sombra);backdrop-filter:blur(22px) saturate(138%);-webkit-backdrop-filter:blur(22px) saturate(138%)}
+.centro-login .card label{color:var(--acceso-cristal-texto)}
+.centro-login>.sub,.centro-login .sub,.bienvenida-descripcion,.bienvenida-pie{color:var(--acceso-cristal-secundario)}
+.centro-login input,.centro-login textarea,.centro-login select{background:var(--acceso-cristal-campo);border-color:var(--acceso-cristal-campo-borde);color:var(--acceso-cristal-texto)}
+.centro-login input:focus,.centro-login select:focus,.centro-login textarea:focus{background:var(--acceso-cristal-campo)}
+.centro-login select option{background:var(--acceso-fondo);color:var(--acceso-cristal-texto)}
+body:has(.centro-login){background:var(--acceso-fondo);color:var(--acceso-cristal-texto)}
+body:has(.centro-login)::before{
+  opacity:1;
+  background-image:radial-gradient(circle,rgba(255,55,75,.46) 0 1px,transparent 1.7px),radial-gradient(circle,rgba(224,24,44,.3) 0 .8px,transparent 1.5px),linear-gradient(180deg,rgba(4,5,8,.48),rgba(4,5,8,.78)),url('/img/fondo-acceso.jpeg');
+  background-repeat:repeat,repeat,no-repeat,no-repeat;
+  background-position:0 0,38px 50px,center,center;
+  background-size:136px 142px,211px 197px,cover,cover;
+  -webkit-mask-image:none;mask-image:none;
+  animation:acceso-particulas 56s linear infinite;
+}
+.centro.centro-login{color:var(--acceso-cristal-texto)}
+.centro-login h1,.bienvenida-glass h1{color:var(--acceso-cristal-texto)}
+.bienvenida-sello{color:#ff9ba5}
+.login-estado{color:var(--acceso-cristal-secundario);border-color:var(--acceso-cristal-borde);background:rgba(8,9,12,.72)}
+html[data-tema="claro"] body:has(.centro-login)::before{
+  background-image:radial-gradient(circle,rgba(190,0,20,.3) 0 .9px,transparent 1.6px),radial-gradient(circle,rgba(214,0,15,.2) 0 .7px,transparent 1.4px),radial-gradient(ellipse at 15% 14%,rgba(214,0,15,.12),transparent 42%),linear-gradient(140deg,#f6f8fc 5%,#e9edf4 100%);
+  background-position:0 0,38px 50px,center,center;
+  background-size:136px 142px,211px 197px,cover,cover;
+}
+html[data-tema="claro"] .centro-login h1,html[data-tema="claro"] .bienvenida-glass h1{color:#20232a;text-shadow:0 2px 14px rgba(255,255,255,.6)}
+html[data-tema="claro"] .bienvenida-glass h1 span{color:#b90018}
+html[data-tema="claro"] .centro-login .logo{filter:drop-shadow(0 5px 15px rgba(184,0,24,.18))}
+html[data-tema="claro"] .centro-login .logo-tema-claro{display:block!important}
+html[data-tema="claro"] .centro-login .logo-tema-oscuro{display:none!important}
+html[data-tema="claro"] .bienvenida-sello{color:#8b0008}
+html[data-tema="claro"] .centro-login input::placeholder{color:rgba(37,43,54,.48)}
+html[data-tema="claro"] .centro-login .mini{color:#7d0010;border-color:rgba(139,0,8,.24);background:rgba(255,255,255,.35)}
+html[data-tema="claro"] .login-control{color:#8b0008!important}
+html[data-tema="claro"] .login-estado{color:#303642;background:rgba(255,255,255,.72)}
+@keyframes acceso-particulas{
+  0%,100%{background-position:0 0,38px 50px,center,center}
+  50%{background-position:68px 71px,143px 148px,center,center}
+}
+@media(max-width:520px){
+  body:has(.centro-login)::before{animation-duration:72s;background-size:170px 176px,252px 238px,cover,cover}
+  html[data-tema="claro"] body:has(.centro-login)::before{background-size:170px 176px,252px 238px,cover,cover}
+  .panel-holografico,.centro-login .card,.bienvenida-glass{backdrop-filter:blur(16px) saturate(125%);-webkit-backdrop-filter:blur(16px) saturate(125%)}
+}
+@media(prefers-reduced-motion:reduce){body:has(.centro-login)::before{animation:none}}
